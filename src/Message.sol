@@ -18,17 +18,20 @@ import "@memview-sol/contracts/TypedMemView.sol";
 
 /**
  * @title Message Library
- * @notice Library for formatted messages used by Relayer and Receiver
- * 
+ * @notice Library for formatted messages used by Relayer and Receiver.
+ *
+ * @dev The message body is dynamically-sized to support custom message body
+ * formats. Other fields must be fixed-size to avoid hash collisions.
+ * Each other input value has an explicit type to guarantee fixed-size.
+ * Padding: uint32 fields are left-padded, and bytes32 fields are right-padded.
+ *
  * Field                 Bytes      Type       Index
  * version               4          uint32     0
  * sourceDomain          4          uint32     4
  * destinationDomain     4          uint32     8
  * nonce                 4          uint32     12
  * recipient             32         bytes32    16
- * attestor              32         bytes32    48
- * attestorMetadata      32         bytes32    80
- * messageBody           dynamic    bytes      112
+ * messageBody           dynamic    bytes      48
  **/
 library Message {
     using TypedMemView for bytes;
@@ -40,9 +43,7 @@ library Message {
     uint32 internal constant DESTINATION_DOMAIN_INDEX = 8;
     uint32 internal constant NONCE_INDEX = 12;
     uint32 internal constant RECIPIENT_INDEX = 16;
-    uint32 internal constant ATTESTOR_INDEX = 48;
-    uint32 internal constant ATTESTOR_METADATA_INDEX = 80;
-    uint32 internal constant MESSAGE_BODY_INDEX = 112;
+    uint32 internal constant MESSAGE_BODY_INDEX = 48;
 
     /**
      * @notice Returns formatted (packed) message with provided fields
@@ -51,8 +52,6 @@ library Message {
      * @param _destinationDomain Domain of destination chain
      * @param _nonce Destination-specific nonce
      * @param _recipient Address of recipient on destination chain as bytes32
-     * @param _attestor Address of the attestor as bytes32 (added by attestor)
-     * @param _attestorMetadata Additional metadata added by attestor
      * @param _messageBody Raw bytes of message body
      * @return Formatted message
      **/
@@ -62,8 +61,6 @@ library Message {
         uint32 _destinationDomain,
         uint32 _nonce,
         bytes32 _recipient,
-        bytes32 _attestor,
-        bytes32 _attestorMetadata,
         bytes memory _messageBody
     ) internal pure returns (bytes memory) {
         return
@@ -73,8 +70,6 @@ library Message {
                 _destinationDomain,
                 _nonce,
                 _recipient,
-                _attestor,
-                _attestorMetadata,
                 _messageBody
             );
     }
@@ -102,16 +97,6 @@ library Message {
     // @notice Returns message's recipient field
     function recipient(bytes29 _message) internal pure returns (bytes32) {
         return _message.index(RECIPIENT_INDEX, 32);
-    }
-
-    // @notice Returns message's attestor field
-    function attestor(bytes29 _message) internal pure returns (bytes32) {
-        return _message.index(ATTESTOR_INDEX, 32);
-    }
-
-    // @notice Returns message's attestorMetadata field
-    function attestorMetadata(bytes29 _message) internal pure returns (bytes32) {
-        return _message.index(ATTESTOR_METADATA_INDEX, 32);
     }
 
     // @notice Returns message's messageBody field
