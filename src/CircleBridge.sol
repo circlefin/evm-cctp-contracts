@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.8.15;
+pragma solidity ^0.7.6;
 
 import "./Relayer.sol";
 import "./Receiver.sol";
