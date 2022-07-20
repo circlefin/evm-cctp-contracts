@@ -22,9 +22,6 @@ contract MessageTest is Test {
     using TypedMemView for bytes29;
     using Message for bytes29;
 
-    // Number of bytes in formatted message before `_messageBody` field
-    uint256 internal constant MESSAGE_BODY_INDEX = 112;
-
     function testFormatMessage(uint32 _version, uint32 _sourceDomain, uint32 _destinationDomain, uint32 _nonce, bytes32 _recipient, bytes memory _messageBody) public {
         bytes memory message = Message.formatMessage(
             _version,
