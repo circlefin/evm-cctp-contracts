@@ -1,0 +1,4 @@
+@memview-sol/=lib/memview-sol
+@openzeppelin/=lib/openzeppelin-contracts
+ds-test/=lib/ds-test/src/
+forge-std/=lib/forge-std/src/

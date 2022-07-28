@@ -14,21 +14,19 @@
  */
 pragma solidity ^0.7.6;
 
-import "./interfaces/IMessageDestinationHandler.sol";
-
 /**
- * @title CircleBridge
- * @notice sends messages and receives messages to/from MessageTransmitter
+ * @title IReceiver
+ * @notice Receives messages on destination chain and forwards them to IMessageDestinationHandler
  */
-contract CircleBridge is IMessageDestinationHandler {
-    // ============ Constructor ============
-    constructor() {}
-
-    function handleReceiveMessage(
-        uint32 _sourceDomain,
-        bytes32 _sender,
-        bytes memory _messageBody
-    ) external override returns (bool) {
-        // TODO stub
-    }
+interface IReceiver {
+    /**
+     * @notice Receives an incoming message, validating the header and passing
+     * the body to application-specific handler.
+     * @param _message The message raw bytes
+     * @param _signature The message signature
+     * @return success bool, true if successful
+     */
+    function receiveMessage(bytes memory _message, bytes memory _signature)
+        external
+        returns (bool success);
 }

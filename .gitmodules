@@ -4,3 +4,9 @@
 [submodule "lib/memview-sol"]
 	path = lib/memview-sol
 	url = https://github.com/summa-tx/memview-sol
+[submodule "lib/openzeppelin-contracts"]
+	path = lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "lib/ds-test"]
+	path = lib/ds-test
+	url = https://github.com/dapphub/ds-test

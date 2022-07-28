@@ -12,23 +12,24 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
-
-import "./interfaces/IMessageDestinationHandler.sol";
+pragma solidity 0.7.6;
 
 /**
- * @title CircleBridge
- * @notice sends messages and receives messages to/from MessageTransmitter
+ * @title IMessageDestinationHandler
+ * @notice Handles messages on destination domain forwarded from
+ * an IReceiver
  */
-contract CircleBridge is IMessageDestinationHandler {
-    // ============ Constructor ============
-    constructor() {}
-
+interface IMessageDestinationHandler {
+    /**
+     * @notice handles an incoming message from a Receiver
+     * @param _sourceDomain the source domain of the message
+     * @param _sender the sender of the message
+     * @param _messageBody The message raw bytes
+     * @return success bool, true if successful
+     */
     function handleReceiveMessage(
         uint32 _sourceDomain,
         bytes32 _sender,
         bytes memory _messageBody
-    ) external override returns (bool) {
-        // TODO stub
-    }
+    ) external returns (bool);
 }

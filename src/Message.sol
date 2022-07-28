@@ -23,15 +23,17 @@ import "@memview-sol/contracts/TypedMemView.sol";
  * @dev The message body is dynamically-sized to support custom message body
  * formats. Other fields must be fixed-size to avoid hash collisions.
  * Each other input value has an explicit type to guarantee fixed-size.
- * Padding: uint32 fields are left-padded, and bytes32 fields are right-padded.
+ * Padding: uintNN fields are left-padded, and bytesNN fields are right-padded.
  *
  * Field                 Bytes      Type       Index
  * version               4          uint32     0
  * sourceDomain          4          uint32     4
  * destinationDomain     4          uint32     8
- * nonce                 4          uint32     12
- * recipient             32         bytes32    16
- * messageBody           dynamic    bytes      48
+ * nonce                 8          uint64     12
+ * sender                32         bytes32    20
+ * recipient             32         bytes32    52
+ * messageBody           dynamic    bytes      84
+ *
  **/
 library Message {
     using TypedMemView for bytes;
@@ -42,8 +44,9 @@ library Message {
     uint32 internal constant SOURCE_DOMAIN_INDEX = 4;
     uint32 internal constant DESTINATION_DOMAIN_INDEX = 8;
     uint32 internal constant NONCE_INDEX = 12;
-    uint32 internal constant RECIPIENT_INDEX = 16;
-    uint32 internal constant MESSAGE_BODY_INDEX = 48;
+    uint32 internal constant SENDER_INDEX = 20;
+    uint32 internal constant RECIPIENT_INDEX = 52;
+    uint32 internal constant MESSAGE_BODY_INDEX = 84;
 
     /**
      * @notice Returns formatted (packed) message with provided fields
@@ -51,6 +54,7 @@ library Message {
      * @param _sourceDomain Domain of home chain
      * @param _destinationDomain Domain of destination chain
      * @param _nonce Destination-specific nonce
+     * @param _sender Address of sender on source chain as bytes32
      * @param _recipient Address of recipient on destination chain as bytes32
      * @param _messageBody Raw bytes of message body
      * @return Formatted message
@@ -59,7 +63,8 @@ library Message {
         uint32 _version,
         uint32 _sourceDomain,
         uint32 _destinationDomain,
-        uint32 _nonce,
+        uint64 _nonce,
+        bytes32 _sender,
         bytes32 _recipient,
         bytes memory _messageBody
     ) internal pure returns (bytes memory) {
@@ -69,6 +74,7 @@ library Message {
                 _sourceDomain,
                 _destinationDomain,
                 _nonce,
+                _sender,
                 _recipient,
                 _messageBody
             );
@@ -85,13 +91,22 @@ library Message {
     }
 
     // @notice Returns message's destinationDomain field
-    function destinationDomain(bytes29 _message) internal pure returns (uint32) {
+    function destinationDomain(bytes29 _message)
+        internal
+        pure
+        returns (uint32)
+    {
         return uint32(_message.indexUint(DESTINATION_DOMAIN_INDEX, 4));
     }
 
     // @notice Returns message's nonce field
-    function nonce(bytes29 _message) internal pure returns (uint32) {
-        return uint32(_message.indexUint(NONCE_INDEX, 4));
+    function nonce(bytes29 _message) internal pure returns (uint64) {
+        return uint64(_message.indexUint(NONCE_INDEX, 8));
+    }
+
+    // @notice Returns message's sender field
+    function sender(bytes29 _message) internal pure returns (bytes32) {
+        return _message.index(SENDER_INDEX, 32);
     }
 
     // @notice Returns message's recipient field
@@ -101,6 +116,25 @@ library Message {
 
     // @notice Returns message's messageBody field
     function messageBody(bytes29 _message) internal pure returns (bytes29) {
-        return _message.slice(MESSAGE_BODY_INDEX, _message.len() - MESSAGE_BODY_INDEX, 0);
+        return
+            _message.slice(
+                MESSAGE_BODY_INDEX,
+                _message.len() - MESSAGE_BODY_INDEX,
+                0
+            );
+    }
+
+    // @notice Returns message's recipient field as an address
+    function recipientAddress(bytes29 _message)
+        internal
+        pure
+        returns (address)
+    {
+        return bytes32ToAddress(recipient(_message));
+    }
+
+    // alignment preserving cast
+    function bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
+        return address(uint160(uint256(_buf)));
     }
 }

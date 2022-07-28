@@ -14,26 +14,27 @@
  */
 pragma solidity ^0.7.6;
 
-import "@memview-sol/contracts/TypedMemView.sol";
+import "../src/interfaces/IMessageDestinationHandler.sol";
 
-abstract contract Receiver {
-    // ============ Libraries ============
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-
+contract MockCircleBridge is IMessageDestinationHandler {
     // ============ Constructor ============
-    constructor() {
-    }
+    constructor() {}
 
-    // ======== External Functions ========
-    /**
-     * @notice Receives an incoming message, validating the header and passing 
-     * the body to application-specific handler.
-     * @param _message The message raw bytes
-     */
-    function receiveMessage(
-        bytes memory _message
-    ) external {
-        // TODO stub
+    function handleReceiveMessage(
+        uint32 _sourceDomain,
+        bytes32 _sender,
+        bytes memory _messageBody
+    ) external override returns (bool) {
+        // revert if _messageBody is 'revert', otherwise do nothing
+        require(
+            keccak256(_messageBody) != keccak256(bytes("revert")),
+            "mock revert"
+        );
+
+        if (keccak256(_messageBody) == keccak256(bytes("return false"))) {
+            return false;
+        }
+
+        return true;
     }
 }

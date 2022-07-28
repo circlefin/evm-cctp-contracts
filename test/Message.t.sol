@@ -22,12 +22,21 @@ contract MessageTest is Test {
     using TypedMemView for bytes29;
     using Message for bytes29;
 
-    function testFormatMessage(uint32 _version, uint32 _sourceDomain, uint32 _destinationDomain, uint32 _nonce, bytes32 _recipient, bytes memory _messageBody) public {
+    function testFormatMessage_fuzz(
+        uint32 _version,
+        uint32 _sourceDomain,
+        uint32 _destinationDomain,
+        uint64 _nonce,
+        bytes32 _sender,
+        bytes32 _recipient,
+        bytes memory _messageBody
+    ) public {
         bytes memory message = Message.formatMessage(
             _version,
             _sourceDomain,
             _destinationDomain,
             _nonce,
+            _sender,
             _recipient,
             _messageBody
         );
@@ -36,18 +45,20 @@ contract MessageTest is Test {
         assertEq(uint256(_m.version()), uint256(_version));
         assertEq(uint256(_m.sourceDomain()), uint256(_sourceDomain));
         assertEq(uint256(_m.destinationDomain()), uint256(_destinationDomain));
-        assertEq(uint256(_m.nonce()), uint256(_nonce));
+        assertEq(_m.nonce(), uint256(_nonce));
+        assertEq(_m.sender(), _sender);
         assertEq(_m.recipient(), _recipient);
         assertEq(_m.messageBody().clone(), _messageBody);
     }
 
-    function testFormatMessageFixture() public {
+    function testFormatMessage() public {
         uint32 _version = 1;
         uint32 _sourceDomain = 1111;
         uint32 _destinationDomain = 1234;
         uint32 _nonce = 4294967295; // uint32 max value
 
-        bytes32 _recipient = bytes32(uint256(uint160(vm.addr(1505))));
+        bytes32 _sender = bytes32(uint256(uint160(vm.addr(1505))));
+        bytes32 _recipient = bytes32(uint256(uint160(vm.addr(1506))));
         bytes memory _messageBody = bytes("test message");
 
         bytes memory message = Message.formatMessage(
@@ -55,6 +66,7 @@ contract MessageTest is Test {
             _sourceDomain,
             _destinationDomain,
             _nonce,
+            _sender,
             _recipient,
             _messageBody
         );
@@ -63,8 +75,9 @@ contract MessageTest is Test {
         assertEq(uint256(_m.version()), uint256(_version));
         assertEq(uint256(_m.sourceDomain()), uint256(_sourceDomain));
         assertEq(uint256(_m.destinationDomain()), uint256(_destinationDomain));
-        assertEq(uint256(_m.nonce()), uint256(_nonce));
+        assertEq(_m.sender(), _sender);
         assertEq(_m.recipient(), _recipient);
         assertEq(_m.messageBody().clone(), _messageBody);
+        assertEq(uint256(_m.nonce()), uint256(_nonce));
     }
 }

@@ -14,21 +14,23 @@
  */
 pragma solidity ^0.7.6;
 
-import "./interfaces/IMessageDestinationHandler.sol";
+import "../src/interfaces/IReceiver.sol";
 
-/**
- * @title CircleBridge
- * @notice sends messages and receives messages to/from MessageTransmitter
- */
-contract CircleBridge is IMessageDestinationHandler {
+contract MockRepeatCaller {
     // ============ Constructor ============
     constructor() {}
 
-    function handleReceiveMessage(
-        uint32 _sourceDomain,
-        bytes32 _sender,
-        bytes memory _messageBody
-    ) external override returns (bool) {
-        // TODO stub
+    /**
+     * @notice attempts to receive a message twice in the same transaction
+     * @param _message The message raw bytes
+     * @param _signature The message signature
+     */
+    function callReceiveMessageTwice(
+        address _receiver,
+        bytes memory _message,
+        bytes memory _signature
+    ) external {
+        IReceiver(_receiver).receiveMessage(_message, _signature);
+        IReceiver(_receiver).receiveMessage(_message, _signature);
     }
 }
