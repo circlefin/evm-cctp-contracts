@@ -133,7 +133,18 @@ library Message {
         return bytes32ToAddress(recipient(_message));
     }
 
-    // alignment preserving cast
+    /**
+     * @notice converts address to bytes32 (alignment preserving cast.)
+     * @param _addr the address to convert to bytes32
+     */
+    function addressToBytes32(address _addr) public pure returns (bytes32) {
+        return bytes32(uint256(uint160(_addr)));
+    }
+
+    /**
+     * @notice converts bytes32 to address (alignment preserving cast.)
+     * @param _buf the bytes32 to convert to address
+     */
     function bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
         return address(uint160(uint256(_buf)));
     }

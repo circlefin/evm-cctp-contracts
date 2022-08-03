@@ -47,25 +47,48 @@ contract MessageTransmitter is IRelayer, IReceiver {
         bytes messageBody
     );
 
+    /**
+     * @notice Emitted when max message body size is updated
+     * @param newMaxMessageBodySize new maximum message body size, in bytes
+     */
+    event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
+
     // ============ Libraries ============
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using Message for bytes29;
 
+    // Maximum size of message body, in bytes.
+    // This value is set by owner.
+    uint256 public maxMessageBodySize;
+
     // ============ Public Variables ============
     // Domain of chain on which the contract is deployed
     uint32 public immutable localDomain;
+
+    // Maps domain -> next available sequential nonce
+    mapping(uint32 => uint64) public availableNonces;
+
     // Maps a hash of (sourceDomain, nonce) -> boolean
     // boolean value is true if nonce is used
     mapping(bytes32 => bool) public usedNonces;
     // message signer
     address public attester;
+    // message format version
+    uint32 public version;
 
     // ============ Constructor ============
-    constructor(uint32 _localDomain, address _attester) {
+    constructor(
+        uint32 _localDomain,
+        address _attester,
+        uint32 _maxMessageBodySize,
+        uint32 _version
+    ) {
         localDomain = _localDomain;
         // [BRAAV-11992] TODO refactor once role reassignment is supported
         attester = _attester;
+        maxMessageBodySize = _maxMessageBodySize;
+        version = _version;
     }
 
     // ============ Public Functions  ============
@@ -73,13 +96,13 @@ contract MessageTransmitter is IRelayer, IReceiver {
      * @notice Send the message to the destination domain and recipient
      * @dev Increment nonce, format the message, and emit `MessageSent` event with message information.
      * @param _destinationDomain Domain of destination chain
-     * @param recipient Address of message recipient on destination chain as bytes32
+     * @param _recipient Address of message recipient on destination chain as bytes32
      * @param _messageBody Raw bytes content of message
      * @return success bool, true if successful
      */
     function sendMessage(
         uint32 _destinationDomain,
-        bytes32 recipient,
+        bytes32 _recipient,
         bytes memory _messageBody
     )
         external
@@ -87,8 +110,32 @@ contract MessageTransmitter is IRelayer, IReceiver {
         returns (bool success)
     // [BRAAV-11741] TODO whenNotPaused (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/5fbf494511fd522b931f7f92e2df87d671ea8b0b/contracts/security/Pausable.sol)
     {
+        // Validate message body length
+        require(
+            _messageBody.length <= maxMessageBodySize,
+            "Message body exceeds max size"
+        );
+
+        // Reserve a nonce for destination domain
+        uint64 _nonce = availableNonces[_destinationDomain];
+
+        // Increment nonce
+        availableNonces[_destinationDomain] = _nonce + 1;
+
+        // serialize message
+        bytes memory _message = Message.formatMessage(
+            version,
+            localDomain,
+            _destinationDomain,
+            _nonce,
+            Message.addressToBytes32(msg.sender),
+            _recipient,
+            _messageBody
+        );
+
         // Emit MessageSent event
-        emit MessageSent(bytes("foo"));
+        emit MessageSent(_message);
+        return true;
     }
 
     /**
@@ -149,6 +196,20 @@ contract MessageTransmitter is IRelayer, IReceiver {
         // Emit MessageReceived event
         emit MessageReceived(_sourceDomain, _nonce, _sender, _messageBody);
         return true;
+    }
+
+    /**
+     * @notice Sets the max message body size
+     * @dev This value should not be reduced without good reason,
+     * to avoid impacting users who rely on large messages.
+     * @param _newMaxMessageBodySize new max message body size, in bytes
+     */
+    function setMaxMessageBodySize(uint256 _newMaxMessageBodySize)
+        external
+    // [BRAAV-11741] TODO onlyOwner
+    {
+        maxMessageBodySize = _newMaxMessageBodySize;
+        emit MaxMessageBodySizeUpdated(maxMessageBodySize);
     }
 
     // ============ Internal Utils ============

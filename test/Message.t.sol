@@ -80,4 +80,10 @@ contract MessageTest is Test {
         assertEq(_m.messageBody().clone(), _messageBody);
         assertEq(uint256(_m.nonce()), uint256(_nonce));
     }
+
+    function testAddressToBytes32ToAddress_fuzz(address _addr) public {
+        bytes32 _bytes32FromAddr = Message.addressToBytes32(_addr);
+        address _addrFromBytes32 = Message.bytes32ToAddress(_bytes32FromAddr);
+        assertEq(_addrFromBytes32, _addr);
+    }
 }

@@ -23,21 +23,32 @@ import "../src/MessageTransmitter.sol";
 import "../lib/forge-std/src/Test.sol";
 
 contract MessageTransmitterTest is Test {
-    MessageTransmitter messageTransmitter;
-    MockCircleBridge mockCircleBridge;
+    MessageTransmitter srcMessageTransmitter;
+    MessageTransmitter destMessageTransmitter;
+    MockCircleBridge srcMockCircleBridge;
+    MockCircleBridge destMockCircleBridge;
     MockReentrantCaller mockReentrantCaller;
 
     uint32 sourceDomain = 0;
     uint32 destinationDomain = 1;
-    uint32 version = 1;
+    uint32 version = 0;
     uint32 nonce = 99;
+    bytes32 sender;
     bytes32 recipient;
-    bytes32 sender = bytes32(uint256(uint160(address(vm.addr(1505)))));
     bytes messageBody = bytes("test message");
+    // 8 KiB
+    uint32 maxMessageBodySize = 8 * 2**10;
+
     uint256 attesterPK = 1;
     uint256 fakeAttesterPK = 2;
     address attester = vm.addr(attesterPK);
     address fakeAttester = vm.addr(fakeAttesterPK);
+
+    /**
+     * @notice Emitted when a new message is dispatched
+     * @param message Raw bytes of message
+     */
+    event MessageSent(bytes message);
 
     /**
      * @notice Emitted when a new message is received
@@ -53,13 +64,79 @@ contract MessageTransmitterTest is Test {
         bytes messageBody
     );
 
+    /**
+     * @notice Emitted when max message body size is updated
+     * @param newMaxMessageBodySize new maximum message body size, in bytes
+     */
+    event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
+
     function setUp() public {
-        messageTransmitter = new MessageTransmitter(
-            destinationDomain,
-            attester
+        // message transmitter on source domain
+        srcMessageTransmitter = new MessageTransmitter(
+            sourceDomain,
+            attester,
+            maxMessageBodySize,
+            version
         );
-        mockCircleBridge = new MockCircleBridge();
-        recipient = bytes32(uint256(uint160(address(mockCircleBridge))));
+
+        // message transmitter on destination domain
+        destMessageTransmitter = new MessageTransmitter(
+            destinationDomain,
+            attester,
+            maxMessageBodySize,
+            version
+        );
+
+        srcMockCircleBridge = new MockCircleBridge();
+        destMockCircleBridge = new MockCircleBridge();
+
+        recipient = bytes32(uint256(uint160(address(destMockCircleBridge))));
+        sender = bytes32(uint256(uint160(address(srcMockCircleBridge))));
+    }
+
+    function testSendMessage_rejectsTooLargeMessage() public {
+        bytes32 _recipient = bytes32(uint256(uint160(vm.addr(1505))));
+        bytes memory _messageBody = new bytes(8 * 2**10 + 1);
+        vm.expectRevert("Message body exceeds max size");
+        srcMessageTransmitter.sendMessage(
+            destinationDomain,
+            _recipient,
+            _messageBody
+        );
+    }
+
+    function testSendMessage_fuzz(uint32 _destinationDomain, bytes32 _recipient)
+        public
+    {
+        _sendMessage(
+            version,
+            sourceDomain,
+            _destinationDomain,
+            sender,
+            _recipient,
+            messageBody
+        );
+    }
+
+    function testSendAndReceiveMessage() public {
+        uint64 _msgNonce = _sendMessage(
+            version,
+            sourceDomain,
+            destinationDomain,
+            sender,
+            recipient,
+            messageBody
+        );
+
+        _receiveMessage(
+            version,
+            sourceDomain,
+            destinationDomain,
+            _msgNonce,
+            sender,
+            recipient,
+            messageBody
+        );
     }
 
     function testReceiveMessage_fuzz(
@@ -94,7 +171,7 @@ contract MessageTransmitterTest is Test {
         bytes memory _signature = _signMessage(_message, attesterPK);
 
         vm.expectRevert("Invalid destination domain");
-        messageTransmitter.receiveMessage(_message, _signature);
+        destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
     function testReceiveMessage_rejectInvalidSignature() public {
@@ -111,7 +188,7 @@ contract MessageTransmitterTest is Test {
         bytes memory _signature = _signMessage(_message, fakeAttesterPK);
 
         vm.expectRevert("Invalid attester signature");
-        messageTransmitter.receiveMessage(_message, _signature);
+        destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
     function testReceiveMessage_rejectsReusedNonceInSeparateTransaction()
@@ -130,7 +207,7 @@ contract MessageTransmitterTest is Test {
 
         // fail to call receiveMessage again with same nonce
         vm.expectRevert("Nonce already used");
-        messageTransmitter.receiveMessage(_message, _signature);
+        destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
     function testReceiveMessage_rejectsReusedNonceInSingleTransactionFromExternalCaller()
@@ -153,7 +230,7 @@ contract MessageTransmitterTest is Test {
         // fail to call receiveMessage twice in same transaction
         vm.expectRevert("Nonce already used");
         _mockRepeatCaller.callReceiveMessageTwice(
-            address(messageTransmitter),
+            address(destMessageTransmitter),
             _message,
             _signature
         );
@@ -168,7 +245,7 @@ contract MessageTransmitterTest is Test {
             destinationDomain,
             nonce,
             sender,
-            addressToBytes32(address(_mockReentrantCaller)),
+            Message.addressToBytes32(address(_mockReentrantCaller)),
             bytes("reenter")
         );
 
@@ -178,7 +255,7 @@ contract MessageTransmitterTest is Test {
 
         // fail to call receiveMessage twice in same transaction
         vm.expectRevert("Re-entrant call failed due to reused nonce");
-        messageTransmitter.receiveMessage(_message, _signature);
+        destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
     function testReceiveMessage_doesNotUseNonceOnRevert(uint32 _nonce) public {
@@ -195,11 +272,11 @@ contract MessageTransmitterTest is Test {
         bytes memory _signature = _signMessage(_message, attesterPK);
 
         vm.expectRevert("mock revert");
-        messageTransmitter.receiveMessage(_message, _signature);
+        destMessageTransmitter.receiveMessage(_message, _signature);
 
         // check that the nonce is not used
         assertFalse(
-            messageTransmitter.usedNonces(
+            destMessageTransmitter.usedNonces(
                 _hashSourceAndNonce(sourceDomain, _nonce)
             )
         );
@@ -221,7 +298,41 @@ contract MessageTransmitterTest is Test {
         bytes memory _signature = _signMessage(_message, attesterPK);
 
         vm.expectRevert("handleReceiveMessage() failed");
-        messageTransmitter.receiveMessage(_message, _signature);
+        destMessageTransmitter.receiveMessage(_message, _signature);
+    }
+
+    function testSetMaxMessageBodySize() public {
+        uint32 _newMaxMessageBodySize = 10000000;
+
+        MessageTransmitter _messageTransmitter = new MessageTransmitter(
+            destinationDomain,
+            attester,
+            maxMessageBodySize,
+            version
+        );
+
+        // Try sending too large message
+        bytes memory _messageBody = new bytes(_newMaxMessageBodySize);
+        vm.expectRevert("Message body exceeds max size");
+        _messageTransmitter.sendMessage(
+            destinationDomain,
+            recipient,
+            _messageBody
+        );
+
+        // Set new max size
+        vm.expectEmit(true, true, true, true);
+        emit MaxMessageBodySizeUpdated(_newMaxMessageBodySize);
+        _messageTransmitter.setMaxMessageBodySize(_newMaxMessageBodySize);
+
+        // Send message body with new max size, successfully
+        bool _success = _messageTransmitter.sendMessage(
+            destinationDomain,
+            recipient,
+            _messageBody
+        );
+
+        assertTrue(_success);
     }
 
     // ============ Internal: Utils ============
@@ -250,6 +361,50 @@ contract MessageTransmitterTest is Test {
         return keccak256(abi.encodePacked(_source, _nonce));
     }
 
+    function _sendMessage(
+        uint32 _version,
+        uint32 _sourceDomain,
+        uint32 _destinationDomain,
+        bytes32 _sender,
+        bytes32 _recipient,
+        bytes memory _messageBody
+    ) internal returns (uint64 msgNonce) {
+        uint64 _nonce = srcMessageTransmitter.availableNonces(
+            _destinationDomain
+        );
+
+        bytes memory _expectedMessage = Message.formatMessage(
+            _version,
+            _sourceDomain,
+            _destinationDomain,
+            _nonce,
+            _sender,
+            _recipient,
+            _messageBody
+        );
+
+        // assert that a MessageSent event was logged with expected message bytes
+        vm.prank(Message.bytes32ToAddress(_sender));
+        vm.expectEmit(true, true, true, true);
+        emit MessageSent(_expectedMessage);
+        bool _success = srcMessageTransmitter.sendMessage(
+            _destinationDomain,
+            _recipient,
+            _messageBody
+        );
+
+        assertTrue(_success);
+
+        // assert availableNonces was updated
+        uint256 _incrementedNonce = srcMessageTransmitter.availableNonces(
+            _destinationDomain
+        );
+
+        assertEq(_incrementedNonce, uint256(_nonce + 1));
+
+        return _nonce;
+    }
+
     function _receiveMessage(
         uint32 _version,
         uint32 _sourceDomain,
@@ -275,21 +430,19 @@ contract MessageTransmitterTest is Test {
         vm.expectEmit(true, true, true, true);
         emit MessageReceived(_sourceDomain, _nonce, _sender, _messageBody);
 
-        bool success = messageTransmitter.receiveMessage(_message, _signature);
+        bool success = destMessageTransmitter.receiveMessage(
+            _message,
+            _signature
+        );
         assertTrue(success);
 
         // check that the nonce is used
         assertTrue(
-            messageTransmitter.usedNonces(
+            destMessageTransmitter.usedNonces(
                 _hashSourceAndNonce(_sourceDomain, _nonce)
             )
         );
 
         return (_message, _signature);
-    }
-
-    // alignment preserving cast
-    function addressToBytes32(address _addr) internal pure returns (bytes32) {
-        return bytes32(uint256(uint160(_addr)));
     }
 }
