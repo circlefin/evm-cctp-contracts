@@ -14,10 +14,10 @@
  */
 pragma solidity ^0.7.6;
 
-import "../src/interfaces/IMessageDestinationHandler.sol";
-import "../src/interfaces/IReceiver.sol";
-import "../src/Message.sol";
-import "../lib/forge-std/src/console.sol";
+import "../../src/interfaces/IMessageDestinationHandler.sol";
+import "../../src/interfaces/IReceiver.sol";
+import "../../src/Message.sol";
+import "../../lib/forge-std/src/console.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 contract MockReentrantCaller is IMessageDestinationHandler {

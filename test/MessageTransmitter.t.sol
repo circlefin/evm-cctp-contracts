@@ -15,9 +15,9 @@
 pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
-import "./MockCircleBridge.sol";
-import "./MockReentrantCaller.sol";
-import "./MockRepeatCaller.sol";
+import "./mocks/MockCircleBridge.sol";
+import "./mocks/MockReentrantCaller.sol";
+import "./mocks/MockRepeatCaller.sol";
 import "../src/interfaces/IReceiver.sol";
 import "../src/MessageTransmitter.sol";
 import "../lib/forge-std/src/Test.sol";

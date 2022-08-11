@@ -14,7 +14,7 @@
  */
 pragma solidity ^0.7.6;
 
-import "../src/interfaces/IReceiver.sol";
+import "../../src/interfaces/IReceiver.sol";
 
 contract MockRepeatCaller {
     // ============ Constructor ============

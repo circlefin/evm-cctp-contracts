@@ -14,27 +14,29 @@
  */
 pragma solidity ^0.7.6;
 
-import "../src/interfaces/IMessageDestinationHandler.sol";
+import "../../src/interfaces/IRelayer.sol";
 
-contract MockCircleBridge is IMessageDestinationHandler {
+/**
+ * @title MockRelayer
+ * @notice Mock Relayer that returns false on sendMessage() requests.
+ */
+contract MockRelayer is IRelayer {
     // ============ Constructor ============
     constructor() {}
 
-    function handleReceiveMessage(
-        uint32 _sourceDomain,
-        bytes32 _sender,
+    // ============ Public Functions  ============
+    /**
+     * @notice This method is mocked to always return false for testing.
+     * @param _destinationDomain Domain of destination chain
+     * @param _recipient Address of message recipient on destination chain as bytes32
+     * @param _messageBody Raw bytes content of message
+     * @return success bool, true if successful
+     */
+    function sendMessage(
+        uint32 _destinationDomain,
+        bytes32 _recipient,
         bytes memory _messageBody
-    ) external override returns (bool) {
-        // revert if _messageBody is 'revert', otherwise do nothing
-        require(
-            keccak256(_messageBody) != keccak256(bytes("revert")),
-            "mock revert"
-        );
-
-        if (keccak256(_messageBody) == keccak256(bytes("return false"))) {
-            return false;
-        }
-
-        return true;
+    ) external override returns (bool success) {
+        return false;
     }
 }
