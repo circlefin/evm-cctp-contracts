@@ -15,7 +15,6 @@
 pragma solidity ^0.7.6;
 
 import "./interfaces/IMessageDestinationHandler.sol";
-import "./Message.sol";
 import "./interfaces/IRelayer.sol";
 import "./interfaces/IMintBurnToken.sol";
 
@@ -26,6 +25,9 @@ import "./interfaces/IMintBurnToken.sol";
 contract CircleBridge is IMessageDestinationHandler {
     // ============ Public Variables ============
     IRelayer public immutable relayer;
+    // valid minters on destination domains
+    mapping(uint32 => bytes32) public destinationMinters;
+    // supported burn tokens on source domain
     mapping(address => bool) public supportedBurnTokens;
 
     /**
@@ -56,6 +58,16 @@ contract CircleBridge is IMessageDestinationHandler {
      */
     event SupportedBurnTokenRemoved(address burnToken);
 
+    /**
+     * @notice Emitted when a destination minter is added
+     */
+    event DestinationMinterAdded(uint32 _domain, bytes32 _destinationMinter);
+
+    /**
+     * @notice Emitted when a destination minter is removed
+     */
+    event DestinationMinterRemoved(uint32 _domain, bytes32 _destinationMinter);
+
     // ============ Constructor ============
     /**
      * @param _relayer Message relayer address
@@ -68,6 +80,8 @@ contract CircleBridge is IMessageDestinationHandler {
      * @notice Deposits and burns tokens from sender to be minted on destination domain.
      * Emits a `DepositForBurn` event.
      * @dev reverts if:
+     * - given burnToken is not supported
+     * - given destinationDomain has no destination minter registered
      * - transferFrom() reverts. For example, if sender's burnToken balance or approved allowance
      * to this contract is less than `amount`.
      * - burn() reverts. For example, if `amount` is 0.
@@ -89,17 +103,14 @@ contract CircleBridge is IMessageDestinationHandler {
             "Given burnToken is not supported"
         );
 
+        bytes32 _minter = _getDestinationMinter(_destinationDomain);
+
         IMintBurnToken mintBurnToken = IMintBurnToken(_burnToken);
         mintBurnToken.transferFrom(msg.sender, address(this), _amount);
         mintBurnToken.burn(_amount);
 
         // TODO [BRAAV-11739] serialize message body: {_mintRecipient, _amount}
         bytes memory _messageBody = bytes("foo");
-
-        // TODO [BRAAV-11739] select minter (destination Circle Bridge address)
-        // for destination domain from local mapping of (uint32 domain -> bytes32 minter)
-        // TODO [BRAAV-11739] also validate minter is not default value, to ensure destination domain is valid
-        bytes32 _minter = bytes32("bar");
 
         require(
             relayer.sendMessage(_destinationDomain, _minter, _messageBody),
@@ -148,5 +159,62 @@ contract CircleBridge is IMessageDestinationHandler {
         );
         supportedBurnTokens[_burnToken] = false;
         emit SupportedBurnTokenRemoved(_burnToken);
+    }
+
+    /**
+     * @notice Register the address of a destination minter for a given domain
+     * @param _domain The domain of the destination minter
+     * @param _destinationMinter The address of the destination minter
+     */
+    function addDestinationMinter(uint32 _domain, bytes32 _destinationMinter)
+        external
+    // TODO [BRAAV-11741] onlyTokensManager
+    {
+        require(
+            destinationMinters[_domain] == bytes32(0),
+            "Destination minter already set for domain"
+        );
+
+        destinationMinters[_domain] = _destinationMinter;
+
+        emit DestinationMinterAdded(_domain, _destinationMinter);
+    }
+
+    /**
+     * @notice Remove the registered destination minter for a given domain
+     * @param _domain The domain of the destination minter
+     */
+    function removeDestinationMinter(uint32 _domain)
+        external
+    // TODO [BRAAV-11741] onlyTokensManager
+    {
+        bytes32 _destinationMinter = destinationMinters[_domain];
+
+        require(
+            _destinationMinter != bytes32(0),
+            "Destination minter does not exist for domain"
+        );
+
+        destinationMinters[_domain] = bytes32(0);
+
+        emit DestinationMinterRemoved(_domain, _destinationMinter);
+    }
+
+    /**
+     * @notice return the destination minter for the given `_domain` if one exists, else revert.
+     * @param _domain The domain for which to get the destination minter
+     * @return _destinationMinter The address of the destination minter on `_domain` as bytes32
+     */
+    function _getDestinationMinter(uint32 _domain)
+        internal
+        view
+        returns (bytes32)
+    {
+        bytes32 _destinationMinter = destinationMinters[_domain];
+        require(
+            _destinationMinter != bytes32(0),
+            "Minter does not exist for given domain"
+        );
+        return _destinationMinter;
     }
 }

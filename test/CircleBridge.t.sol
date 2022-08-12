@@ -61,6 +61,16 @@ contract CircleBridgeTest is Test {
      */
     event SupportedBurnTokenRemoved(address burnToken);
 
+    /**
+     * @notice Emitted when a destination minter is added
+     */
+    event DestinationMinterAdded(uint32 _domain, bytes32 _destinationMinter);
+
+    /**
+     * @notice Emitted when a destination minter is removed
+     */
+    event DestinationMinterRemoved(uint32 _domain, bytes32 _destinationMinter);
+
     uint32 sourceDomain = 0;
     uint32 version = 0;
     uint32 destinationDomain = 1;
@@ -83,6 +93,7 @@ contract CircleBridgeTest is Test {
         mockMintBurnTokenAddress = address(mockMintBurnToken);
 
         circleBridge.addSupportedBurnToken(mockMintBurnTokenAddress);
+        circleBridge.addDestinationMinter(destinationDomain, minter);
     }
 
     function testDepositForBurnRevertsIfBurnTokenIsNotSupported() public {
@@ -95,6 +106,27 @@ contract CircleBridgeTest is Test {
             destinationDomain,
             minter,
             vm.addr(1507)
+        );
+    }
+
+    function testDepositForBurn_revertsIfNoDestinationMinterExistsForDomain()
+        public
+    {
+        uint256 _amount = 5;
+        bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
+
+        MockRelayer _mockRelayer = new MockRelayer();
+        address _mockRelayerAddress = address(_mockRelayer);
+        CircleBridge _circleBridge = new CircleBridge(_mockRelayerAddress);
+
+        _circleBridge.addSupportedBurnToken(mockMintBurnTokenAddress);
+
+        vm.expectRevert("Minter does not exist for given domain");
+        _circleBridge.depositForBurn(
+            _amount,
+            destinationDomain,
+            _mintRecipient,
+            mockMintBurnTokenAddress
         );
     }
 
@@ -154,6 +186,7 @@ contract CircleBridgeTest is Test {
         CircleBridge _circleBridge = new CircleBridge(_mockRelayerAddress);
 
         _circleBridge.addSupportedBurnToken(mockMintBurnTokenAddress);
+        _circleBridge.addDestinationMinter(destinationDomain, minter);
 
         mockMintBurnToken.mint(owner, 10);
 
@@ -174,8 +207,6 @@ contract CircleBridgeTest is Test {
         uint256 _amount = 5;
         address _spender = address(circleBridge);
         bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
-        // TODO [BRAAV-11739]: use real minter in local mapping
-        bytes32 _minter = bytes32("bar");
 
         mockMintBurnToken.mint(owner, 10);
 
@@ -195,7 +226,7 @@ contract CircleBridgeTest is Test {
             destinationDomain,
             _nonce,
             Message.addressToBytes32(address(circleBridge)),
-            _minter,
+            minter,
             _messageBody
         );
 
@@ -209,7 +240,7 @@ contract CircleBridgeTest is Test {
             _amount,
             _mintRecipient,
             destinationDomain,
-            _minter
+            minter
         );
 
         vm.prank(owner);
@@ -283,5 +314,50 @@ contract CircleBridgeTest is Test {
 
         // check that burnToken is still unsupported
         assertFalse(circleBridge.supportedBurnTokens(_burnToken));
+    }
+
+    function testAddDestinationMinter_succeeds(uint32 _domain) public {
+        CircleBridge _circleBridge = circleBridge = new CircleBridge(
+            address(srcMessageTransmitter)
+        );
+
+        assertEq(_circleBridge.destinationMinters(_domain), bytes32(0));
+
+        vm.expectEmit(true, true, true, true);
+        emit DestinationMinterAdded(_domain, minter);
+        _circleBridge.addDestinationMinter(_domain, minter);
+
+        assertEq(_circleBridge.destinationMinters(_domain), minter);
+    }
+
+    function testAddDestinationMinter_revertsOnExistingDestinationMinter()
+        public
+    {
+        assertEq(circleBridge.destinationMinters(destinationDomain), minter);
+
+        vm.expectRevert("Destination minter already set for domain");
+        circleBridge.addDestinationMinter(destinationDomain, minter);
+
+        // original destination router is still registered
+        assertEq(circleBridge.destinationMinters(destinationDomain), minter);
+    }
+
+    function testRemoveDestinationMinter_succeeds(uint32 _domain) public {
+        assertEq(circleBridge.destinationMinters(destinationDomain), minter);
+
+        vm.expectEmit(true, true, true, true);
+        emit DestinationMinterRemoved(destinationDomain, minter);
+        circleBridge.removeDestinationMinter(destinationDomain);
+
+        assertEq(
+            circleBridge.destinationMinters(destinationDomain),
+            bytes32(0)
+        );
+    }
+
+    function testRemoveDestinationMinter_revertsOnDomainWithoutMinter() public {
+        uint32 _destinationDomain = 9999;
+        vm.expectRevert("Destination minter does not exist for domain");
+        circleBridge.removeDestinationMinter(_destinationDomain);
     }
 }
