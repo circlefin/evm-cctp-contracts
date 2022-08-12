@@ -17,12 +17,18 @@ pragma solidity ^0.7.6;
 import "./interfaces/IMessageDestinationHandler.sol";
 import "./interfaces/IRelayer.sol";
 import "./interfaces/IMintBurnToken.sol";
+import "./messages/CircleBridgeMessage.sol";
+import "./messages/Message.sol";
 
 /**
  * @title CircleBridge
  * @notice sends messages and receives messages to/from MessageTransmitter
  */
 contract CircleBridge is IMessageDestinationHandler {
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+    using CircleBridgeMessage for bytes29;
+
     // ============ Public Variables ============
     IRelayer public immutable relayer;
     // valid minters on destination domains
@@ -109,11 +115,20 @@ contract CircleBridge is IMessageDestinationHandler {
         mintBurnToken.transferFrom(msg.sender, address(this), _amount);
         mintBurnToken.burn(_amount);
 
-        // TODO [BRAAV-11739] serialize message body: {_mintRecipient, _amount}
-        bytes memory _messageBody = bytes("foo");
+        // Format message body
+        bytes memory _depositForBurnMessageBody = CircleBridgeMessage
+            .formatDepositForBurn(
+                Message.addressToBytes32(_burnToken),
+                _mintRecipient,
+                _amount
+            );
 
         require(
-            relayer.sendMessage(_destinationDomain, _minter, _messageBody),
+            relayer.sendMessage(
+                _destinationDomain,
+                _minter,
+                _depositForBurnMessageBody
+            ),
             "Relayer sendMessage() returned false"
         );
 

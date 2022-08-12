@@ -19,7 +19,7 @@ import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import "./interfaces/IReceiver.sol";
 import "./interfaces/IRelayer.sol";
 import "./interfaces/IMessageDestinationHandler.sol";
-import "./Message.sol";
+import "./messages/Message.sol";
 
 /**
  * @title MessageTransmitter

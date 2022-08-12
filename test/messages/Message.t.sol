@@ -15,7 +15,7 @@
 pragma solidity ^0.7.6;
 
 import "forge-std/Test.sol";
-import "../src/Message.sol";
+import "../../src/messages/Message.sol";
 
 contract MessageTest is Test {
     using TypedMemView for bytes;

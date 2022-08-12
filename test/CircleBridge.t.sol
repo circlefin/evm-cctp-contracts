@@ -16,12 +16,16 @@ pragma solidity ^0.7.6;
 
 import "../lib/forge-std/src/Test.sol";
 import "../src/CircleBridge.sol";
-import "../src/Message.sol";
+import "../src/messages/Message.sol";
 import "../src/MessageTransmitter.sol";
 import "./mocks/MockMintBurnToken.sol";
 import "./mocks/MockRelayer.sol";
 
 contract CircleBridgeTest is Test {
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+    using CircleBridgeMessage for bytes29;
+
     CircleBridge circleBridge;
     MessageTransmitter srcMessageTransmitter;
     MockMintBurnToken mockMintBurnToken;
@@ -213,8 +217,17 @@ contract CircleBridgeTest is Test {
         vm.prank(owner);
         mockMintBurnToken.approve(_spender, 10);
 
-        // TODO [BRAAV-11739]: format message
-        bytes memory _messageBody = bytes("foo");
+        bytes32 _mockMintBurnTokenAddressBytes32 = Message.addressToBytes32(
+            mockMintBurnTokenAddress
+        );
+
+        // Format message body
+        bytes memory _messageBody = CircleBridgeMessage.formatDepositForBurn(
+            _mockMintBurnTokenAddressBytes32,
+            _mintRecipient,
+            _amount
+        );
+
         // assert that a MessageSent event was logged with expected message bytes
         uint64 _nonce = srcMessageTransmitter.availableNonces(
             destinationDomain
@@ -252,6 +265,17 @@ contract CircleBridgeTest is Test {
                 mockMintBurnTokenAddress
             )
         );
+
+        // deserialize _messageBody
+        bytes29 _m = _messageBody.ref(0);
+        assertEq(
+            _m.getBurnToken(),
+            Message.addressToBytes32(mockMintBurnTokenAddress)
+        );
+        assertEq(_m.getMintRecipient(), _mintRecipient);
+        assertEq(_m.getBurnToken(), _mockMintBurnTokenAddressBytes32);
+        assertEq(_m.getAmount(), _amount);
+        _m.assertType(uint40(CircleBridgeMessage.Types.DepositForBurn));
     }
 
     function testAddSupportedBurnToken(address _burnToken) public {
