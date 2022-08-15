@@ -1,0 +1,10 @@
+{
+  "name": "evm-bridge-contracts",
+  "license": "UNLICENSED",
+  "scripts": {
+    "lint": "solhint '**/*.sol'"
+  },
+  "devDependencies": {
+    "solhint": "^3.3.7"
+  }
+}
