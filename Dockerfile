@@ -1,5 +1,6 @@
 # Use the latest foundry image
-FROM 124945441934.dkr.ecr.us-east-1.amazonaws.com/blockchain/ethereum/foundry
+
+FROM ghcr.io/foundry-rs/foundry
 
 # Copy our source code into the container
 WORKDIR /app

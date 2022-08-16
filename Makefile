@@ -4,7 +4,7 @@ FOUNDRY := docker run --rm foundry
 ANVIL 	:= docker run -d -p 8545:8545 --name anvil --rm foundry
 
 build:
-	docker build -f Dockerfile -t foundry .
+	docker build --no-cache -f Dockerfile -t foundry .
 
 test:
 	@${FOUNDRY} "forge test -vv"

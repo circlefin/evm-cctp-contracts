@@ -278,6 +278,8 @@ contract CircleBridgeTest is Test {
         _m.assertType(uint40(CircleBridgeMessage.Types.DepositForBurn));
     }
 
+    // TODO https://circlepay.atlassian.net/browse/BRAAV-12931
+    /*
     function testAddSupportedBurnToken(address _burnToken) public {
         // assert burnToken is not supported
         assertFalse(circleBridge.supportedBurnTokens(_burnToken));
@@ -339,6 +341,7 @@ contract CircleBridgeTest is Test {
         // check that burnToken is still unsupported
         assertFalse(circleBridge.supportedBurnTokens(_burnToken));
     }
+    */
 
     function testAddDestinationMinter_succeeds(uint32 _domain) public {
         CircleBridge _circleBridge = circleBridge = new CircleBridge(

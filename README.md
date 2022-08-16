@@ -26,3 +26,6 @@ Run `make anvil-test` to setup `anvil` test node in docker container and run int
 
 ### Linting
 Run `yarn lint` to lint all `.sol` files in the `src` and `test` directories.
+
+### Continuous Integration using Github Actions
+We use Github actions to run linter and all the tests. The workflow configuration can be found in [.github/workflows/ci.yml](.github/workflows/ci.yml)

@@ -1,0 +1,27 @@
+name: Continuous Integration
+on:
+  pull_request:
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      
+      - name: Install Node
+        uses: actions/setup-node@v3
+        
+      - name: Install Solhint
+        run: npm i 
+
+      - name: Run Linter
+        run: npm run lint
+
+      - name: Build Forge Image
+        run: make build
+      
+      - name: Run Unit Tests
+        run: make test
+      
+      - name: Run Integration Tests
+        run: make anvil-test
