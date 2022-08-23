@@ -17,19 +17,46 @@ pragma solidity ^0.7.6;
 import "../lib/forge-std/src/Test.sol";
 import "../src/CircleBridge.sol";
 import "../src/messages/Message.sol";
+import "../src/messages/BurnMessage.sol";
 import "../src/MessageTransmitter.sol";
+import "../src/CircleMinter.sol";
 import "./mocks/MockMintBurnToken.sol";
 import "./mocks/MockRelayer.sol";
+import "./TestUtils.sol";
 
-contract CircleBridgeTest is Test {
+contract CircleBridgeTest is Test, TestUtils {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
-    using CircleBridgeMessage for bytes29;
+    using BurnMessage for bytes29;
 
-    CircleBridge circleBridge;
-    MessageTransmitter srcMessageTransmitter;
-    MockMintBurnToken mockMintBurnToken;
-    address mockMintBurnTokenAddress;
+    // Events
+    /**
+     * @notice Emitted when a remote CircleBridge is added
+     * @param _domain remote domain
+     * @param _circleBridge CircleBridge on remote domain
+     */
+    event RemoteCircleBridgeAdded(uint32 _domain, bytes32 _circleBridge);
+
+    /**
+     * @notice Emitted when a remote CircleBridge is removed
+     * @param _domain remote domain
+     * @param _circleBridge CircleBridge on remote domain
+     */
+    event RemoteCircleBridgeRemoved(uint32 _domain, bytes32 _circleBridge);
+
+    /**
+     * @notice Emitted when a local minter is added
+     * @param _localMinter address of local minter
+     * @notice Emitted when a local minter is added
+     */
+    event LocalMinterAdded(address _localMinter);
+
+    /**
+     * @notice Emitted when a local minter is removed
+     * @param _localMinter address of local minter
+     * @notice Emitted when a local minter is removed
+     */
+    event LocalMinterRemoved(address _localMinter);
 
     /**
      * @notice Emitted when a new message is dispatched
@@ -43,77 +70,95 @@ contract CircleBridgeTest is Test {
      * @param burnToken address of token burnt on source domain
      * @param amount deposit amount
      * @param mintRecipient address receiving minted tokens on destination domain as bytes32
-     * @param destinationDomain destination domain
-     * @param minter address of minter on destination domain as bytes32
+     * @param remoteDomain destination domain
+     * @param circleMessenger address of Circle Messenger on destination domain as bytes32
      */
     event DepositForBurn(
         address depositor,
         address burnToken,
         uint256 amount,
         bytes32 mintRecipient,
-        uint32 destinationDomain,
-        bytes32 minter
+        uint32 remoteDomain,
+        bytes32 circleMessenger
     );
 
-    /**
-     * @notice Emitted when a supported burn token is added
-     */
-    event SupportedBurnTokenAdded(address burnToken);
-
-    /**
-     * @notice Emitted when a supported burn token is removed
-     */
-    event SupportedBurnTokenRemoved(address burnToken);
-
-    /**
-     * @notice Emitted when a destination minter is added
-     */
-    event DestinationMinterAdded(uint32 _domain, bytes32 _destinationMinter);
-
-    /**
-     * @notice Emitted when a destination minter is removed
-     */
-    event DestinationMinterRemoved(uint32 _domain, bytes32 _destinationMinter);
-
-    uint32 sourceDomain = 0;
+    // Constants
+    uint32 localDomain = 0;
     uint32 version = 0;
-    uint32 destinationDomain = 1;
-    bytes32 minter = Message.addressToBytes32(vm.addr(1505));
+    uint32 remoteDomain = 1;
+    bytes32 remoteCircleBridge;
     address owner = vm.addr(1506);
     uint32 maxMessageBodySize = 8 * 2**10;
     uint256 attesterPK = 1;
     address attester = vm.addr(attesterPK);
+    uint32 messageBodyVersion = 1;
 
-    function setUp() public {
-        srcMessageTransmitter = new MessageTransmitter(
-            sourceDomain,
+    CircleBridge localCircleBridge;
+    CircleBridge destCircleBridge;
+    MessageTransmitter localMessageTransmitter =
+        new MessageTransmitter(
+            localDomain,
             attester,
             maxMessageBodySize,
             version
         );
+    MessageTransmitter remoteMessageTransmitter =
+        new MessageTransmitter(
+            remoteDomain,
+            attester,
+            maxMessageBodySize,
+            version
+        );
+    MockMintBurnToken localToken = new MockMintBurnToken();
+    MockMintBurnToken destToken = new MockMintBurnToken();
+    CircleMinter localCircleMinter = new CircleMinter();
+    CircleMinter destCircleMinter = new CircleMinter();
 
-        circleBridge = new CircleBridge(address(srcMessageTransmitter));
-        mockMintBurnToken = new MockMintBurnToken();
-        mockMintBurnTokenAddress = address(mockMintBurnToken);
+    function setUp() public {
+        localCircleBridge = new CircleBridge(
+            address(localMessageTransmitter),
+            messageBodyVersion
+        );
 
-        circleBridge.addSupportedBurnToken(mockMintBurnTokenAddress);
-        circleBridge.addDestinationMinter(destinationDomain, minter);
-    }
+        linkTokenPair(
+            localCircleMinter,
+            address(localToken),
+            remoteDomain,
+            remoteCircleBridge
+        );
 
-    function testDepositForBurnRevertsIfBurnTokenIsNotSupported() public {
-        uint256 _amount = 1;
+        linkTokenPair(
+            destCircleMinter,
+            address(destToken),
+            localDomain,
+            Message.addressToBytes32(address(localToken))
+        );
 
-        // Fails because approve() was never called, allowance is 0.
-        vm.expectRevert("Given burnToken is not supported");
-        circleBridge.depositForBurn(
-            _amount,
-            destinationDomain,
-            minter,
-            vm.addr(1507)
+        localCircleBridge.addLocalMinter(address(localCircleMinter));
+
+        destCircleBridge = new CircleBridge(
+            address(remoteMessageTransmitter),
+            messageBodyVersion
+        );
+
+        remoteCircleBridge = Message.addressToBytes32(
+            address(destCircleBridge)
+        );
+
+        localCircleBridge.addRemoteCircleBridge(
+            remoteDomain,
+            remoteCircleBridge
+        );
+
+        destCircleBridge.addLocalMinter(address(destCircleMinter));
+
+        destCircleBridge.addRemoteCircleBridge(
+            localDomain,
+            Message.addressToBytes32(address(localCircleBridge))
         );
     }
 
-    function testDepositForBurn_revertsIfNoDestinationMinterExistsForDomain()
+    function testDepositForBurn_revertsIfNoRemoteCircleBridgeExistsForDomain()
         public
     {
         uint256 _amount = 5;
@@ -121,29 +166,49 @@ contract CircleBridgeTest is Test {
 
         MockRelayer _mockRelayer = new MockRelayer();
         address _mockRelayerAddress = address(_mockRelayer);
-        CircleBridge _circleBridge = new CircleBridge(_mockRelayerAddress);
+        CircleBridge _circleBridge = new CircleBridge(
+            _mockRelayerAddress,
+            messageBodyVersion
+        );
 
-        _circleBridge.addSupportedBurnToken(mockMintBurnTokenAddress);
-
-        vm.expectRevert("Minter does not exist for given domain");
+        vm.expectRevert("Remote CircleBridge does not exist for domain");
         _circleBridge.depositForBurn(
             _amount,
-            destinationDomain,
+            remoteDomain,
             _mintRecipient,
-            mockMintBurnTokenAddress
+            address(localToken)
+        );
+    }
+
+    function testDepositForBurn_revertsIfLocalMinterIsNotSet(
+        uint256 _amount,
+        bytes32 _mintRecipient
+    ) public {
+        CircleBridge _circleBridge = new CircleBridge(
+            address(localMessageTransmitter),
+            messageBodyVersion
+        );
+
+        _circleBridge.addRemoteCircleBridge(remoteDomain, remoteCircleBridge);
+
+        vm.expectRevert("Local minter is not set");
+        _circleBridge.depositForBurn(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            address(localToken)
         );
     }
 
     function testDepositForBurn_revertsIfTransferAmountIsZero() public {
         uint256 _amount = 0;
 
-        // Fails because approve() was never called, allowance is 0.
         vm.expectRevert("MockMintBurnToken: burn amount not greater than 0");
-        circleBridge.depositForBurn(
+        localCircleBridge.depositForBurn(
             _amount,
-            destinationDomain,
-            minter,
-            mockMintBurnTokenAddress
+            remoteDomain,
+            remoteCircleBridge,
+            address(localToken)
         );
     }
 
@@ -154,30 +219,30 @@ contract CircleBridgeTest is Test {
 
         // Fails because approve() was never called, allowance is 0.
         vm.expectRevert("ERC20: transfer amount exceeds allowance");
-        circleBridge.depositForBurn(
+        localCircleBridge.depositForBurn(
             _amount,
-            destinationDomain,
-            minter,
-            mockMintBurnTokenAddress
+            remoteDomain,
+            remoteCircleBridge,
+            address(localToken)
         );
     }
 
     function testDepositForBurn_revertsTransferringInsufficientFunds() public {
         uint256 _amount = 5;
-        address _spender = address(circleBridge);
+        address _spender = address(localCircleBridge);
 
-        mockMintBurnToken.mint(owner, 1);
+        localToken.mint(owner, 1);
 
         vm.prank(owner);
-        mockMintBurnToken.approve(_spender, 10);
+        localToken.approve(_spender, 10);
 
         vm.prank(owner);
         vm.expectRevert("ERC20: transfer amount exceeds balance");
-        circleBridge.depositForBurn(
+        localCircleBridge.depositForBurn(
             _amount,
-            destinationDomain,
-            minter,
-            mockMintBurnTokenAddress
+            remoteDomain,
+            remoteCircleBridge,
+            address(localToken)
         );
     }
 
@@ -187,59 +252,158 @@ contract CircleBridgeTest is Test {
 
         MockRelayer _mockRelayer = new MockRelayer();
         address _mockRelayerAddress = address(_mockRelayer);
-        CircleBridge _circleBridge = new CircleBridge(_mockRelayerAddress);
+        CircleBridge _circleBridge = new CircleBridge(
+            _mockRelayerAddress,
+            messageBodyVersion
+        );
 
-        _circleBridge.addSupportedBurnToken(mockMintBurnTokenAddress);
-        _circleBridge.addDestinationMinter(destinationDomain, minter);
+        _circleBridge.addLocalMinter(address(localCircleMinter));
+        _circleBridge.addRemoteCircleBridge(remoteDomain, remoteCircleBridge);
 
-        mockMintBurnToken.mint(owner, 10);
+        localToken.mint(owner, 10);
 
         vm.prank(owner);
-        mockMintBurnToken.approve(address(_circleBridge), 10);
+        localToken.approve(address(_circleBridge), 10);
 
         vm.prank(owner);
-        vm.expectRevert("Relayer sendMessage() returned false");
+        vm.expectRevert("MessageTransmitter sendMessage() returned false");
         _circleBridge.depositForBurn(
             _amount,
-            destinationDomain,
+            remoteDomain,
             _mintRecipient,
-            mockMintBurnTokenAddress
+            address(localToken)
         );
     }
 
     function testDepositForBurn_succeeds() public {
         uint256 _amount = 5;
-        address _spender = address(circleBridge);
-        bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
+        address _mintRecipientAddr = vm.addr(1505);
 
-        mockMintBurnToken.mint(owner, 10);
+        _depositForBurn(_mintRecipientAddr, _amount);
+    }
+
+    function testAddRemoteCircleBridge_succeeds(uint32 _domain) public {
+        CircleBridge _circleBridge = new CircleBridge(
+            address(localMessageTransmitter),
+            messageBodyVersion
+        );
+
+        assertEq(_circleBridge.remoteCircleBridges(_domain), bytes32(0));
+
+        vm.expectEmit(true, true, true, true);
+        emit RemoteCircleBridgeAdded(_domain, remoteCircleBridge);
+        _circleBridge.addRemoteCircleBridge(_domain, remoteCircleBridge);
+
+        assertEq(
+            _circleBridge.remoteCircleBridges(_domain),
+            remoteCircleBridge
+        );
+    }
+
+    function testAddRemoteCircleBridge_revertsOnExistingRemoteCircleBridge()
+        public
+    {
+        assertEq(
+            localCircleBridge.remoteCircleBridges(remoteDomain),
+            remoteCircleBridge
+        );
+
+        vm.expectRevert("CircleBridge already set for given remote domain.");
+        localCircleBridge.addRemoteCircleBridge(
+            remoteDomain,
+            remoteCircleBridge
+        );
+
+        // original destination router is still registered
+        assertEq(
+            localCircleBridge.remoteCircleBridges(remoteDomain),
+            remoteCircleBridge
+        );
+    }
+
+    function testRemoveCircleBridge_succeeds() public {
+        uint32 _remoteDomain = 100;
+        bytes32 _remoteCircleBridge = Message.addressToBytes32(vm.addr(1));
+
+        localCircleBridge.addRemoteCircleBridge(
+            _remoteDomain,
+            _remoteCircleBridge
+        );
+
+        vm.expectEmit(true, true, true, true);
+        emit RemoteCircleBridgeRemoved(_remoteDomain, _remoteCircleBridge);
+        localCircleBridge.removeRemoteCircleBridge(
+            _remoteDomain,
+            _remoteCircleBridge
+        );
+    }
+
+    function testRemoveCircleBridge_revertsOnNoCircleBridgeSet() public {
+        uint32 _remoteDomain = 100;
+        bytes32 _remoteCircleBridge = Message.addressToBytes32(vm.addr(1));
+
+        vm.expectRevert("No CircleBridge set for given remote domain.");
+        localCircleBridge.removeRemoteCircleBridge(
+            _remoteDomain,
+            _remoteCircleBridge
+        );
+    }
+
+    function testAddLocalMinter_succeeds(address _localMinter) public {
+        CircleBridge _circleBridge = new CircleBridge(
+            address(localMessageTransmitter),
+            messageBodyVersion
+        );
+        _addLocalMinter(_localMinter, _circleBridge);
+    }
+
+    function testAddLocalMinter_revertsIfAlreadySet(address _address) public {
+        vm.expectRevert("Local minter is already set.");
+        localCircleBridge.addLocalMinter(_address);
+    }
+
+    function _addLocalMinter(address _localMinter, CircleBridge _circleBridge)
+        internal
+    {
+        vm.expectEmit(true, true, true, true);
+        emit LocalMinterAdded(_localMinter);
+        _circleBridge.addLocalMinter(_localMinter);
+    }
+
+    function _depositForBurn(address _mintRecipientAddr, uint256 _amount)
+        internal
+        returns (bytes memory)
+    {
+        address _spender = address(localCircleBridge);
+        bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
+
+        localToken.mint(owner, 10);
 
         vm.prank(owner);
-        mockMintBurnToken.approve(_spender, 10);
+        localToken.approve(_spender, 10);
 
-        bytes32 _mockMintBurnTokenAddressBytes32 = Message.addressToBytes32(
-            mockMintBurnTokenAddress
+        bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
+            address(localToken)
         );
 
         // Format message body
-        bytes memory _messageBody = CircleBridgeMessage.formatDepositForBurn(
-            _mockMintBurnTokenAddressBytes32,
+        bytes memory _messageBody = BurnMessage.formatMessage(
+            messageBodyVersion,
+            localTokenAddressBytes32,
             _mintRecipient,
             _amount
         );
 
         // assert that a MessageSent event was logged with expected message bytes
-        uint64 _nonce = srcMessageTransmitter.availableNonces(
-            destinationDomain
-        );
+        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
 
         bytes memory _expectedMessage = Message.formatMessage(
             version,
-            sourceDomain,
-            destinationDomain,
+            localDomain,
+            remoteDomain,
             _nonce,
-            Message.addressToBytes32(address(circleBridge)),
-            minter,
+            Message.addressToBytes32(address(localCircleBridge)),
+            remoteCircleBridge,
             _messageBody
         );
 
@@ -249,20 +413,20 @@ contract CircleBridgeTest is Test {
         vm.expectEmit(true, true, true, true);
         emit DepositForBurn(
             owner,
-            mockMintBurnTokenAddress,
+            address(localToken),
             _amount,
             _mintRecipient,
-            destinationDomain,
-            minter
+            remoteDomain,
+            remoteCircleBridge
         );
 
         vm.prank(owner);
         assertTrue(
-            circleBridge.depositForBurn(
+            localCircleBridge.depositForBurn(
                 _amount,
-                destinationDomain,
+                remoteDomain,
                 _mintRecipient,
-                mockMintBurnTokenAddress
+                address(localToken)
             )
         );
 
@@ -270,121 +434,12 @@ contract CircleBridgeTest is Test {
         bytes29 _m = _messageBody.ref(0);
         assertEq(
             _m.getBurnToken(),
-            Message.addressToBytes32(mockMintBurnTokenAddress)
+            Message.addressToBytes32(address(localToken))
         );
         assertEq(_m.getMintRecipient(), _mintRecipient);
-        assertEq(_m.getBurnToken(), _mockMintBurnTokenAddressBytes32);
+        assertEq(_m.getBurnToken(), localTokenAddressBytes32);
         assertEq(_m.getAmount(), _amount);
-        _m.assertType(uint40(CircleBridgeMessage.Types.DepositForBurn));
-    }
 
-    // TODO https://circlepay.atlassian.net/browse/BRAAV-12931
-    /*
-    function testAddSupportedBurnToken(address _burnToken) public {
-        // assert burnToken is not supported
-        assertFalse(circleBridge.supportedBurnTokens(_burnToken));
-
-        vm.expectEmit(true, true, true, true);
-        emit SupportedBurnTokenAdded(_burnToken);
-
-        // add burnToken as supported
-        circleBridge.addSupportedBurnToken(_burnToken);
-
-        // check that burnToken is now supported
-        assertTrue(circleBridge.supportedBurnTokens(_burnToken));
-    }
-
-    function testAddSupportedBurnToken_failsIfAlreadySupported(
-        address _burnToken
-    ) public {
-        // add burnToken as supported
-        circleBridge.addSupportedBurnToken(_burnToken);
-
-        // check that burnToken is now supported
-        assertTrue(circleBridge.supportedBurnTokens(_burnToken));
-
-        // try to add burnToken as supported again
-        vm.expectRevert("burnToken already supported");
-        circleBridge.addSupportedBurnToken(_burnToken);
-
-        // check that burnToken is still supported
-        assertTrue(circleBridge.supportedBurnTokens(_burnToken));
-    }
-
-    function testRemoveSupportedBurnToken(address _burnToken) public {
-        // add burnToken as supported
-        circleBridge.addSupportedBurnToken(_burnToken);
-
-        // check that burnToken is now supported
-        assertTrue(circleBridge.supportedBurnTokens(_burnToken));
-
-        vm.expectEmit(true, true, true, true);
-        emit SupportedBurnTokenRemoved(_burnToken);
-
-        // remove supported burnToken
-        circleBridge.removeSupportedBurnToken(_burnToken);
-
-        // check that burnToken is now unsupported
-        assertFalse(circleBridge.supportedBurnTokens(_burnToken));
-    }
-
-    function testRemoveSupportedBurnToken_failsIfNotAlreadyUnsupported(
-        address _burnToken
-    ) public {
-        // check that burnToken is not supported
-        assertFalse(circleBridge.supportedBurnTokens(_burnToken));
-
-        // try to remove already unsupported burnToken
-        vm.expectRevert("burnToken already unsupported");
-        circleBridge.removeSupportedBurnToken(_burnToken);
-
-        // check that burnToken is still unsupported
-        assertFalse(circleBridge.supportedBurnTokens(_burnToken));
-    }
-    */
-
-    function testAddDestinationMinter_succeeds(uint32 _domain) public {
-        CircleBridge _circleBridge = circleBridge = new CircleBridge(
-            address(srcMessageTransmitter)
-        );
-
-        assertEq(_circleBridge.destinationMinters(_domain), bytes32(0));
-
-        vm.expectEmit(true, true, true, true);
-        emit DestinationMinterAdded(_domain, minter);
-        _circleBridge.addDestinationMinter(_domain, minter);
-
-        assertEq(_circleBridge.destinationMinters(_domain), minter);
-    }
-
-    function testAddDestinationMinter_revertsOnExistingDestinationMinter()
-        public
-    {
-        assertEq(circleBridge.destinationMinters(destinationDomain), minter);
-
-        vm.expectRevert("Destination minter already set for domain");
-        circleBridge.addDestinationMinter(destinationDomain, minter);
-
-        // original destination router is still registered
-        assertEq(circleBridge.destinationMinters(destinationDomain), minter);
-    }
-
-    function testRemoveDestinationMinter_succeeds(uint32 _domain) public {
-        assertEq(circleBridge.destinationMinters(destinationDomain), minter);
-
-        vm.expectEmit(true, true, true, true);
-        emit DestinationMinterRemoved(destinationDomain, minter);
-        circleBridge.removeDestinationMinter(destinationDomain);
-
-        assertEq(
-            circleBridge.destinationMinters(destinationDomain),
-            bytes32(0)
-        );
-    }
-
-    function testRemoveDestinationMinter_revertsOnDomainWithoutMinter() public {
-        uint32 _destinationDomain = 9999;
-        vm.expectRevert("Destination minter does not exist for domain");
-        circleBridge.removeDestinationMinter(_destinationDomain);
+        return _messageBody;
     }
 }

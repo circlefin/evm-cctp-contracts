@@ -17,58 +17,49 @@ pragma solidity ^0.7.6;
 import "@memview-sol/contracts/TypedMemView.sol";
 
 /**
- * @title CircleBridgeMessage Library
- * @notice Library for formatted messages used by CircleBridge contracts.
- * @dev DepositForBurn message format:
+ * @title BurnMessage Library
+ * @notice Library for formatted BurnMessages used by CircleBridge.
+ * @dev BurnMessage format:
  * Field                 Bytes      Type       Index
- * type                  1          uint8      0
- * burnToken             32         bytes32    1
- * mintRecipient         32         bytes32    33
- * amount                32         uint256    65
+ * version               4          uint8      0
+ * burnToken             32         bytes32    4
+ * mintRecipient         32         bytes32    36
+ * amount                32         uint256    68
  **/
-library CircleBridgeMessage {
+library BurnMessage {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
 
-    uint32 private constant TYPE_INDEX = 0;
-    uint8 private constant TYPE_LEN = 1;
-    uint32 private constant BURN_TOKEN_INDEX = 1;
+    uint8 private constant VERSION_INDEX = 0;
+    uint8 private constant VERSION_LEN = 4;
+    uint8 private constant BURN_TOKEN_INDEX = 4;
     uint8 private constant BURN_TOKEN_LEN = 32;
-    uint32 private constant MINT_RECIPIENT_INDEX = 33;
+    uint8 private constant MINT_RECIPIENT_INDEX = 36;
     uint8 private constant MINT_RECIPIENT_LEN = 32;
-    uint32 private constant AMOUNT_INDEX = 65;
+    uint8 private constant AMOUNT_INDEX = 68;
     uint8 private constant AMOUNT_LEN = 32;
-
-    // @notice Do not rewrite type ordering. Type informs the message structure.
-    // Initially, only valid type is DepositForBurn.
-    enum Types {
-        // 0
-        DepositForBurn
-    }
+    // 4 byte version + 32 bytes burnToken + 32 bytes mintRecipient + 32 bytes amount
+    uint8 private constant BURN_MESSAGE_LEN = 100;
 
     /**
-     * @notice Formats DepositForBurn message
+     * @notice Formats Burn message
+     * @param _version The message body version
      * @param _burnToken The burn token address on source domain as bytes32
      * @param _mintRecipient The mint recipient address as bytes32
      * @param _amount The burn amount
-     * @return DepositForBurn formatted message.
+     * @return Burn formatted message.
      */
-    function formatDepositForBurn(
+    function formatMessage(
+        uint32 _version,
         bytes32 _burnToken,
         bytes32 _mintRecipient,
         uint256 _amount
     ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                Types.DepositForBurn,
-                _burnToken,
-                _mintRecipient,
-                _amount
-            );
+        return abi.encodePacked(_version, _burnToken, _mintRecipient, _amount);
     }
 
     /**
-     * @notice Retrieves the burnToken from a DepositForBurn CircleBridgeMessage
+     * @notice Retrieves the burnToken from a DepositForBurn BurnMessage
      * @param _message The message
      * @return sourceToken address as bytes32
      */
@@ -77,7 +68,7 @@ library CircleBridgeMessage {
     }
 
     /**
-     * @notice Retrieves the mintRecipient from a DepositForBurn CircleBridgeMessage
+     * @notice Retrieves the mintRecipient from a BurnMessage
      * @param _message The message
      * @return mintRecipient
      */
@@ -90,11 +81,34 @@ library CircleBridgeMessage {
     }
 
     /**
-     * @notice Retrieves the amount from a DepositForBurn CircleBridgeMessage
+     * @notice Retrieves the amount from a BurnMessage
      * @param _message The message
      * @return amount
      */
     function getAmount(bytes29 _message) internal pure returns (uint256) {
         return _message.indexUint(AMOUNT_INDEX, AMOUNT_LEN);
+    }
+
+    /**
+     * @notice Retrieves the version from a Burn message
+     * @param _message The message
+     * @return version
+     */
+    function getVersion(bytes29 _message) internal pure returns (uint32) {
+        return uint32(_message.indexUint(VERSION_INDEX, 4));
+    }
+
+    /**
+     * @notice Checks that view is a valid message length
+     * @param _message The bytes string
+     * @return true if message is correct length and version for a burn message
+     */
+    function isValidBurnMessage(bytes29 _message, uint32 _version)
+        internal
+        pure
+        returns (bool)
+    {
+        uint256 _len = _message.len();
+        return _len == BURN_MESSAGE_LEN && _version == getVersion(_message);
     }
 }

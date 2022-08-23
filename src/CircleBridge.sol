@@ -15,35 +15,43 @@
 pragma solidity ^0.7.6;
 
 import "./interfaces/IMessageDestinationHandler.sol";
-import "./interfaces/IRelayer.sol";
+import "./interfaces/IMinter.sol";
 import "./interfaces/IMintBurnToken.sol";
-import "./messages/CircleBridgeMessage.sol";
+import "./interfaces/IMessageTransmitter.sol";
+import "./messages/BurnMessage.sol";
 import "./messages/Message.sol";
 
 /**
  * @title CircleBridge
- * @notice sends messages and receives messages to/from MessageTransmitter
+ * @notice Sends messages and receives messages to/from MessageTransmitters
+ * and to/from CircleMinters
  */
 contract CircleBridge is IMessageDestinationHandler {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
-    using CircleBridgeMessage for bytes29;
+    using BurnMessage for bytes29;
 
     // ============ Public Variables ============
-    IRelayer public immutable relayer;
-    // valid minters on destination domains
-    mapping(uint32 => bytes32) public destinationMinters;
-    // supported burn tokens on source domain
-    mapping(address => bool) public supportedBurnTokens;
+    // Local Message Transmitter responsible for sending and receiving messages to/from remote domains
+    IMessageTransmitter public immutable localMessageTransmitter;
+
+    // Minter responsible for minting and burning tokens on the local domain
+    IMinter public localMinter;
+
+    // Valid CircleBridges on remote domains
+    mapping(uint32 => bytes32) public remoteCircleBridges;
+
+    // Version of message body format
+    uint32 public messageBodyVersion;
 
     /**
-     * @notice Emitted when a deposit for burn is received on source domain
+     * @notice Emitted when a deposit for burn is received on local domain
      * @param depositor address where deposit is transferred from
-     * @param burnToken address of token burnt on source domain
+     * @param burnToken address of token burnt on local domain
      * @param amount deposit amount
      * @param mintRecipient address receiving minted tokens on destination domain as bytes32
      * @param destinationDomain destination domain
-     * @param minter address of minter on destination domain as bytes32
+     * @param destinationCircleBridge address of CircleBridge on destination domain as bytes32
      */
     event DepositForBurn(
         address depositor,
@@ -51,35 +59,45 @@ contract CircleBridge is IMessageDestinationHandler {
         uint256 amount,
         bytes32 mintRecipient,
         uint32 destinationDomain,
-        bytes32 minter
+        bytes32 destinationCircleBridge
     );
 
     /**
-     * @notice Emitted when a supported burn token is added
+     * @notice Emitted when a remote CircleBridge is added
+     * @param _domain remote domain
+     * @param _circleBridge CircleBridge on remote domain
      */
-    event SupportedBurnTokenAdded(address burnToken);
+    event RemoteCircleBridgeAdded(uint32 _domain, bytes32 _circleBridge);
 
     /**
-     * @notice Emitted when a supported burn token is removed
+     * @notice Emitted when a remote CircleBridge is removed
+     * @param _domain remote domain
+     * @param _circleBridge CircleBridge on remote domain
      */
-    event SupportedBurnTokenRemoved(address burnToken);
+    event RemoteCircleBridgeRemoved(uint32 _domain, bytes32 _circleBridge);
 
     /**
-     * @notice Emitted when a destination minter is added
+     * @notice Emitted when a local minter is added
+     * @param _localMinter address of local minter
+     * @notice Emitted when a local minter is added
      */
-    event DestinationMinterAdded(uint32 _domain, bytes32 _destinationMinter);
+    event LocalMinterAdded(address _localMinter);
 
     /**
-     * @notice Emitted when a destination minter is removed
+     * @notice Emitted when a local minter is removed
+     * @param _localMinter address of local minter
+     * @notice Emitted when a local minter is removed
      */
-    event DestinationMinterRemoved(uint32 _domain, bytes32 _destinationMinter);
+    event LocalMinterRemoved(address _localMinter);
 
     // ============ Constructor ============
     /**
-     * @param _relayer Message relayer address
+     * @param _messageTransmitter Message transmitter address
+     * @param _messageBodyVersion Message body version
      */
-    constructor(address _relayer) {
-        relayer = IRelayer(_relayer);
+    constructor(address _messageTransmitter, uint32 _messageBodyVersion) {
+        localMessageTransmitter = IMessageTransmitter(_messageTransmitter);
+        messageBodyVersion = _messageBodyVersion;
     }
 
     /**
@@ -87,15 +105,15 @@ contract CircleBridge is IMessageDestinationHandler {
      * Emits a `DepositForBurn` event.
      * @dev reverts if:
      * - given burnToken is not supported
-     * - given destinationDomain has no destination minter registered
+     * - given destinationDomain has no CircleBridge registered
      * - transferFrom() reverts. For example, if sender's burnToken balance or approved allowance
      * to this contract is less than `amount`.
      * - burn() reverts. For example, if `amount` is 0.
-     * - message relayer returns false or reverts.
+     * - MessageTransmitter returns false or reverts.
      * @param _amount amount of tokens to burn
      * @param _destinationDomain destination domain
      * @param _mintRecipient address of mint recipient on destination domain
-     * @param _burnToken address of contract to burn deposited tokens, on source chain
+     * @param _burnToken address of contract to burn deposited tokens, on local domain
      * @return success bool, true if successful
      */
     function depositForBurn(
@@ -104,32 +122,31 @@ contract CircleBridge is IMessageDestinationHandler {
         bytes32 _mintRecipient,
         address _burnToken
     ) external returns (bool success) {
-        require(
-            supportedBurnTokens[_burnToken],
-            "Given burnToken is not supported"
+        bytes32 _destinationCircleBridge = _getRemoteCircleBridge(
+            _destinationDomain
         );
 
-        bytes32 _minter = _getDestinationMinter(_destinationDomain);
+        IMinter _localMinter = _getLocalMinter();
 
         IMintBurnToken mintBurnToken = IMintBurnToken(_burnToken);
-        mintBurnToken.transferFrom(msg.sender, address(this), _amount);
-        mintBurnToken.burn(_amount);
+        mintBurnToken.transferFrom(msg.sender, address(_localMinter), _amount);
+        _localMinter.burn(_burnToken, _amount);
 
         // Format message body
-        bytes memory _depositForBurnMessageBody = CircleBridgeMessage
-            .formatDepositForBurn(
-                Message.addressToBytes32(_burnToken),
-                _mintRecipient,
-                _amount
-            );
+        bytes memory _burnMessage = BurnMessage.formatMessage(
+            messageBodyVersion,
+            Message.addressToBytes32(_burnToken),
+            _mintRecipient,
+            _amount
+        );
 
         require(
-            relayer.sendMessage(
+            localMessageTransmitter.sendMessage(
                 _destinationDomain,
-                _minter,
-                _depositForBurnMessageBody
+                _destinationCircleBridge,
+                _burnMessage
             ),
-            "Relayer sendMessage() returned false"
+            "MessageTransmitter sendMessage() returned false"
         );
 
         emit DepositForBurn(
@@ -138,7 +155,7 @@ contract CircleBridge is IMessageDestinationHandler {
             _amount,
             _mintRecipient,
             _destinationDomain,
-            _minter
+            _destinationCircleBridge
         );
 
         return true;
@@ -152,84 +169,85 @@ contract CircleBridge is IMessageDestinationHandler {
         // TODO stub
     }
 
-    function addSupportedBurnToken(address _burnToken)
-        external
-    // TODO BRAAV-11741 onlyTokensManager
-    {
-        require(
-            !supportedBurnTokens[_burnToken],
-            "burnToken already supported"
-        );
-        supportedBurnTokens[_burnToken] = true;
-        emit SupportedBurnTokenAdded(_burnToken);
-    }
-
-    function removeSupportedBurnToken(address _burnToken)
-        external
-    // TODO BRAAV-11741 onlyTokensManager
-    {
-        require(
-            supportedBurnTokens[_burnToken],
-            "burnToken already unsupported"
-        );
-        supportedBurnTokens[_burnToken] = false;
-        emit SupportedBurnTokenRemoved(_burnToken);
-    }
-
     /**
-     * @notice Register the address of a destination minter for a given domain
-     * @param _domain The domain of the destination minter
-     * @param _destinationMinter The address of the destination minter
+     * @notice Add the CircleBridge for a remote domain.
+     * @dev Reverts if there is already a CircleBridge set for domain.
+     * @param _domain Domain of remote CircleBridge.
+     * @param _circleBridge Address of remote CircleBridge as bytes32.
      */
-    function addDestinationMinter(uint32 _domain, bytes32 _destinationMinter)
+    function addRemoteCircleBridge(uint32 _domain, bytes32 _circleBridge)
         external
     // TODO [BRAAV-11741] onlyTokensManager
     {
         require(
-            destinationMinters[_domain] == bytes32(0),
-            "Destination minter already set for domain"
+            remoteCircleBridges[_domain] == bytes32(0),
+            "CircleBridge already set for given remote domain."
         );
 
-        destinationMinters[_domain] = _destinationMinter;
-
-        emit DestinationMinterAdded(_domain, _destinationMinter);
+        remoteCircleBridges[_domain] = _circleBridge;
+        emit RemoteCircleBridgeAdded(_domain, _circleBridge);
     }
 
     /**
-     * @notice Remove the registered destination minter for a given domain
-     * @param _domain The domain of the destination minter
+     * @notice Remove the CircleBridge for a remote domain.
+     * @dev Reverts if there is no CircleBridge set for `domain`.
+     * @param _domain Domain of remote CircleBridge
+     * @param _circleBridge Address of remote CircleBridge as bytes32
      */
-    function removeDestinationMinter(uint32 _domain)
+    function removeRemoteCircleBridge(uint32 _domain, bytes32 _circleBridge)
         external
     // TODO [BRAAV-11741] onlyTokensManager
     {
-        bytes32 _destinationMinter = destinationMinters[_domain];
-
         require(
-            _destinationMinter != bytes32(0),
-            "Destination minter does not exist for domain"
+            remoteCircleBridges[_domain] != bytes32(0),
+            "No CircleBridge set for given remote domain."
         );
 
-        destinationMinters[_domain] = bytes32(0);
-
-        emit DestinationMinterRemoved(_domain, _destinationMinter);
+        remoteCircleBridges[_domain] = bytes32(0);
+        emit RemoteCircleBridgeRemoved(_domain, _circleBridge);
     }
 
     /**
-     * @notice return the destination minter for the given `_domain` if one exists, else revert.
-     * @param _domain The domain for which to get the destination minter
-     * @return _destinationMinter The address of the destination minter on `_domain` as bytes32
+     * @notice Add minter for the local domain.
+     * @dev Reverts if a minter is already set for the local domain.
+     * @param _localMinter The address of the minter on the local domain.
      */
-    function _getDestinationMinter(uint32 _domain)
+    // TODO [BRAAV-11741] onlyTokensManager
+    function addLocalMinter(address _localMinter) external {
+        require(
+            address(localMinter) == address(0),
+            "Local minter is already set."
+        );
+
+        localMinter = IMinter(_localMinter);
+
+        emit LocalMinterAdded(_localMinter);
+    }
+
+    /**
+     * @notice return the remote CircleBridge for the given `_domain` if one exists, else revert.
+     * @param _domain The domain for which to get the remote CircleBridge
+     * @return _circleBridge The address of the CircleBridge on `_domain` as bytes32
+     */
+    function _getRemoteCircleBridge(uint32 _domain)
         internal
         view
         returns (bytes32)
     {
-        bytes32 _destinationMinter = destinationMinters[_domain];
+        bytes32 _circleBridge = remoteCircleBridges[_domain];
         require(
-            _destinationMinter != bytes32(0),
-            "Minter does not exist for given domain"
+            _circleBridge != bytes32(0),
+            "Remote CircleBridge does not exist for domain"
         );
-        return _destinationMinter;
+        return _circleBridge;
+    }
+
+    /**
+     * @notice return the local minter address if it is set, else revert.
+     * @return local minter as IMinter.
+     */
+    function _getLocalMinter() internal view returns (IMinter) {
+        require(address(localMinter) != address(0), "Local minter is not set");
+        return localMinter;
     }
 }

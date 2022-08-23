@@ -16,8 +16,7 @@ pragma solidity ^0.7.6;
 
 import "@memview-sol/contracts/TypedMemView.sol";
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
-import "./interfaces/IReceiver.sol";
-import "./interfaces/IRelayer.sol";
+import "./interfaces/IMessageTransmitter.sol";
 import "./interfaces/IMessageDestinationHandler.sol";
 import "./messages/Message.sol";
 
@@ -25,7 +24,7 @@ import "./messages/Message.sol";
  * @title MessageTransmitter
  * @notice Contract responsible for sending and receiving messages across chains.
  */
-contract MessageTransmitter is IRelayer, IReceiver {
+contract MessageTransmitter is IMessageTransmitter {
     // ============ Events ============
     /**
      * @notice Emitted when a new message is dispatched
