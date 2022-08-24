@@ -82,6 +82,18 @@ contract CircleBridgeTest is Test, TestUtils {
         bytes32 circleMessenger
     );
 
+    /**
+     * @notice Emitted when tokens are minted
+     * @param _mintRecipient recipient address of minted tokens
+     * @param _amount amount of minted tokens
+     * @param _mintToken contract address of minted token
+     */
+    event MintAndWithdraw(
+        address _mintRecipient,
+        uint256 _amount,
+        address _mintToken
+    );
+
     // Constants
     uint32 localDomain = 0;
     uint32 version = 0;
@@ -282,6 +294,153 @@ contract CircleBridgeTest is Test, TestUtils {
         _depositForBurn(_mintRecipientAddr, _amount);
     }
 
+    // TODO [STABLE-926] test mint fails due to insufficient mintAllowance
+
+    function testHandleReceiveMessage_succeedsForMint() public {
+        address _mintRecipientAddr = vm.addr(1505);
+        uint256 _amount = 5;
+        bytes memory _messageBody = _depositForBurn(
+            _mintRecipientAddr,
+            _amount
+        );
+
+        // assert balance of recipient is initially 0
+        assertEq(destToken.balanceOf(_mintRecipientAddr), 0);
+
+        // test event is emitted
+        vm.expectEmit(true, true, true, true);
+        emit MintAndWithdraw(_mintRecipientAddr, _amount, address(destToken));
+
+        vm.startPrank(address(remoteMessageTransmitter));
+        assertTrue(
+            destCircleBridge.handleReceiveMessage(
+                localDomain,
+                Message.addressToBytes32(address(localCircleBridge)),
+                _messageBody
+            )
+        );
+        vm.stopPrank();
+
+        // assert balance of recipient is incremented by mint amount
+        assertEq(destToken.balanceOf(_mintRecipientAddr), _amount);
+    }
+
+    function testHandleReceiveMessage_failsIfRecipientIsNotACircleBridge()
+        public
+    {
+        bytes memory _messageBody = bytes("foo");
+        bytes32 _address = Message.addressToBytes32(address(vm.addr(1)));
+
+        vm.startPrank(address(remoteMessageTransmitter));
+        vm.expectRevert("Remote Circle Bridge is not supported");
+        destCircleBridge.handleReceiveMessage(
+            localDomain,
+            _address,
+            _messageBody
+        );
+
+        vm.stopPrank();
+    }
+
+    function testHandleReceiveMessage_failsIfSenderIsNotLocalMessageTransmitter()
+        public
+    {
+        bytes memory _messageBody = bytes("foo");
+        bytes32 _address = Message.addressToBytes32(address(vm.addr(1)));
+
+        vm.expectRevert(
+            "Caller is not the registered message transmitter for this domain"
+        );
+        localCircleBridge.handleReceiveMessage(
+            localDomain,
+            _address,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveMessage_revertsIfNoLocalMinterIsSet(
+        bytes32 _mintRecipient,
+        uint256 _amount
+    ) public {
+        bytes memory _messageBody = BurnMessage.formatMessage(
+            messageBodyVersion,
+            Message.addressToBytes32(address(localToken)),
+            _mintRecipient,
+            _amount
+        );
+
+        vm.startPrank(address(remoteMessageTransmitter));
+        destCircleBridge.removeLocalMinter();
+        bytes32 _localCircleBridge = Message.addressToBytes32(
+            address(localCircleBridge)
+        );
+        vm.expectRevert("Local minter is not set");
+        destCircleBridge.handleReceiveMessage(
+            localDomain,
+            _localCircleBridge,
+            _messageBody
+        );
+        vm.stopPrank();
+    }
+
+    function testHandleReceiveMessage_revertsIfNoEnabledLocalTokenSet(
+        bytes32 _localToken,
+        bytes32 _mintRecipient,
+        uint256 _amount
+    ) public {
+        bytes memory _messageBody = BurnMessage.formatMessage(
+            messageBodyVersion,
+            _localToken,
+            _mintRecipient,
+            _amount
+        );
+
+        bytes32 _localCircleBridge = Message.addressToBytes32(
+            address(localCircleBridge)
+        );
+        vm.startPrank(address(remoteMessageTransmitter));
+        vm.expectRevert(
+            "No enabled local token is associated with remote domain and token pair"
+        );
+        destCircleBridge.handleReceiveMessage(
+            localDomain,
+            _localCircleBridge,
+            _messageBody
+        );
+        vm.stopPrank();
+    }
+
+    function testHandleReceiveMessage_revertsOnInvalidMessage() public {
+        uint256 _amount = 5;
+        bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
+
+        bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
+            address(localToken)
+        );
+
+        // Format message body
+        bytes memory _messageBody = abi.encodePacked(
+            uint256(1),
+            localTokenAddressBytes32,
+            _mintRecipient,
+            _amount
+        );
+
+        bytes32 _address = Message.addressToBytes32(address(vm.addr(1)));
+        bytes32 _localCircleBridge = Message.addressToBytes32(
+            address(localCircleBridge)
+        );
+
+        vm.startPrank(address(remoteMessageTransmitter));
+        vm.expectRevert("Invalid message");
+        destCircleBridge.handleReceiveMessage(
+            localDomain,
+            _localCircleBridge,
+            _messageBody
+        );
+        vm.stopPrank();
+    }
+
     function testAddRemoteCircleBridge_succeeds(uint32 _domain) public {
         CircleBridge _circleBridge = new CircleBridge(
             address(localMessageTransmitter),
@@ -360,6 +519,28 @@ contract CircleBridgeTest is Test, TestUtils {
     function testAddLocalMinter_revertsIfAlreadySet(address _address) public {
         vm.expectRevert("Local minter is already set.");
         localCircleBridge.addLocalMinter(_address);
+    }
+
+    function testRemoveLocalMinter_succeeds() public {
+        address _localMinter = vm.addr(1);
+        CircleBridge _circleBridge = new CircleBridge(
+            address(localMessageTransmitter),
+            messageBodyVersion
+        );
+        _addLocalMinter(_localMinter, _circleBridge);
+
+        vm.expectEmit(true, true, true, true);
+        emit LocalMinterRemoved(_localMinter);
+        _circleBridge.removeLocalMinter();
+    }
+
+    function testRemoveLocalMinter_revertsIfNoLocalMinterSet() public {
+        CircleBridge _circleBridge = new CircleBridge(
+            address(localMessageTransmitter),
+            messageBodyVersion
+        );
+        vm.expectRevert("No local minter is set.");
+        _circleBridge.removeLocalMinter();
     }
 
     function _addLocalMinter(address _localMinter, CircleBridge _circleBridge)

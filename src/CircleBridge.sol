@@ -63,6 +63,18 @@ contract CircleBridge is IMessageDestinationHandler {
     );
 
     /**
+     * @notice Emitted when tokens are minted
+     * @param _mintRecipient recipient address of minted tokens
+     * @param _amount amount of minted tokens
+     * @param _mintToken contract address of minted token
+     */
+    event MintAndWithdraw(
+        address _mintRecipient,
+        uint256 _amount,
+        address _mintToken
+    );
+
+    /**
      * @notice Emitted when a remote CircleBridge is added
      * @param _domain remote domain
      * @param _circleBridge CircleBridge on remote domain
@@ -77,18 +89,42 @@ contract CircleBridge is IMessageDestinationHandler {
     event RemoteCircleBridgeRemoved(uint32 _domain, bytes32 _circleBridge);
 
     /**
-     * @notice Emitted when a local minter is added
+     * @notice Emitted when the local minter is added
      * @param _localMinter address of local minter
-     * @notice Emitted when a local minter is added
+     * @notice Emitted when the local minter is added
      */
     event LocalMinterAdded(address _localMinter);
 
     /**
-     * @notice Emitted when a local minter is removed
+     * @notice Emitted when the local minter is removed
      * @param _localMinter address of local minter
-     * @notice Emitted when a local minter is removed
+     * @notice Emitted when the local minter is removed
      */
     event LocalMinterRemoved(address _localMinter);
+
+    /**
+     * @notice Only accept messages from a registered Circle Bridge contract on given remote domain
+     * @param _domain The remote domain
+     * @param _circleBridge The address of the Circle Bridge contract for the given remote domain
+     */
+    modifier onlyRemoteCircleBridge(uint32 _domain, bytes32 _circleBridge) {
+        require(
+            _isRemoteCircleBridge(_domain, _circleBridge),
+            "Remote Circle Bridge is not supported"
+        );
+        _;
+    }
+
+    /**
+     * @notice Only accept messages from the registered message transmitter on local domain
+     */
+    modifier onlyLocalMessageTransmitter() {
+        require(
+            _isLocalMessageTransmitter(),
+            "Caller is not the registered message transmitter for this domain"
+        );
+        _;
+    }
 
     // ============ Constructor ============
     /**
@@ -161,12 +197,49 @@ contract CircleBridge is IMessageDestinationHandler {
         return true;
     }
 
+    /**
+     * @notice Handles an incoming message received by the local MessageTransmitter,
+     * and takes the appropriate action. For a burn message, mints the
+     * associated token to the requested recipient on the local domain.
+     * @dev Validates the local sender is the local MessageTransmitter, and the
+     * remote sender is a registered remote CircleBridge for `_remoteDomain`.
+     * @param _remoteDomain The domain where the message originated from.
+     * @param _sender The sender of the message (remote CircleBridge).
+     * @param _messageBody The message body bytes.
+     * @return success Bool, true if successful.
+     */
     function handleReceiveMessage(
-        uint32 _sourceDomain,
+        uint32 _remoteDomain,
         bytes32 _sender,
         bytes memory _messageBody
-    ) external override returns (bool) {
-        // TODO stub
+    )
+        external
+        override
+        onlyLocalMessageTransmitter
+        onlyRemoteCircleBridge(_remoteDomain, _sender)
+        returns (bool)
+    {
+        bytes29 _msg = _messageBody.ref(0);
+        require(_msg.isValidBurnMessage(messageBodyVersion), "Invalid message");
+
+        bytes32 _mintRecipient = _msg.getMintRecipient();
+        bytes32 _burnToken = _msg.getBurnToken();
+        uint256 _amount = _msg.getAmount();
+
+        IMinter _localMinter = _getLocalMinter();
+        address _mintToken = _localMinter.getEnabledLocalToken(
+            _remoteDomain,
+            _burnToken
+        );
+
+        _mintAndWithdraw(
+            address(_localMinter),
+            Message.bytes32ToAddress(_mintRecipient),
+            _amount,
+            _mintToken
+        );
+
+        return true;
     }
 
     /**
@@ -225,6 +298,38 @@ contract CircleBridge is IMessageDestinationHandler {
     }
 
     /**
+     * @notice Remove the minter for the local domain.
+     * @dev Reverts if the minter of the local domain is not set.
+     */
+    // TODO [BRAAV-11741] onlyTokensManager
+    function removeLocalMinter() external {
+        address localMinterAddress = address(localMinter);
+        require(localMinterAddress != address(0), "No local minter is set.");
+
+        localMinter = IMinter(address(0));
+        emit LocalMinterRemoved(localMinterAddress);
+    }
+
+    /**
+     * @notice Mints tokens to a recipient
+     * @param _circleMinter address of Circle Minter contract
+     * @param _mintRecipient recipient address of minted tokens
+     * @param _amount amount of minted tokens
+     * @param _mintToken contract address of minted token
+     */
+    function _mintAndWithdraw(
+        address _circleMinter,
+        address _mintRecipient,
+        uint256 _amount,
+        address _mintToken
+    ) internal {
+        IMinter _minter = IMinter(_circleMinter);
+        _minter.mint(_mintToken, _mintRecipient, _amount);
+
+        emit MintAndWithdraw(_mintRecipient, _amount, _mintToken);
+    }
+
+    /**
      * @notice return the remote CircleBridge for the given `_domain` if one exists, else revert.
      * @param _domain The domain for which to get the remote CircleBridge
      * @return _circleBridge The address of the CircleBridge on `_domain` as bytes32
@@ -249,5 +354,33 @@ contract CircleBridge is IMessageDestinationHandler {
     function _getLocalMinter() internal view returns (IMinter) {
         require(address(localMinter) != address(0), "Local minter is not set");
         return localMinter;
+    }
+
+    /**
+     * @notice Return true if the given remote domain and CircleBridge is registered
+     * on this CircleBridge.
+     * @param _domain The remote domain of the message.
+     * @param _circleBridge The address of the CircleBridge on remote domain.
+     * @return true if a remote CircleBridge is registered for `_domain` and `_circleBridge`,
+     * on this CircleBridge.
+     */
+    function _isRemoteCircleBridge(uint32 _domain, bytes32 _circleBridge)
+        internal
+        view
+        returns (bool)
+    {
+        return
+            _circleBridge != bytes32(0) &&
+            remoteCircleBridges[_domain] == _circleBridge;
+    }
+
+    /**
+     * @notice Returns true if the message sender is the local registered MessageTransmitter
+     * @return true if message sender is the registered local message transmitter
+     */
+    function _isLocalMessageTransmitter() internal view returns (bool) {
+        return
+            address(localMessageTransmitter) != address(0) &&
+            msg.sender == address(localMessageTransmitter);
     }
 }
