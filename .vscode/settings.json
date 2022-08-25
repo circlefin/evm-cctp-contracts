@@ -1,0 +1,12 @@
+{
+    "editor.formatOnSave": true,
+    "solidity.compilerOptimization": 200,
+    "solidity.enabledAsYouTypeCompilationErrorCheck": true,
+    "solidity.compileUsingRemoteVersion": "v0.7.6+commit.7338295f",
+    "solidity.formatter": "prettier",
+    "solidity.linter": "solhint",
+    "solidity.validationDelay": 1500,
+    "[solidity]": {
+      "editor.tabSize": 4,
+    }
+}
