@@ -20,13 +20,14 @@ import "./interfaces/IMintBurnToken.sol";
 import "./interfaces/IMessageTransmitter.sol";
 import "./messages/BurnMessage.sol";
 import "./messages/Message.sol";
+import "./roles/Rescuable.sol";
 
 /**
  * @title CircleBridge
  * @notice Sends messages and receives messages to/from MessageTransmitters
  * and to/from CircleMinters
  */
-contract CircleBridge is IMessageDestinationHandler {
+contract CircleBridge is IMessageDestinationHandler, Rescuable {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using BurnMessage for bytes29;
@@ -250,7 +251,7 @@ contract CircleBridge is IMessageDestinationHandler {
      */
     function addRemoteCircleBridge(uint32 _domain, bytes32 _circleBridge)
         external
-    // TODO [BRAAV-11741] onlyTokensManager
+        onlyOwner
     {
         require(
             remoteCircleBridges[_domain] == bytes32(0),
@@ -269,7 +270,7 @@ contract CircleBridge is IMessageDestinationHandler {
      */
     function removeRemoteCircleBridge(uint32 _domain, bytes32 _circleBridge)
         external
-    // TODO [BRAAV-11741] onlyTokensManager
+        onlyOwner
     {
         require(
             remoteCircleBridges[_domain] != bytes32(0),
@@ -285,8 +286,7 @@ contract CircleBridge is IMessageDestinationHandler {
      * @dev Reverts if a minter is already set for the local domain.
      * @param _localMinter The address of the minter on the local domain.
      */
-    // TODO [BRAAV-11741] onlyTokensManager
-    function addLocalMinter(address _localMinter) external {
+    function addLocalMinter(address _localMinter) external onlyOwner {
         require(
             address(localMinter) == address(0),
             "Local minter is already set."
@@ -301,8 +301,7 @@ contract CircleBridge is IMessageDestinationHandler {
      * @notice Remove the minter for the local domain.
      * @dev Reverts if the minter of the local domain is not set.
      */
-    // TODO [BRAAV-11741] onlyTokensManager
-    function removeLocalMinter() external {
+    function removeLocalMinter() external onlyOwner {
         address localMinterAddress = address(localMinter);
         require(localMinterAddress != address(0), "No local minter is set.");
 

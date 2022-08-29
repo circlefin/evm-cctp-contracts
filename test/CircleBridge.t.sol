@@ -168,6 +168,9 @@ contract CircleBridgeTest is Test, TestUtils {
             localDomain,
             Message.addressToBytes32(address(localCircleBridge))
         );
+
+        localCircleMinter.addLocalCircleBridge(address(localCircleBridge));
+        destCircleMinter.addLocalCircleBridge(address(destCircleBridge));
     }
 
     function testDepositForBurn_revertsIfNoRemoteCircleBridgeExistsForDomain()
@@ -270,6 +273,8 @@ contract CircleBridgeTest is Test, TestUtils {
         );
 
         _circleBridge.addLocalMinter(address(localCircleMinter));
+        localCircleMinter.removeLocalCircleBridge();
+        localCircleMinter.addLocalCircleBridge(address(_circleBridge));
         _circleBridge.addRemoteCircleBridge(remoteDomain, remoteCircleBridge);
 
         localToken.mint(owner, 10);
@@ -325,7 +330,7 @@ contract CircleBridgeTest is Test, TestUtils {
         assertEq(destToken.balanceOf(_mintRecipientAddr), _amount);
     }
 
-    function testHandleReceiveMessage_failsIfRecipientIsNotACircleBridge()
+    function testHandleReceiveMessage_failsIfRecipientIsNotRemoteCircleBridge()
         public
     {
         bytes memory _messageBody = bytes("foo");
@@ -369,11 +374,11 @@ contract CircleBridgeTest is Test, TestUtils {
             _amount
         );
 
-        vm.startPrank(address(remoteMessageTransmitter));
         destCircleBridge.removeLocalMinter();
         bytes32 _localCircleBridge = Message.addressToBytes32(
             address(localCircleBridge)
         );
+        vm.startPrank(address(remoteMessageTransmitter));
         vm.expectRevert("Local minter is not set");
         destCircleBridge.handleReceiveMessage(
             localDomain,
@@ -480,7 +485,15 @@ contract CircleBridgeTest is Test, TestUtils {
         );
     }
 
-    function testRemoveCircleBridge_succeeds() public {
+    function testAddRemoteCircleBridge_revertsOnNonOwner(
+        uint32 _domain,
+        bytes32 _circleBridge
+    ) public {
+        expectRevertWithWrongOwner();
+        localCircleBridge.addRemoteCircleBridge(_domain, _circleBridge);
+    }
+
+    function testRemoveRemoteCircleBridge_succeeds() public {
         uint32 _remoteDomain = 100;
         bytes32 _remoteCircleBridge = Message.addressToBytes32(vm.addr(1));
 
@@ -497,7 +510,7 @@ contract CircleBridgeTest is Test, TestUtils {
         );
     }
 
-    function testRemoveCircleBridge_revertsOnNoCircleBridgeSet() public {
+    function testRemoveRemoteCircleBridge_revertsOnNoCircleBridgeSet() public {
         uint32 _remoteDomain = 100;
         bytes32 _remoteCircleBridge = Message.addressToBytes32(vm.addr(1));
 
@@ -506,6 +519,14 @@ contract CircleBridgeTest is Test, TestUtils {
             _remoteDomain,
             _remoteCircleBridge
         );
+    }
+
+    function testRemoveRemoteCircleBridge_revertsOnNonOwner(
+        uint32 _domain,
+        bytes32 _circleBridge
+    ) public {
+        expectRevertWithWrongOwner();
+        localCircleBridge.removeRemoteCircleBridge(_domain, _circleBridge);
     }
 
     function testAddLocalMinter_succeeds(address _localMinter) public {
@@ -519,6 +540,11 @@ contract CircleBridgeTest is Test, TestUtils {
     function testAddLocalMinter_revertsIfAlreadySet(address _address) public {
         vm.expectRevert("Local minter is already set.");
         localCircleBridge.addLocalMinter(_address);
+    }
+
+    function testAddLocalMinter_revertsOnNonOwner(address _localMinter) public {
+        expectRevertWithWrongOwner();
+        localCircleBridge.addLocalMinter(_localMinter);
     }
 
     function testRemoveLocalMinter_succeeds() public {
@@ -541,6 +567,29 @@ contract CircleBridgeTest is Test, TestUtils {
         );
         vm.expectRevert("No local minter is set.");
         _circleBridge.removeLocalMinter();
+    }
+
+    function testRemoveLocalMinter_revertsOnNonOwner() public {
+        expectRevertWithWrongOwner();
+        localCircleBridge.removeLocalMinter();
+    }
+
+    function testRescuable(
+        address _rescuer,
+        address _rescueRecipient,
+        uint256 _amount
+    ) public {
+        assertContractIsRescuable(
+            address(localCircleBridge),
+            _rescuer,
+            _rescueRecipient,
+            _amount
+        );
+    }
+
+    function testTransferOwnership() public {
+        address _newOwner = vm.addr(1509);
+        transferOwnership(address(localCircleBridge), _newOwner);
     }
 
     function _addLocalMinter(address _localMinter, CircleBridge _circleBridge)

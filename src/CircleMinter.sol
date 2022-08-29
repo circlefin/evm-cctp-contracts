@@ -16,6 +16,9 @@ pragma solidity ^0.7.6;
 
 import "./interfaces/IMinter.sol";
 import "./interfaces/IMintBurnToken.sol";
+import "./roles/Pausable.sol";
+import "./roles/Rescuable.sol";
+import "./CircleBridge.sol";
 
 /**
  * @title CircleMinter
@@ -24,7 +27,21 @@ import "./interfaces/IMintBurnToken.sol";
  * This registry can be used by caller to determine which token on local domain to mint for a
  * burned token on a remote domain, and vice versa.
  */
-contract CircleMinter is IMinter {
+contract CircleMinter is IMinter, Pausable, Rescuable {
+    /**
+     * @notice Emitted when a local CircleBridge is added
+     * @param _localCircleBridge address of local CircleBridge
+     * @notice Emitted when a local CircleBridge is added
+     */
+    event LocalCircleBridgeAdded(address _localCircleBridge);
+
+    /**
+     * @notice Emitted when a local CircleBridge is removed
+     * @param _localCircleBridge address of local CircleBridge
+     * @notice Emitted when a local CircleBridge is removed
+     */
+    event LocalCircleBridgeRemoved(address _localCircleBridge);
+
     // Supported mintable tokens on the local domain
     // local token (address) => supported (bool)
     mapping(address => bool) public localTokens;
@@ -33,6 +50,20 @@ contract CircleMinter is IMinter {
     // hash(remote domain & remote token bytes32 address) => local token (address)
     mapping(bytes32 => address) public remoteTokensToLocalTokens;
 
+    // Local CircleBridge with permission to call mint and burn on this CircleMinter
+    address public localCircleBridge;
+
+    /**
+     * @notice Only accept messages from the registered message transmitter on local domain
+     */
+    modifier onlyLocalCircleBridge() {
+        require(
+            _isLocalCircleBridge(),
+            "Caller is not the registered CircleBridge for this domain"
+        );
+        _;
+    }
+
     /**
      * @notice Mint tokens.
      * @param _mintToken Mintable Circle-issued token address.
@@ -40,12 +71,11 @@ contract CircleMinter is IMinter {
      * @param _amount Amount of tokens to mint. Must be less than or equal
      * to the minterAllowance of this CircleMinter for given `_mintToken`.
      */
-    // TODO [BRAAV-11741] onlyOwner (CircleBridge contract)
     function mint(
         address _mintToken,
         address _to,
         uint256 _amount
-    ) external override {
+    ) external override whenNotPaused onlyLocalCircleBridge {
         require(localTokens[_mintToken], "Given mint token is not supported");
 
         IMintBurnToken _token = IMintBurnToken(_mintToken);
@@ -58,8 +88,12 @@ contract CircleMinter is IMinter {
      * @param _amount amount of tokens to burn. Must be less than or equal to this
      * CircleMinter's balance of given `_remoteToken`.
      */
-    // TODO [BRAAV-11741] onlyOwner (CircleBridge contract)
-    function burn(address _remoteToken, uint256 _amount) external override {
+    function burn(address _remoteToken, uint256 _amount)
+        external
+        override
+        whenNotPaused
+        onlyLocalCircleBridge
+    {
         require(localTokens[_remoteToken], "Given burn token is not supported");
 
         IMintBurnToken _token = IMintBurnToken(_remoteToken);
@@ -75,12 +109,11 @@ contract CircleMinter is IMinter {
      * can map to the same local token.
      * - Setting a token pair does not enable the `_localToken` (that requires calling setLocalTokenEnabledStatus.)
      */
-    // TODO BRAAV-11741 onlyTokensManager
     function linkTokenPair(
         address _localToken,
         uint32 _remoteDomain,
         bytes32 _remoteToken
-    ) external override {
+    ) external override onlyOwner {
         bytes32 remoteTokensKey = _hashRemoteDomainAndToken(
             _remoteDomain,
             _remoteToken
@@ -106,12 +139,11 @@ contract CircleMinter is IMinter {
      * can map to the same local token.
      * - Unlinking a token pair does not disable the `_localToken` (that requires calling setLocalTokenEnabledStatus.)
      */
-    // TODO BRAAV-11741 onlyTokensManager
     function unlinkTokenPair(
         address _localToken,
         uint32 _remoteDomain,
         bytes32 _remoteToken
-    ) external override {
+    ) external override onlyOwner {
         bytes32 remoteTokensKey = _hashRemoteDomainAndToken(
             _remoteDomain,
             _remoteToken
@@ -128,17 +160,56 @@ contract CircleMinter is IMinter {
     }
 
     /**
+     * @notice Add CircleBridge for the local domain. Only this CircleBridge
+     * has permission to call mint() and burn() on this CircleMinter.
+     * @dev Reverts if a CircleBridge is already set for the local domain.
+     * @param _newLocalCircleBridge The address of the new CircleBridge on the local domain.
+     */
+    function addLocalCircleBridge(address _newLocalCircleBridge)
+        external
+        onlyOwner
+    {
+        require(
+            _newLocalCircleBridge != address(0),
+            "New local CircleBridge address must be non-zero."
+        );
+
+        require(
+            localCircleBridge == address(0),
+            "Local CircleBridge is already set."
+        );
+
+        localCircleBridge = _newLocalCircleBridge;
+
+        emit LocalCircleBridgeAdded(localCircleBridge);
+    }
+
+    /**
+     * @notice Remove the CircleBridge for the local domain.
+     * @dev Reverts if the CircleBridge of the local domain is not set.
+     */
+    function removeLocalCircleBridge() external onlyOwner {
+        address _localCircleBridgeBeforeRemoval = localCircleBridge;
+        require(
+            _localCircleBridgeBeforeRemoval != address(0),
+            "No local CircleBridge is set."
+        );
+
+        localCircleBridge = address(0);
+        emit LocalCircleBridgeRemoved(_localCircleBridgeBeforeRemoval);
+    }
+
+    /**
      * @notice Enable or disable a local token
      * @dev Sets `enabledStatus` boolean for given `_localToken`. (True to enable, false to disable.)
      * @param _localToken Local token to set enabled status of.
      * @param _enabledStatus Enabled/disabled status to set for `_localToken`.
      * (True to enable, false to disable.)
      */
-    // TODO BRAAV-11741 onlyTokensManager
     function setLocalTokenEnabledStatus(
         address _localToken,
         bool _enabledStatus
-    ) external override {
+    ) external override onlyOwner {
         localTokens[_localToken] = _enabledStatus;
 
         emit LocalTokenEnabledStatusSet(_localToken, _enabledStatus);
@@ -186,5 +257,13 @@ contract CircleMinter is IMinter {
         return keccak256(abi.encodePacked(_remoteDomain, _remoteToken));
     }
 
-    // TODO [BRAAV-11741] add rescuer for other tokens
+    /**
+     * @notice Returns true if the message sender is the registered local CircleBridge
+     * @return True if the message sender is the registered local CircleBridge
+     */
+    function _isLocalCircleBridge() internal view returns (bool) {
+        return
+            address(localCircleBridge) != address(0) &&
+            msg.sender == address(localCircleBridge);
+    }
 }

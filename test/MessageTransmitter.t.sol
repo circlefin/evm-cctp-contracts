@@ -21,8 +21,9 @@ import "./mocks/MockRepeatCaller.sol";
 import "../src/interfaces/IReceiver.sol";
 import "../src/MessageTransmitter.sol";
 import "../lib/forge-std/src/Test.sol";
+import "./TestUtils.sol";
 
-contract MessageTransmitterTest is Test {
+contract MessageTransmitterTest is Test, TestUtils {
     MessageTransmitter srcMessageTransmitter;
     MessageTransmitter destMessageTransmitter;
     MockCircleBridge srcMockCircleBridge;
@@ -43,6 +44,7 @@ contract MessageTransmitterTest is Test {
     uint256 fakeAttesterPK = 2;
     address attester = vm.addr(attesterPK);
     address fakeAttester = vm.addr(fakeAttesterPK);
+    address pauser = vm.addr(1509);
 
     /**
      * @notice Emitted when a new message is dispatched
@@ -92,6 +94,7 @@ contract MessageTransmitterTest is Test {
 
         recipient = bytes32(uint256(uint160(address(destMockCircleBridge))));
         sender = bytes32(uint256(uint160(address(srcMockCircleBridge))));
+        srcMessageTransmitter.updatePauser(pauser);
     }
 
     function testSendMessage_rejectsTooLargeMessage() public {
@@ -102,6 +105,33 @@ contract MessageTransmitterTest is Test {
             destinationDomain,
             _recipient,
             _messageBody
+        );
+    }
+
+    function testSendMessage_revertsWhenPaused(
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        bytes memory _messageBody
+    ) public {
+        vm.prank(pauser);
+        srcMessageTransmitter.pause();
+        vm.expectRevert("Pausable: paused");
+        srcMessageTransmitter.sendMessage(
+            _destinationDomain,
+            _recipient,
+            _messageBody
+        );
+
+        // sendMessage works again after unpause
+        vm.prank(pauser);
+        srcMessageTransmitter.unpause();
+        _sendMessage(
+            version,
+            sourceDomain,
+            _destinationDomain,
+            sender,
+            _recipient,
+            messageBody
         );
     }
 
@@ -301,6 +331,32 @@ contract MessageTransmitterTest is Test {
         destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
+    function testReceiveMessage_revertsWhenPaused(
+        bytes memory _message,
+        bytes memory _signature
+    ) public {
+        vm.prank(pauser);
+        srcMessageTransmitter.pause();
+        vm.expectRevert("Pausable: paused");
+        srcMessageTransmitter.receiveMessage(_message, _signature);
+
+        // receiveMessage works again after unpause
+        vm.prank(pauser);
+        srcMessageTransmitter.unpause();
+        uint64 _nonce = srcMessageTransmitter.availableNonces(
+            destinationDomain
+        );
+        _receiveMessage(
+            version,
+            sourceDomain,
+            destinationDomain,
+            _nonce,
+            sender,
+            recipient,
+            messageBody
+        );
+    }
+
     function testSetMaxMessageBodySize() public {
         uint32 _newMaxMessageBodySize = 10000000;
 
@@ -333,6 +389,31 @@ contract MessageTransmitterTest is Test {
         );
 
         assertTrue(_success);
+    }
+
+    function testSendMaxMessageBodySize_revertsOnNonOwner(
+        uint256 _newMaxMessageBodySize
+    ) public {
+        expectRevertWithWrongOwner();
+        srcMessageTransmitter.setMaxMessageBodySize(_newMaxMessageBodySize);
+    }
+
+    function testRescuable(
+        address _rescuer,
+        address _rescueRecipient,
+        uint256 _amount
+    ) public {
+        assertContractIsRescuable(
+            address(srcMessageTransmitter),
+            _rescuer,
+            _rescueRecipient,
+            _amount
+        );
+    }
+
+    function testTransferOwnership() public {
+        address _newOwner = vm.addr(1509);
+        transferOwnership(address(srcMessageTransmitter), _newOwner);
     }
 
     // ============ Internal: Utils ============

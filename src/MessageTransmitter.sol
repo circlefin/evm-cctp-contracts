@@ -19,12 +19,14 @@ import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import "./interfaces/IMessageTransmitter.sol";
 import "./interfaces/IMessageDestinationHandler.sol";
 import "./messages/Message.sol";
+import "./roles/Pausable.sol";
+import "./roles/Rescuable.sol";
 
 /**
  * @title MessageTransmitter
  * @notice Contract responsible for sending and receiving messages across chains.
  */
-contract MessageTransmitter is IMessageTransmitter {
+contract MessageTransmitter is IMessageTransmitter, Pausable, Rescuable {
     // ============ Events ============
     /**
      * @notice Emitted when a new message is dispatched
@@ -103,12 +105,7 @@ contract MessageTransmitter is IMessageTransmitter {
         uint32 _destinationDomain,
         bytes32 _recipient,
         bytes memory _messageBody
-    )
-        external
-        override
-        returns (bool success)
-    // [BRAAV-11741] TODO whenNotPaused (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/5fbf494511fd522b931f7f92e2df87d671ea8b0b/contracts/security/Pausable.sol)
-    {
+    ) external override whenNotPaused returns (bool success) {
         // Validate message body length
         require(
             _messageBody.length <= maxMessageBodySize,
@@ -158,8 +155,8 @@ contract MessageTransmitter is IMessageTransmitter {
     function receiveMessage(bytes memory _message, bytes memory _signature)
         external
         override
+        whenNotPaused
         returns (bool success)
-    // [BRAAV-11741] TODO whenNotPaused (https://github.com/OpenZeppelin/openzeppelin-contracts/blob/5fbf494511fd522b931f7f92e2df87d671ea8b0b/contracts/security/Pausable.sol)
     {
         bytes29 _m = _message.ref(0);
 
@@ -205,7 +202,7 @@ contract MessageTransmitter is IMessageTransmitter {
      */
     function setMaxMessageBodySize(uint256 _newMaxMessageBodySize)
         external
-    // [BRAAV-11741] TODO onlyOwner
+        onlyOwner
     {
         maxMessageBodySize = _newMaxMessageBodySize;
         emit MaxMessageBodySizeUpdated(maxMessageBodySize);
