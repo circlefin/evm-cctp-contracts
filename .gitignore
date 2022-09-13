@@ -5,3 +5,4 @@ out/
 __pycache__/
 venv/
 broadcast/
+.env

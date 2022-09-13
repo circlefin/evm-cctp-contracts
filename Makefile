@@ -9,6 +9,12 @@ build:
 test:
 	@${FOUNDRY} "forge test -vv"
 
+simulate:
+	forge script scripts/deploy.s.sol:DeployScript --rpc-url ${RPC_URL} --sender ${SENDER}
+
+deploy:
+	forge script scripts/deploy.s.sol:DeployScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+
 anvil:
 	docker rm -f anvil || true
 	@${ANVIL} "anvil --host 0.0.0.0 -a 11"
@@ -18,7 +24,7 @@ anvil-test: anvil
 	pip3 install -r requirements.txt
 	python3 anvil/circleBridgeIT.py
 
-deploy:
+deploy-local:
 	@docker exec anvil forge script anvil/scripts/${contract}.s.sol:${contract}Script --rpc-url http://localhost:8545  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast
 
 cast-call:
