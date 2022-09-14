@@ -33,6 +33,30 @@ contract TestUtils is Test {
      */
     event LocalCircleBridgeRemoved(address _localCircleBridge);
 
+    // test keys
+    uint256 attesterPK = 1;
+    uint256 fakeAttesterPK = 2;
+    uint256 secondAttesterPK = 3;
+    uint256 thirdAttesterPK = 4;
+    address attester = vm.addr(attesterPK);
+    address secondAttester = vm.addr(secondAttesterPK);
+    address thirdAttester = vm.addr(thirdAttesterPK);
+    address fakeAttester = vm.addr(fakeAttesterPK);
+
+    // test constants
+    uint32 sourceDomain = 0;
+    uint32 destinationDomain = 1;
+    uint32 version = 0;
+    uint32 nonce = 99;
+    bytes32 sender;
+    bytes32 recipient;
+    bytes messageBody = bytes("test message");
+    // 8 KiB
+    uint32 maxMessageBodySize = 8 * 2**10;
+    // zero signature
+    bytes zeroSignature =
+        "00000000000000000000000000000000000000000000000000000000000000000";
+
     function linkTokenPair(
         CircleMinter circleMinter,
         address _localToken,

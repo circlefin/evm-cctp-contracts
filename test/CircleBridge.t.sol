@@ -96,13 +96,9 @@ contract CircleBridgeTest is Test, TestUtils {
 
     // Constants
     uint32 localDomain = 0;
-    uint32 version = 0;
     uint32 remoteDomain = 1;
     bytes32 remoteCircleBridge;
     address owner = vm.addr(1506);
-    uint32 maxMessageBodySize = 8 * 2**10;
-    uint256 attesterPK = 1;
-    address attester = vm.addr(attesterPK);
     uint32 messageBodyVersion = 1;
 
     CircleBridge localCircleBridge;

@@ -15,6 +15,7 @@
 pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/math/Math.sol";
 import "./mocks/MockCircleBridge.sol";
 import "./mocks/MockReentrantCaller.sol";
 import "./mocks/MockRepeatCaller.sol";
@@ -30,24 +31,6 @@ contract MessageTransmitterTest is Test, TestUtils {
     MockCircleBridge destMockCircleBridge;
     MockReentrantCaller mockReentrantCaller;
 
-    uint32 sourceDomain = 0;
-    uint32 destinationDomain = 1;
-    uint32 version = 0;
-    uint32 nonce = 99;
-    bytes32 sender;
-    bytes32 recipient;
-    bytes messageBody = bytes("test message");
-    // 8 KiB
-    uint32 maxMessageBodySize = 8 * 2**10;
-
-    uint256 attesterPK = 1;
-    uint256 fakeAttesterPK = 2;
-    uint256 secondAttesterPK = 3;
-    uint256 thirdAttesterPK = 4;
-    address attester = vm.addr(attesterPK);
-    address secondAttester = vm.addr(secondAttesterPK);
-    address thirdAttester = vm.addr(thirdAttesterPK);
-    address fakeAttester = vm.addr(fakeAttesterPK);
     address pauser = vm.addr(1509);
 
     /**
@@ -75,28 +58,6 @@ contract MessageTransmitterTest is Test, TestUtils {
      * @param newMaxMessageBodySize new maximum message body size, in bytes
      */
     event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
-
-    /**
-     * @notice Emitted when an attester is enabled
-     * @param attester newly enabled attester
-     */
-    event AttesterEnabled(address attester);
-
-    /**
-     * @notice Emitted when an attester is disabled
-     * @param attester newly disabled attester
-     */
-    event AttesterDisabled(address attester);
-
-    /**
-     * @notice Emitted when threshold number of attestations (m in m/n multisig) is updated
-     * @param oldSignatureThreshold old signature threshold
-     * @param newSignatureThreshold new signature threshold
-     */
-    event SignatureThresholdUpdated(
-        uint256 oldSignatureThreshold,
-        uint256 newSignatureThreshold
-    );
 
     function setUp() public {
         // message transmitter on source domain
@@ -257,66 +218,20 @@ contract MessageTransmitterTest is Test, TestUtils {
     }
 
     function testReceiveMessage_succeedsFor2of3Multisig() public {
-        uint64 _msgNonce = _sendMessage(
-            version,
-            sourceDomain,
-            destinationDomain,
-            sender,
-            recipient,
-            messageBody
-        );
-
-        bytes memory _message = Message.formatMessage(
-            version,
-            sourceDomain,
-            destinationDomain,
-            _msgNonce,
-            sender,
-            recipient,
-            messageBody
-        );
-
-        // setup 2/3 multisig
-        destMessageTransmitter.enableAttester(secondAttester);
-        destMessageTransmitter.enableAttester(thirdAttester);
-        destMessageTransmitter.setSignatureThreshold(2);
-
-        uint256[] memory attesterPrivateKeys = new uint256[](2);
-        // manually sort attesters in correct order
-        attesterPrivateKeys[1] = attesterPK;
-        // attester == 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
-        attesterPrivateKeys[0] = secondAttesterPK;
-        // second attester = 0x6813eb9362372eef6200f3b1dbc3f819671cba69
-        // sanity check order
-        assertTrue(attester > secondAttester);
-        assertTrue(secondAttester > address(0));
-        bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
-
-        // assert that a MessageReceive event was logged with expected message bytes
-        vm.expectEmit(true, true, true, true);
-        emit MessageReceived(sourceDomain, _msgNonce, sender, messageBody);
-
-        bool success = destMessageTransmitter.receiveMessage(
-            _message,
-            _signature
-        );
-        assertTrue(success);
-
-        // check that the nonce is used
-        assertTrue(
-            destMessageTransmitter.usedNonces(
-                _hashSourceAndNonce(sourceDomain, _msgNonce)
-            )
-        );
+        _setup2of3Multisig();
+        _sendReceiveMultisigMessage();
     }
 
-    function testReceiveMessage_rejectsOutOfOrderSigners() public {
-        bytes memory _message = _getMessage();
+    function testReceiveMessage_succeedsfor2of2Multisig() public {
+        _setup2of2Multisig();
+        _sendReceiveMultisigMessage();
+    }
 
-        // setup 2/3 multisig
-        destMessageTransmitter.enableAttester(secondAttester);
-        destMessageTransmitter.enableAttester(thirdAttester);
-        destMessageTransmitter.setSignatureThreshold(2);
+    function testReceiveMessage_rejectsAttestationWithOutOfOrderSigners()
+        public
+    {
+        _setup2of2Multisig();
+        bytes memory _message = _getMessage();
 
         uint256[] memory attesterPrivateKeys = new uint256[](2);
         // // manually sort attesters in incorrect order
@@ -356,30 +271,12 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
-    function testReceiveMessage_rejectsDuplicateSigners() public {
-        uint64 _msgNonce = _sendMessage(
-            version,
-            sourceDomain,
-            destinationDomain,
-            sender,
-            recipient,
-            messageBody
-        );
+    function testReceiveMessage_rejectsAttestationWithDuplicateSigners()
+        public
+    {
+        _setup2of3Multisig();
 
-        bytes memory _message = Message.formatMessage(
-            version,
-            sourceDomain,
-            destinationDomain,
-            _msgNonce,
-            sender,
-            recipient,
-            messageBody
-        );
-
-        // setup 2/3 multisig
-        destMessageTransmitter.enableAttester(secondAttester);
-        destMessageTransmitter.enableAttester(thirdAttester);
-        destMessageTransmitter.setSignatureThreshold(2);
+        bytes memory _message = _getMessage();
 
         uint256[] memory attesterPrivateKeys = new uint256[](2);
         // attempt to use same private key to sign twice (disallowed)
@@ -393,34 +290,10 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
-    function testReceiveMessage_rejectsTooFewSignatures() public {
-        uint64 _msgNonce = _sendMessage(
-            version,
-            sourceDomain,
-            destinationDomain,
-            sender,
-            recipient,
-            messageBody
-        );
+    function testReceiveMessage_rejectsAttestionWithTooFewSignatures() public {
+        _setup2of3Multisig();
 
-        bytes memory _message = Message.formatMessage(
-            version,
-            sourceDomain,
-            destinationDomain,
-            _msgNonce,
-            sender,
-            recipient,
-            messageBody
-        );
-
-        // add second attester
-        destMessageTransmitter.enableAttester(secondAttester);
-
-        // add third attester
-        destMessageTransmitter.enableAttester(thirdAttester);
-
-        // require two attesters (2 of 3)
-        destMessageTransmitter.setSignatureThreshold(2);
+        bytes memory _message = _getMessage();
 
         uint256[] memory attesterPrivateKeys = new uint256[](1);
         // use only 1 key (2 required)
@@ -431,34 +304,12 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
-    function testReceiveMessage_rejectsTooManySignatures() public {
-        uint64 _msgNonce = _sendMessage(
-            version,
-            sourceDomain,
-            destinationDomain,
-            sender,
-            recipient,
-            messageBody
-        );
+    function testReceiveMessage_rejectsAttestationWithTooManySignatures()
+        public
+    {
+        _setup2of3Multisig();
 
-        bytes memory _message = Message.formatMessage(
-            version,
-            sourceDomain,
-            destinationDomain,
-            _msgNonce,
-            sender,
-            recipient,
-            messageBody
-        );
-
-        // add second attester
-        destMessageTransmitter.enableAttester(secondAttester);
-
-        // add third attester
-        destMessageTransmitter.enableAttester(thirdAttester);
-
-        // require two attesters (2 of 3)
-        destMessageTransmitter.setSignatureThreshold(2);
+        bytes memory _message = _getMessage();
 
         uint256[] memory attesterPrivateKeys = new uint256[](3);
         // use only 3 key (only 2 allowed)
@@ -469,6 +320,63 @@ contract MessageTransmitterTest is Test, TestUtils {
 
         vm.expectRevert("Invalid attestation length");
         destMessageTransmitter.receiveMessage(_message, _signature);
+    }
+
+    function testReceiveMessage_rejectsAttestationWithSingleEmptySigPrefix()
+        public
+    {
+        _setup2of3Multisig();
+
+        bytes memory _message = _getMessage();
+
+        uint256[] memory attesterPrivateKeys = new uint256[](1);
+        attesterPrivateKeys[0] = attesterPK;
+        bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
+
+        bytes memory _validSignaturePrependedWithEmptySig = abi.encodePacked(
+            zeroSignature,
+            zeroSignature
+        );
+
+        vm.expectRevert("ECDSA: invalid signature 'v' value");
+        destMessageTransmitter.receiveMessage(
+            _message,
+            _validSignaturePrependedWithEmptySig
+        );
+    }
+
+    function testReceiveMessage_rejectsAttestationWithAllEmptySigs() public {
+        _setup2of3Multisig();
+
+        bytes memory _message = _getMessage();
+
+        bytes memory _validSignaturePrependedWithEmptySig = abi.encodePacked(
+            zeroSignature,
+            zeroSignature
+        );
+
+        vm.expectRevert("ECDSA: invalid signature 'v' value");
+        destMessageTransmitter.receiveMessage(
+            _message,
+            _validSignaturePrependedWithEmptySig
+        );
+    }
+
+    function testReceiveMessage_rejectsAttestionWithRandomNumberOfBytesOfInvalidLength(
+        uint8 _numberOfBytes
+    ) public {
+        bytes memory _attestation = "";
+        bytes memory _message = _getMessage();
+        // ensure less than 65 bytes so the length is never valid during fuzz testing
+        for (uint256 i = 0; i < Math.min(_numberOfBytes, 64); i++) {
+            _attestation = abi.encodePacked(
+                _attestation,
+                "1" // arbitrary value
+            );
+        }
+
+        vm.expectRevert("Invalid attestation length");
+        destMessageTransmitter.receiveMessage(_message, _attestation);
     }
 
     function testReceiveMessage_rejectsReusedNonceInSeparateTransaction()
@@ -656,171 +564,6 @@ contract MessageTransmitterTest is Test, TestUtils {
         srcMessageTransmitter.setMaxMessageBodySize(_newMaxMessageBodySize);
     }
 
-    function testSetSignatureThreshold_revertsIfCalledByNonAttesterManager()
-        public
-    {
-        address _nonAttesterManager = vm.addr(1602);
-        vm.prank(_nonAttesterManager);
-        vm.expectRevert("Attestable: caller is not the attester manager");
-        srcMessageTransmitter.setSignatureThreshold(1);
-    }
-
-    function testSetSignatureThreshold_succeeds() public {
-        MessageTransmitter _localMessageTransmitter = new MessageTransmitter(
-            sourceDomain,
-            attester,
-            maxMessageBodySize,
-            version
-        );
-        assertEq(_localMessageTransmitter.signatureThreshold(), 1);
-
-        // enable second attester, so increasing threshold is allowed
-        _localMessageTransmitter.enableAttester(secondAttester);
-
-        vm.expectEmit(true, true, true, true);
-        emit SignatureThresholdUpdated(1, 2);
-
-        // update signatureThreshold to 2
-        _localMessageTransmitter.setSignatureThreshold(2);
-        assertEq(_localMessageTransmitter.signatureThreshold(), 2);
-    }
-
-    function testSetSignatureThreshold_rejectsZeroValue() public {
-        vm.expectRevert("New signature threshold must be nonzero");
-        srcMessageTransmitter.setSignatureThreshold(0);
-    }
-
-    function testSetSignatureThreshold_cannotExceedNumberOfEnabledAttesters()
-        public
-    {
-        MessageTransmitter _localMessageTransmitter = new MessageTransmitter(
-            sourceDomain,
-            attester,
-            maxMessageBodySize,
-            version
-        );
-        assertEq(_localMessageTransmitter.signatureThreshold(), 1);
-
-        // fail to update signatureThreshold to 2
-        vm.expectRevert(
-            "New signature threshold cannot exceed the number of enabled attesters"
-        );
-        _localMessageTransmitter.setSignatureThreshold(2);
-
-        assertEq(_localMessageTransmitter.signatureThreshold(), 1);
-    }
-
-    function testSetSignatureThreshold_notEqualToCurrentSignatureThreshold()
-        public
-    {
-        vm.expectRevert(
-            "New signature threshold must not equal current signature threshold"
-        );
-        srcMessageTransmitter.setSignatureThreshold(1);
-    }
-
-    function testGetEnabledAttester_succeeds() public {
-        assertEq(srcMessageTransmitter.getEnabledAttester(0), attester);
-    }
-
-    function testGetEnabledAttester_reverts() public {
-        vm.expectRevert("EnumerableSet: index out of bounds");
-        srcMessageTransmitter.getEnabledAttester(1);
-    }
-
-    function testEnableAttester_succeeds() public {
-        address _newAttester = vm.addr(1601);
-
-        MessageTransmitter _localMessageTransmitter = new MessageTransmitter(
-            sourceDomain,
-            attester,
-            maxMessageBodySize,
-            version
-        );
-
-        assertFalse(_localMessageTransmitter.isEnabledAttester(_newAttester));
-
-        assertEq(_localMessageTransmitter.getNumEnabledAttesters(), 1);
-
-        vm.expectEmit(true, true, true, true);
-        emit AttesterEnabled(_newAttester);
-        _localMessageTransmitter.enableAttester(_newAttester);
-        assertTrue(_localMessageTransmitter.isEnabledAttester(_newAttester));
-
-        assertEq(_localMessageTransmitter.getNumEnabledAttesters(), 2);
-    }
-
-    function testEnableAttester_revertsIfCalledByNonAttesterManager(
-        address _addr
-    ) public {
-        address _nonAttesterManager = vm.addr(1602);
-        vm.prank(_nonAttesterManager);
-
-        vm.expectRevert("Attestable: caller is not the attester manager");
-        srcMessageTransmitter.enableAttester(_addr);
-    }
-
-    function testEnableAttester_rejectsZeroAddress() public {
-        address _newAttesterManager = address(0);
-        vm.expectRevert("New attester must be nonzero");
-        srcMessageTransmitter.enableAttester(_newAttesterManager);
-    }
-
-    function testEnableAttester_returnsFalseIfAttesterAlreadyExists() public {
-        vm.expectRevert("Attester already enabled");
-        srcMessageTransmitter.enableAttester(attester);
-        assertEq(srcMessageTransmitter.getNumEnabledAttesters(), 1);
-        assertTrue(srcMessageTransmitter.isEnabledAttester(attester));
-    }
-
-    function testDisableAttester_succeeds() public {
-        // enable second attester, so disabling is allowed
-        srcMessageTransmitter.enableAttester(secondAttester);
-        assertEq(srcMessageTransmitter.getNumEnabledAttesters(), 2);
-
-        vm.expectEmit(true, true, true, true);
-        emit AttesterDisabled(attester);
-        srcMessageTransmitter.disableAttester(attester);
-        assertEq(srcMessageTransmitter.getNumEnabledAttesters(), 1);
-        assertFalse(srcMessageTransmitter.isEnabledAttester(attester));
-    }
-
-    function testDisableAttester_revertsIfCalledByNonAttesterManager() public {
-        address _nonAttesterManager = vm.addr(1602);
-        vm.prank(_nonAttesterManager);
-
-        vm.expectRevert("Attestable: caller is not the attester manager");
-        srcMessageTransmitter.disableAttester(attester);
-    }
-
-    function testDisableAttester_revertsIfOneOrLessAttestersAreEnabled()
-        public
-    {
-        vm.expectRevert(
-            "Unable to disable attester because 1 or less attesters are enabled"
-        );
-        srcMessageTransmitter.disableAttester(attester);
-    }
-
-    function testDisableAttester_revertsIfSignatureThresholdTooLow() public {
-        srcMessageTransmitter.enableAttester(secondAttester);
-        srcMessageTransmitter.setSignatureThreshold(2);
-
-        vm.expectRevert(
-            "Unable to disable attester because signature threshold is too low"
-        );
-        srcMessageTransmitter.disableAttester(attester);
-    }
-
-    function testDisableAttester_revertsIfAttesterAlreadyDisabled() public {
-        address _nonAttester = vm.addr(1603);
-        // enable second attester, so disabling is allowed
-        srcMessageTransmitter.enableAttester(secondAttester);
-
-        vm.expectRevert("Attester already disabled");
-        srcMessageTransmitter.disableAttester(_nonAttester);
-    }
-
     function testRescuable(
         address _rescuer,
         address _rescueRecipient,
@@ -981,6 +724,68 @@ contract MessageTransmitterTest is Test, TestUtils {
             sender,
             recipient,
             messageBody
+        );
+    }
+
+    // setup second and third attester (first set in constructor), set sig threshold at 2
+    function _setup2of3Multisig() internal {
+        destMessageTransmitter.enableAttester(secondAttester);
+        destMessageTransmitter.enableAttester(thirdAttester);
+        destMessageTransmitter.setSignatureThreshold(2);
+    }
+
+    // setup second and third attester (first set in constructor), set sig threshold at 2
+    function _setup2of2Multisig() internal {
+        destMessageTransmitter.enableAttester(secondAttester);
+        destMessageTransmitter.setSignatureThreshold(2);
+    }
+
+    function _sendReceiveMultisigMessage() internal {
+        uint64 _msgNonce = _sendMessage(
+            version,
+            sourceDomain,
+            destinationDomain,
+            sender,
+            recipient,
+            messageBody
+        );
+
+        bytes memory _message = Message.formatMessage(
+            version,
+            sourceDomain,
+            destinationDomain,
+            _msgNonce,
+            sender,
+            recipient,
+            messageBody
+        );
+
+        uint256[] memory attesterPrivateKeys = new uint256[](2);
+        // manually sort attesters in correct order
+        attesterPrivateKeys[1] = attesterPK;
+        // attester == 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
+        attesterPrivateKeys[0] = secondAttesterPK;
+        // second attester = 0x6813eb9362372eef6200f3b1dbc3f819671cba69
+        // sanity check order
+        assertTrue(attester > secondAttester);
+        assertTrue(secondAttester > address(0));
+        bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
+
+        // assert that a MessageReceive event was logged with expected message bytes
+        vm.expectEmit(true, true, true, true);
+        emit MessageReceived(sourceDomain, _msgNonce, sender, messageBody);
+
+        bool success = destMessageTransmitter.receiveMessage(
+            _message,
+            _signature
+        );
+        assertTrue(success);
+
+        // check that the nonce is used
+        assertTrue(
+            destMessageTransmitter.usedNonces(
+                _hashSourceAndNonce(sourceDomain, _msgNonce)
+            )
         );
     }
 }
