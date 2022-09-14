@@ -46,15 +46,17 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
     uint32 public messageBodyVersion;
 
     /**
-     * @notice Emitted when a deposit for burn is received on local domain
+     * @notice Emitted when a DepositForBurn message is sent
+     * @param nonce unique nonce reserved by message
      * @param depositor address where deposit is transferred from
-     * @param burnToken address of token burnt on local domain
+     * @param burnToken address of token burnt on source domain
      * @param amount deposit amount
      * @param mintRecipient address receiving minted tokens on destination domain as bytes32
      * @param destinationDomain destination domain
      * @param destinationCircleBridge address of CircleBridge on destination domain as bytes32
      */
     event DepositForBurn(
+        uint64 nonce,
         address depositor,
         address burnToken,
         uint256 amount,
@@ -151,14 +153,14 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
      * @param _destinationDomain destination domain
      * @param _mintRecipient address of mint recipient on destination domain
      * @param _burnToken address of contract to burn deposited tokens, on local domain
-     * @return success bool, true if successful
+     * @return _nonce unique nonce reserved by message
      */
     function depositForBurn(
         uint256 _amount,
         uint32 _destinationDomain,
         bytes32 _mintRecipient,
         address _burnToken
-    ) external returns (bool success) {
+    ) external returns (uint64 _nonce) {
         bytes32 _destinationCircleBridge = _getRemoteCircleBridge(
             _destinationDomain
         );
@@ -177,16 +179,14 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
             _amount
         );
 
-        require(
-            localMessageTransmitter.sendMessage(
-                _destinationDomain,
-                _destinationCircleBridge,
-                _burnMessage
-            ),
-            "MessageTransmitter sendMessage() returned false"
+        uint64 _nonce = localMessageTransmitter.sendMessage(
+            _destinationDomain,
+            _destinationCircleBridge,
+            _burnMessage
         );
 
         emit DepositForBurn(
+            _nonce,
             msg.sender,
             _burnToken,
             _amount,
@@ -195,7 +195,7 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
             _destinationCircleBridge
         );
 
-        return true;
+        return _nonce;
     }
 
     /**

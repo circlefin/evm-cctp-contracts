@@ -21,7 +21,6 @@ import "../src/messages/BurnMessage.sol";
 import "../src/MessageTransmitter.sol";
 import "../src/CircleMinter.sol";
 import "./mocks/MockMintBurnToken.sol";
-import "./mocks/MockRelayer.sol";
 import "./TestUtils.sol";
 
 contract CircleBridgeTest is Test, TestUtils {
@@ -65,21 +64,23 @@ contract CircleBridgeTest is Test, TestUtils {
     event MessageSent(bytes message);
 
     /**
-     * @notice Emitted when a deposit for burn is received on source domain
+     * @notice Emitted when a DepositForBurn message is sent
+     * @param nonce unique nonce reserved by message
      * @param depositor address where deposit is transferred from
      * @param burnToken address of token burnt on source domain
      * @param amount deposit amount
      * @param mintRecipient address receiving minted tokens on destination domain as bytes32
-     * @param remoteDomain destination domain
-     * @param circleMessenger address of Circle Messenger on destination domain as bytes32
+     * @param destinationDomain destination domain
+     * @param destinationCircleBridge address of CircleBridge on destination domain as bytes32
      */
     event DepositForBurn(
+        uint64 nonce,
         address depositor,
         address burnToken,
         uint256 amount,
         bytes32 mintRecipient,
-        uint32 remoteDomain,
-        bytes32 circleMessenger
+        uint32 destinationDomain,
+        bytes32 destinationCircleBridge
     );
 
     /**
@@ -169,16 +170,14 @@ contract CircleBridgeTest is Test, TestUtils {
         destCircleMinter.addLocalCircleBridge(address(destCircleBridge));
     }
 
-    function testDepositForBurn_revertsIfNoRemoteCircleBridgeExistsForDomain()
-        public
-    {
+    function testDepositForBurn_revertsIfNoRemoteCircleBridgeExistsForDomain(
+        address _relayerAddress
+    ) public {
         uint256 _amount = 5;
         bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
 
-        MockRelayer _mockRelayer = new MockRelayer();
-        address _mockRelayerAddress = address(_mockRelayer);
         CircleBridge _circleBridge = new CircleBridge(
-            _mockRelayerAddress,
+            _relayerAddress,
             messageBodyVersion
         );
 
@@ -253,37 +252,6 @@ contract CircleBridgeTest is Test, TestUtils {
             _amount,
             remoteDomain,
             remoteCircleBridge,
-            address(localToken)
-        );
-    }
-
-    function testDepositForBurn_revertsIfRelayerReturnsFalse() public {
-        uint256 _amount = 5;
-        bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
-
-        MockRelayer _mockRelayer = new MockRelayer();
-        address _mockRelayerAddress = address(_mockRelayer);
-        CircleBridge _circleBridge = new CircleBridge(
-            _mockRelayerAddress,
-            messageBodyVersion
-        );
-
-        _circleBridge.addLocalMinter(address(localCircleMinter));
-        localCircleMinter.removeLocalCircleBridge();
-        localCircleMinter.addLocalCircleBridge(address(_circleBridge));
-        _circleBridge.addRemoteCircleBridge(remoteDomain, remoteCircleBridge);
-
-        localToken.mint(owner, 10);
-
-        vm.prank(owner);
-        localToken.approve(address(_circleBridge), 10);
-
-        vm.prank(owner);
-        vm.expectRevert("MessageTransmitter sendMessage() returned false");
-        _circleBridge.depositForBurn(
-            _amount,
-            remoteDomain,
-            _mintRecipient,
             address(localToken)
         );
     }
@@ -638,6 +606,7 @@ contract CircleBridgeTest is Test, TestUtils {
 
         vm.expectEmit(true, true, true, true);
         emit DepositForBurn(
+            _nonce,
             owner,
             address(localToken),
             _amount,
@@ -647,14 +616,14 @@ contract CircleBridgeTest is Test, TestUtils {
         );
 
         vm.prank(owner);
-        assertTrue(
-            localCircleBridge.depositForBurn(
-                _amount,
-                remoteDomain,
-                _mintRecipient,
-                address(localToken)
-            )
+        uint64 _nonceReserved = localCircleBridge.depositForBurn(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            address(localToken)
         );
+
+        assertEq(uint256(_nonce), uint256(_nonceReserved));
 
         // deserialize _messageBody
         bytes29 _m = _messageBody.ref(0);

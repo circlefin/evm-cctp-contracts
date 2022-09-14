@@ -548,13 +548,11 @@ contract MessageTransmitterTest is Test, TestUtils {
         _messageTransmitter.setMaxMessageBodySize(_newMaxMessageBodySize);
 
         // Send message body with new max size, successfully
-        bool _success = _messageTransmitter.sendMessage(
+        _messageTransmitter.sendMessage(
             destinationDomain,
             recipient,
             _messageBody
         );
-
-        assertTrue(_success);
     }
 
     function testSendMaxMessageBodySize_revertsOnNonOwner(
@@ -623,13 +621,13 @@ contract MessageTransmitterTest is Test, TestUtils {
         vm.prank(Message.bytes32ToAddress(_sender));
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
-        bool _success = srcMessageTransmitter.sendMessage(
+        uint64 _nonceReserved = srcMessageTransmitter.sendMessage(
             _destinationDomain,
             _recipient,
             _messageBody
         );
 
-        assertTrue(_success);
+        assertEq(uint256(_nonceReserved), uint256(_nonce));
 
         // assert availableNonces was updated
         uint256 _incrementedNonce = srcMessageTransmitter.availableNonces(

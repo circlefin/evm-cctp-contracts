@@ -101,13 +101,13 @@ contract MessageTransmitter is
      * @param _destinationDomain Domain of destination chain
      * @param _recipient Address of message recipient on destination chain as bytes32
      * @param _messageBody Raw bytes content of message
-     * @return success bool, true if successful
+     * @return _nonce unique nonce reserved by message
      */
     function sendMessage(
         uint32 _destinationDomain,
         bytes32 _recipient,
         bytes memory _messageBody
-    ) external override whenNotPaused returns (bool success) {
+    ) external override whenNotPaused returns (uint64 _nonce) {
         // Validate message body length
         require(
             _messageBody.length <= maxMessageBodySize,
@@ -133,7 +133,7 @@ contract MessageTransmitter is
 
         // Emit MessageSent event
         emit MessageSent(_message);
-        return true;
+        return _nonce;
     }
 
     /**

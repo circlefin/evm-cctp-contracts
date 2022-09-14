@@ -24,11 +24,11 @@ interface IRelayer {
      * @param _destinationDomain destination domain to receive the message
      * @param _recipient address to receive the message
      * @param _messageBody message body
-     * @return success bool, true if successful
+     * @return _nonce unique nonce reserved by message
      */
     function sendMessage(
         uint32 _destinationDomain,
         bytes32 _recipient,
         bytes memory _messageBody
-    ) external returns (bool success);
+    ) external returns (uint64 _nonce);
 }
