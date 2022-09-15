@@ -38,6 +38,8 @@ contract TestUtils is Test {
     uint256 fakeAttesterPK = 2;
     uint256 secondAttesterPK = 3;
     uint256 thirdAttesterPK = 4;
+    uint256 destinationCallerPK = 5;
+    uint256 recipientPK = 6;
     address attester = vm.addr(attesterPK);
     address secondAttester = vm.addr(secondAttesterPK);
     address thirdAttester = vm.addr(thirdAttesterPK);
@@ -49,7 +51,11 @@ contract TestUtils is Test {
     uint32 version = 0;
     uint32 nonce = 99;
     bytes32 sender;
-    bytes32 recipient;
+    address recipientAddr = vm.addr(recipientPK);
+    bytes32 recipient = Message.addressToBytes32(recipientAddr);
+    address destinationCallerAddr = vm.addr(destinationCallerPK);
+    bytes32 destinationCaller = Message.addressToBytes32(destinationCallerAddr);
+    bytes32 emptyDestinationCaller = bytes32(0);
     bytes messageBody = bytes("test message");
     // 8 KiB
     uint32 maxMessageBodySize = 8 * 2**10;

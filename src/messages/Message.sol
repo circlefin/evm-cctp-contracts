@@ -32,7 +32,8 @@ import "@memview-sol/contracts/TypedMemView.sol";
  * nonce                 8          uint64     12
  * sender                32         bytes32    20
  * recipient             32         bytes32    52
- * messageBody           dynamic    bytes      84
+ * destinationCaller     32         bytes32    84
+ * messageBody           dynamic    bytes      116
  *
  **/
 library Message {
@@ -46,7 +47,8 @@ library Message {
     uint32 internal constant NONCE_INDEX = 12;
     uint32 internal constant SENDER_INDEX = 20;
     uint32 internal constant RECIPIENT_INDEX = 52;
-    uint32 internal constant MESSAGE_BODY_INDEX = 84;
+    uint32 internal constant DESTINATION_CALLER_INDEX = 84;
+    uint32 internal constant MESSAGE_BODY_INDEX = 116;
 
     /**
      * @notice Returns formatted (packed) message with provided fields
@@ -56,6 +58,7 @@ library Message {
      * @param _nonce Destination-specific nonce
      * @param _sender Address of sender on source chain as bytes32
      * @param _recipient Address of recipient on destination chain as bytes32
+     * @param _destinationCaller Address of caller on destination chain as bytes32
      * @param _messageBody Raw bytes of message body
      * @return Formatted message
      **/
@@ -66,6 +69,7 @@ library Message {
         uint64 _nonce,
         bytes32 _sender,
         bytes32 _recipient,
+        bytes32 _destinationCaller,
         bytes memory _messageBody
     ) internal pure returns (bytes memory) {
         return
@@ -76,6 +80,7 @@ library Message {
                 _nonce,
                 _sender,
                 _recipient,
+                _destinationCaller,
                 _messageBody
             );
     }
@@ -112,6 +117,15 @@ library Message {
     // @notice Returns message's recipient field
     function recipient(bytes29 _message) internal pure returns (bytes32) {
         return _message.index(RECIPIENT_INDEX, 32);
+    }
+
+    // @notice Returns message's destinationCaller field
+    function destinationCaller(bytes29 _message)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return _message.index(DESTINATION_CALLER_INDEX, 32);
     }
 
     // @notice Returns message's messageBody field

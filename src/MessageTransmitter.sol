@@ -41,12 +41,14 @@ contract MessageTransmitter is
 
     /**
      * @notice Emitted when a new message is received
+     * @param caller Caller (msg.sender) on destination domain
      * @param sourceDomain The source domain this message originated from
      * @param nonce The nonce unique to this message
      * @param sender The sender of this message
      * @param messageBody message body bytes
      */
     event MessageReceived(
+        address caller,
         uint32 sourceDomain,
         uint64 nonce,
         bytes32 sender,
@@ -108,32 +110,47 @@ contract MessageTransmitter is
         bytes32 _recipient,
         bytes memory _messageBody
     ) external override whenNotPaused returns (uint64 _nonce) {
-        // Validate message body length
+        bytes32 _emptyDestinationCaller = bytes32(0);
+        return
+            _sendMessage(
+                _destinationDomain,
+                _recipient,
+                _emptyDestinationCaller,
+                _messageBody
+            );
+    }
+
+    /**
+     * @notice Send the message to the destination domain and recipient, for a specified `_destinationCaller` on the
+     * destination domain.
+     * @dev Increment nonce, format the message, and emit `MessageSent` event with message information.
+     * WARNING: if the `_destinationCaller` does not represent a valid address, then it will not be possible
+     * to broadcast the message on the destination domain. This is an advanced feature, and the standard
+     * sendMessage() should be preferred for use cases where a specific destination caller is not required.
+     * @param _destinationDomain Domain of destination chain
+     * @param _recipient Address of message recipient on destination domain as bytes32
+     * @param _destinationCaller caller on the destination domain, as bytes32
+     * @param _messageBody Raw bytes content of message
+     * @return _nonce unique nonce reserved by message
+     */
+    function sendMessageWithCaller(
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        bytes32 _destinationCaller,
+        bytes memory _messageBody
+    ) external override whenNotPaused returns (uint64 _nonce) {
         require(
-            _messageBody.length <= maxMessageBodySize,
-            "Message body exceeds max size"
+            _destinationCaller != bytes32(0),
+            "Destination caller must be nonzero"
         );
 
-        // Reserve a nonce for destination domain
-        uint64 _nonce = availableNonces[_destinationDomain];
-
-        // Increment nonce
-        availableNonces[_destinationDomain] = _nonce + 1;
-
-        // serialize message
-        bytes memory _message = Message.formatMessage(
-            version,
-            localDomain,
-            _destinationDomain,
-            _nonce,
-            Message.addressToBytes32(msg.sender),
-            _recipient,
-            _messageBody
-        );
-
-        // Emit MessageSent event
-        emit MessageSent(_message);
-        return _nonce;
+        return
+            _sendMessage(
+                _destinationDomain,
+                _recipient,
+                _destinationCaller,
+                _messageBody
+            );
     }
 
     /**
@@ -181,6 +198,14 @@ contract MessageTransmitter is
             "Invalid destination domain"
         );
 
+        // Validate destination caller
+        if (_m.destinationCaller() != bytes32(0)) {
+            require(
+                _m.destinationCaller() == Message.addressToBytes32(msg.sender),
+                "Invalid caller for message"
+            );
+        }
+
         // Validate nonce is available
         uint32 _sourceDomain = _m.sourceDomain();
         uint64 _nonce = _m.nonce();
@@ -199,8 +224,61 @@ contract MessageTransmitter is
         );
 
         // Emit MessageReceived event
-        emit MessageReceived(_sourceDomain, _nonce, _sender, _messageBody);
+        emit MessageReceived(
+            msg.sender,
+            _sourceDomain,
+            _nonce,
+            _sender,
+            _messageBody
+        );
         return true;
+    }
+
+    /**
+     * @notice Send the message to the destination domain and recipient. If `_destinationCaller` is not equal to bytes32(0),
+     * the message can only be received on the destination chain when called by `_destinationCaller`.
+     * @dev Increment nonce, format the message, and emit `MessageSent` event with message information.
+     * @param _destinationDomain Domain of destination chain
+     * @param _recipient Address of message recipient on destination domain as bytes32
+     * @param _destinationCaller caller on the destination domain, as bytes32
+     * @param _messageBody Raw bytes content of message
+     * @return _nonce unique nonce reserved by message
+     */
+    function _sendMessage(
+        uint32 _destinationDomain,
+        bytes32 _recipient,
+        bytes32 _destinationCaller,
+        bytes memory _messageBody
+    ) internal returns (uint64 _nonce) {
+        // Validate message body length
+        require(
+            _messageBody.length <= maxMessageBodySize,
+            "Message body exceeds max size"
+        );
+
+        require(_recipient != bytes32(0), "Recipient must be nonzero");
+
+        // Reserve a nonce for destination domain
+        uint64 _nonceReserved = availableNonces[_destinationDomain];
+
+        // Increment nonce
+        availableNonces[_destinationDomain] = _nonceReserved + 1;
+
+        // serialize message
+        bytes memory _message = Message.formatMessage(
+            version,
+            localDomain,
+            _destinationDomain,
+            _nonceReserved,
+            Message.addressToBytes32(msg.sender),
+            _recipient,
+            _destinationCaller,
+            _messageBody
+        );
+
+        // Emit MessageSent event
+        emit MessageSent(_message);
+        return _nonceReserved;
     }
 
     /**

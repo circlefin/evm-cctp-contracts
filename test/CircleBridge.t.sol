@@ -72,6 +72,8 @@ contract CircleBridgeTest is Test, TestUtils {
      * @param mintRecipient address receiving minted tokens on destination domain as bytes32
      * @param destinationDomain destination domain
      * @param destinationCircleBridge address of CircleBridge on destination domain as bytes32
+     * @param destinationCaller authorized caller of receiveMessage() on destination domain if not equal to bytes32(0).
+     * (Else, any caller is authorized to call.)
      */
     event DepositForBurn(
         uint64 nonce,
@@ -80,7 +82,8 @@ contract CircleBridgeTest is Test, TestUtils {
         uint256 amount,
         bytes32 mintRecipient,
         uint32 destinationDomain,
-        bytes32 destinationCircleBridge
+        bytes32 destinationCircleBridge,
+        bytes32 destinationCaller
     );
 
     /**
@@ -261,6 +264,73 @@ contract CircleBridgeTest is Test, TestUtils {
         address _mintRecipientAddr = vm.addr(1505);
 
         _depositForBurn(_mintRecipientAddr, _amount);
+    }
+
+    function testDepositForBurn_returnsNonzeroNonce(address _mintRecipientAddr)
+        public
+    {
+        uint64 _nonce0 = localMessageTransmitter.sendMessage(
+            remoteDomain,
+            recipient,
+            messageBody
+        );
+        assertEq(uint256(_nonce0), 0);
+
+        uint64 _nonce1 = localMessageTransmitter.sendMessage(
+            remoteDomain,
+            recipient,
+            messageBody
+        );
+        assertEq(uint256(_nonce1), 1);
+
+        _depositForBurn(_mintRecipientAddr, 5);
+    }
+
+    function testDepositForBurnWithCaller_returnsNonzeroNonce(
+        address _mintRecipientAddr
+    ) public {
+        uint64 _nonce0 = localMessageTransmitter.sendMessage(
+            remoteDomain,
+            recipient,
+            messageBody
+        );
+        assertEq(uint256(_nonce0), 0);
+
+        uint64 _nonce1 = localMessageTransmitter.sendMessage(
+            remoteDomain,
+            recipient,
+            messageBody
+        );
+        assertEq(uint256(_nonce1), 1);
+
+        _depositForBurnWithCaller(_mintRecipientAddr, 5, destinationCaller);
+    }
+
+    function testDepositForBurnWithCaller_rejectsZeroDestinationCaller(
+        uint256 _amount,
+        uint32 _domain,
+        bytes32 _mintRecipient,
+        address _tokenAddress
+    ) public {
+        vm.expectRevert("Destination caller must be nonzero");
+        localCircleBridge.depositForBurnWithCaller(
+            _amount,
+            _domain,
+            _mintRecipient,
+            _tokenAddress,
+            emptyDestinationCaller
+        );
+    }
+
+    function testDepositForBurnWithCaller_succeeds() public {
+        uint256 _amount = 5;
+        address _mintRecipientAddr = vm.addr(1505);
+
+        _depositForBurnWithCaller(
+            _mintRecipientAddr,
+            _amount,
+            destinationCaller
+        );
     }
 
     // TODO [STABLE-926] test mint fails due to insufficient mintAllowance
@@ -580,6 +650,80 @@ contract CircleBridgeTest is Test, TestUtils {
             address(localToken)
         );
 
+        bytes memory _messageBody = BurnMessage.formatMessage(
+            messageBodyVersion,
+            localTokenAddressBytes32,
+            _mintRecipient,
+            _amount
+        );
+
+        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
+
+        bytes memory _expectedMessage = Message.formatMessage(
+            version,
+            localDomain,
+            remoteDomain,
+            _nonce,
+            Message.addressToBytes32(address(localCircleBridge)),
+            remoteCircleBridge,
+            emptyDestinationCaller,
+            _messageBody
+        );
+
+        vm.expectEmit(true, true, true, true);
+        emit MessageSent(_expectedMessage);
+
+        vm.expectEmit(true, true, true, true);
+        emit DepositForBurn(
+            _nonce,
+            owner,
+            address(localToken),
+            _amount,
+            _mintRecipient,
+            remoteDomain,
+            remoteCircleBridge,
+            emptyDestinationCaller
+        );
+
+        vm.prank(owner);
+        uint64 _nonceReserved = localCircleBridge.depositForBurn(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            address(localToken)
+        );
+
+        assertEq(uint256(_nonce), uint256(_nonceReserved));
+
+        bytes29 _m = _messageBody.ref(0);
+        assertEq(
+            _m.getBurnToken(),
+            Message.addressToBytes32(address(localToken))
+        );
+        assertEq(_m.getMintRecipient(), _mintRecipient);
+        assertEq(_m.getBurnToken(), localTokenAddressBytes32);
+        assertEq(_m.getAmount(), _amount);
+
+        return _messageBody;
+    }
+
+    function _depositForBurnWithCaller(
+        address _mintRecipientAddr,
+        uint256 _amount,
+        bytes32 _destinationCaller
+    ) internal returns (bytes memory) {
+        address _spender = address(localCircleBridge);
+        bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
+
+        localToken.mint(owner, 10);
+
+        vm.prank(owner);
+        localToken.approve(_spender, 10);
+
+        bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
+            address(localToken)
+        );
+
         // Format message body
         bytes memory _messageBody = BurnMessage.formatMessage(
             messageBodyVersion,
@@ -598,6 +742,7 @@ contract CircleBridgeTest is Test, TestUtils {
             _nonce,
             Message.addressToBytes32(address(localCircleBridge)),
             remoteCircleBridge,
+            _destinationCaller,
             _messageBody
         );
 
@@ -612,15 +757,17 @@ contract CircleBridgeTest is Test, TestUtils {
             _amount,
             _mintRecipient,
             remoteDomain,
-            remoteCircleBridge
+            remoteCircleBridge,
+            _destinationCaller
         );
 
         vm.prank(owner);
-        uint64 _nonceReserved = localCircleBridge.depositForBurn(
+        uint64 _nonceReserved = localCircleBridge.depositForBurnWithCaller(
             _amount,
             remoteDomain,
             _mintRecipient,
-            address(localToken)
+            address(localToken),
+            _destinationCaller
         );
 
         assertEq(uint256(_nonce), uint256(_nonceReserved));

@@ -54,6 +54,8 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
      * @param mintRecipient address receiving minted tokens on destination domain as bytes32
      * @param destinationDomain destination domain
      * @param destinationCircleBridge address of CircleBridge on destination domain as bytes32
+     * @param destinationCaller authorized caller as bytes32 of receiveMessage() on destination domain, if not equal to bytes32(0).
+     * If equal to bytes32(0), any address can call receiveMessage().
      */
     event DepositForBurn(
         uint64 nonce,
@@ -62,7 +64,8 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
         uint256 amount,
         bytes32 mintRecipient,
         uint32 destinationDomain,
-        bytes32 destinationCircleBridge
+        bytes32 destinationCircleBridge,
+        bytes32 destinationCaller
     );
 
     /**
@@ -161,41 +164,60 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
         bytes32 _mintRecipient,
         address _burnToken
     ) external returns (uint64 _nonce) {
-        bytes32 _destinationCircleBridge = _getRemoteCircleBridge(
-            _destinationDomain
+        return
+            _depositForBurn(
+                _amount,
+                _destinationDomain,
+                _mintRecipient,
+                _burnToken,
+                // (bytes32(0) here indicates that any address can call receiveMessage()
+                // on the destination domain, triggering mint to specified `_mintRecipient`)
+                bytes32(0)
+            );
+    }
+
+    /**
+     * @notice Deposits and burns tokens from sender to be minted on destination domain. The mint
+     * on the destination domain must be called by `_destinationCaller`.
+     * WARNING: if the `_destinationCaller` does not represent a valid address as bytes32, then it will not be possible
+     * to broadcast the message on the destination domain. This is an advanced feature, and the standard
+     * depositForBurn() should be preferred for use cases where a specific destination caller is not required.
+     * Emits a `DepositForBurn` event.
+     * @dev reverts if:
+     * - given destinationCaller is zero address
+     * - given burnToken is not supported
+     * - given destinationDomain has no CircleBridge registered
+     * - transferFrom() reverts. For example, if sender's burnToken balance or approved allowance
+     * to this contract is less than `amount`.
+     * - burn() reverts. For example, if `amount` is 0.
+     * - MessageTransmitter returns false or reverts.
+     * @param _amount amount of tokens to burn
+     * @param _destinationDomain destination domain
+     * @param _mintRecipient address of mint recipient on destination domain
+     * @param _burnToken address of contract to burn deposited tokens, on local domain
+     * @param _destinationCaller caller on the destination domain, as bytes32
+     * @return _nonce unique nonce reserved by message
+     */
+    function depositForBurnWithCaller(
+        uint256 _amount,
+        uint32 _destinationDomain,
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller
+    ) external returns (uint64 _nonce) {
+        require(
+            _destinationCaller != bytes32(0),
+            "Destination caller must be nonzero"
         );
 
-        IMinter _localMinter = _getLocalMinter();
-
-        IMintBurnToken mintBurnToken = IMintBurnToken(_burnToken);
-        mintBurnToken.transferFrom(msg.sender, address(_localMinter), _amount);
-        _localMinter.burn(_burnToken, _amount);
-
-        // Format message body
-        bytes memory _burnMessage = BurnMessage.formatMessage(
-            messageBodyVersion,
-            Message.addressToBytes32(_burnToken),
-            _mintRecipient,
-            _amount
-        );
-
-        uint64 _nonce = localMessageTransmitter.sendMessage(
-            _destinationDomain,
-            _destinationCircleBridge,
-            _burnMessage
-        );
-
-        emit DepositForBurn(
-            _nonce,
-            msg.sender,
-            _burnToken,
-            _amount,
-            _mintRecipient,
-            _destinationDomain,
-            _destinationCircleBridge
-        );
-
-        return _nonce;
+        return
+            _depositForBurn(
+                _amount,
+                _destinationDomain,
+                _mintRecipient,
+                _burnToken,
+                _destinationCaller
+            );
     }
 
     /**
@@ -307,6 +329,96 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
 
         localMinter = IMinter(address(0));
         emit LocalMinterRemoved(localMinterAddress);
+    }
+
+    /**
+     * @notice Deposits and burns tokens from sender to be minted on destination domain.
+     * Emits a `DepositForBurn` event.
+     * @param _amount amount of tokens to burn
+     * @param _destinationDomain destination domain
+     * @param _mintRecipient address of mint recipient on destination domain
+     * @param _burnToken address of contract to burn deposited tokens, on local domain
+     * @param _destinationCaller caller on the destination domain, as bytes32
+     * @return _nonce unique nonce reserved by message
+     */
+    function _depositForBurn(
+        uint256 _amount,
+        uint32 _destinationDomain,
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller
+    ) internal returns (uint64 _nonce) {
+        bytes32 _destinationCircleBridge = _getRemoteCircleBridge(
+            _destinationDomain
+        );
+
+        IMinter _localMinter = _getLocalMinter();
+        IMintBurnToken mintBurnToken = IMintBurnToken(_burnToken);
+        mintBurnToken.transferFrom(msg.sender, address(_localMinter), _amount);
+        _localMinter.burn(_burnToken, _amount);
+
+        // Format message body
+        bytes memory _burnMessage = BurnMessage.formatMessage(
+            messageBodyVersion,
+            Message.addressToBytes32(_burnToken),
+            _mintRecipient,
+            _amount
+        );
+
+        uint64 _nonceReserved = _sendDepositForBurnMessage(
+            _destinationDomain,
+            _destinationCircleBridge,
+            _destinationCaller,
+            _burnMessage
+        );
+
+        emit DepositForBurn(
+            _nonceReserved,
+            msg.sender,
+            _burnToken,
+            _amount,
+            _mintRecipient,
+            _destinationDomain,
+            _destinationCircleBridge,
+            _destinationCaller
+        );
+
+        return _nonceReserved;
+    }
+
+    /**
+     * @notice Sends a BurnMessage through the local message transmitter
+     * @dev calls local message transmitter's sendMessage() function if `_destinationCaller` == bytes32(0),
+     * or else calls sendMessageWithCaller().
+     * @param _destinationDomain destination domain
+     * @param _destinationCircleBridge address of registered CircleBridge contract on destination domain, as bytes32
+     * @param _destinationCaller caller on the destination domain, as bytes32. If `_destinationCaller` == bytes32(0),
+     * any address can call receiveMessage() on destination domain.
+     * @param _burnMessage formatted BurnMessage bytes (message body)
+     * @return _nonce unique nonce reserved by message
+     */
+    function _sendDepositForBurnMessage(
+        uint32 _destinationDomain,
+        bytes32 _destinationCircleBridge,
+        bytes32 _destinationCaller,
+        bytes memory _burnMessage
+    ) internal returns (uint64 _nonce) {
+        if (_destinationCaller == bytes32(0)) {
+            return
+                localMessageTransmitter.sendMessage(
+                    _destinationDomain,
+                    _destinationCircleBridge,
+                    _burnMessage
+                );
+        } else {
+            return
+                localMessageTransmitter.sendMessageWithCaller(
+                    _destinationDomain,
+                    _destinationCircleBridge,
+                    _destinationCaller,
+                    _burnMessage
+                );
+        }
     }
 
     /**

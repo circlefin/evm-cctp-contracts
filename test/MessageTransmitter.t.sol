@@ -41,12 +41,14 @@ contract MessageTransmitterTest is Test, TestUtils {
 
     /**
      * @notice Emitted when a new message is received
+     * @param caller Caller (msg.sender) on destination domain
      * @param sourceDomain The source domain this message originated from
      * @param nonce The nonce unique to this message
      * @param sender The sender of this message
      * @param messageBody message body bytes
      */
     event MessageReceived(
+        address caller,
         uint32 sourceDomain,
         uint64 nonce,
         bytes32 sender,
@@ -95,6 +97,18 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
     }
 
+    function testSendMessage_rejectsZeroRecipient(
+        uint32 _destinationDomain,
+        bytes memory _messageBody
+    ) public {
+        vm.expectRevert("Recipient must be nonzero");
+        srcMessageTransmitter.sendMessage(
+            _destinationDomain,
+            bytes32(0),
+            _messageBody
+        );
+    }
+
     function testSendMessage_revertsWhenPaused(
         uint32 _destinationDomain,
         bytes32 _recipient,
@@ -135,7 +149,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
     }
 
-    function testSendAndReceiveMessage() public {
+    function testSendAndReceiveMessage(address _caller) public {
         uint64 _msgNonce = _sendMessage(
             version,
             sourceDomain,
@@ -146,6 +160,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
 
         _receiveMessage(
+            _caller,
             version,
             sourceDomain,
             destinationDomain,
@@ -157,6 +172,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     }
 
     function testReceiveMessage_fuzz(
+        address _caller,
         uint32 _version,
         uint32 _sourceDomain,
         uint64 _nonce,
@@ -164,6 +180,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         bytes memory _messageBody
     ) public {
         _receiveMessage(
+            _caller,
             _version,
             _sourceDomain,
             destinationDomain, // static (messageRecipient must be deployed on the destination domain)
@@ -182,6 +199,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             nonce,
             sender,
             recipient,
+            emptyDestinationCaller,
             messageBody
         );
 
@@ -201,6 +219,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             nonce,
             sender,
             recipient,
+            emptyDestinationCaller,
             messageBody
         );
 
@@ -217,14 +236,93 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
+    function testReceiveMessage_rejectsMessageIfNonzeroDestinationCallerDoesNotMatchSender(
+        uint32 _version,
+        uint32 _sourceDomain,
+        uint64 _nonce,
+        bytes32 _sender,
+        bytes32 _recipient,
+        bytes memory _messageBody
+    ) public {
+        bytes memory _message = Message.formatMessage(
+            _version,
+            _sourceDomain,
+            destinationDomain,
+            _nonce,
+            _sender,
+            _recipient,
+            destinationCaller,
+            _messageBody
+        );
+
+        uint256[] memory attesterPrivateKeys = new uint256[](1);
+        attesterPrivateKeys[0] = attesterPK;
+        bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
+
+        vm.expectRevert("Invalid caller for message");
+        destMessageTransmitter.receiveMessage(_message, _signature);
+    }
+
+    function testReceiveMessage_succeedsWithNonzeroDestinationCaller() public {
+        uint64 _msgNonce = _sendMessageWithCaller(
+            version,
+            sourceDomain,
+            destinationDomain,
+            sender,
+            recipient,
+            destinationCaller,
+            messageBody
+        );
+
+        _receiveMessage(
+            destinationCallerAddr,
+            version,
+            sourceDomain,
+            destinationDomain,
+            _msgNonce,
+            sender,
+            recipient,
+            messageBody
+        );
+    }
+
+    function testSendMessageWithCaller_rejectsZeroCaller(
+        uint64 _nonce,
+        uint32 _version,
+        uint32 _sourceDomain,
+        uint32 _destinationDomain,
+        bytes32 _sender,
+        bytes32 _recipient,
+        bytes memory _messageBody
+    ) public {
+        Message.formatMessage(
+            _version,
+            _sourceDomain,
+            _destinationDomain,
+            _nonce,
+            _sender,
+            _recipient,
+            emptyDestinationCaller,
+            _messageBody
+        );
+
+        vm.expectRevert("Destination caller must be nonzero");
+        srcMessageTransmitter.sendMessageWithCaller(
+            _destinationDomain,
+            _recipient,
+            emptyDestinationCaller,
+            _messageBody
+        );
+    }
+
     function testReceiveMessage_succeedsFor2of3Multisig() public {
         _setup2of3Multisig();
-        _sendReceiveMultisigMessage();
+        _sendReceiveMultisigMessage(destinationCallerAddr);
     }
 
     function testReceiveMessage_succeedsfor2of2Multisig() public {
         _setup2of2Multisig();
-        _sendReceiveMultisigMessage();
+        _sendReceiveMultisigMessage(destinationCallerAddr);
     }
 
     function testReceiveMessage_rejectsAttestationWithOutOfOrderSigners()
@@ -379,11 +477,12 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.receiveMessage(_message, _attestation);
     }
 
-    function testReceiveMessage_rejectsReusedNonceInSeparateTransaction()
-        public
-    {
+    function testReceiveMessage_rejectsReusedNonceInSeparateTransaction(
+        address _caller
+    ) public {
         // successfully receiveMessage
         (bytes memory _message, bytes memory _signature) = _receiveMessage(
+            _caller,
             version,
             sourceDomain,
             destinationDomain,
@@ -408,6 +507,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             nonce,
             sender,
             recipient,
+            emptyDestinationCaller,
             messageBody
         );
 
@@ -436,6 +536,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             nonce,
             sender,
             Message.addressToBytes32(address(_mockReentrantCaller)),
+            emptyDestinationCaller,
             bytes("reenter")
         );
 
@@ -458,6 +559,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _nonce,
             sender,
             recipient,
+            emptyDestinationCaller,
             "revert"
         );
 
@@ -486,6 +588,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             nonce,
             sender,
             recipient,
+            emptyDestinationCaller,
             bytes("return false")
         );
 
@@ -499,7 +602,8 @@ contract MessageTransmitterTest is Test, TestUtils {
 
     function testReceiveMessage_revertsWhenPaused(
         bytes memory _message,
-        bytes memory _signature
+        bytes memory _signature,
+        address _caller
     ) public {
         vm.prank(pauser);
         srcMessageTransmitter.pause();
@@ -513,6 +617,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             destinationDomain
         );
         _receiveMessage(
+            _caller,
             version,
             sourceDomain,
             destinationDomain,
@@ -614,6 +719,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _nonce,
             _sender,
             _recipient,
+            emptyDestinationCaller,
             _messageBody
         );
 
@@ -621,6 +727,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         vm.prank(Message.bytes32ToAddress(_sender));
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
+
         uint64 _nonceReserved = srcMessageTransmitter.sendMessage(
             _destinationDomain,
             _recipient,
@@ -639,7 +746,56 @@ contract MessageTransmitterTest is Test, TestUtils {
         return _nonce;
     }
 
+    function _sendMessageWithCaller(
+        uint32 _version,
+        uint32 _sourceDomain,
+        uint32 _destinationDomain,
+        bytes32 _sender,
+        bytes32 _recipient,
+        bytes32 _destinationCaller,
+        bytes memory _messageBody
+    ) internal returns (uint64 msgNonce) {
+        uint64 _nonce = srcMessageTransmitter.availableNonces(
+            _destinationDomain
+        );
+
+        bytes memory _expectedMessage = Message.formatMessage(
+            _version,
+            _sourceDomain,
+            _destinationDomain,
+            _nonce,
+            _sender,
+            _recipient,
+            _destinationCaller,
+            _messageBody
+        );
+
+        // assert that a MessageSent event was logged with expected message bytes
+        vm.expectEmit(true, true, true, true);
+        emit MessageSent(_expectedMessage);
+
+        vm.prank(Message.bytes32ToAddress(_sender));
+        uint64 _nonceReserved = srcMessageTransmitter.sendMessageWithCaller(
+            _destinationDomain,
+            _recipient,
+            _destinationCaller,
+            _messageBody
+        );
+
+        assertEq(uint256(_nonceReserved), uint256(_nonce));
+
+        // assert availableNonces was updated
+        uint256 _incrementedNonce = srcMessageTransmitter.availableNonces(
+            _destinationDomain
+        );
+
+        assertEq(_incrementedNonce, uint256(_nonce + 1));
+
+        return _nonce;
+    }
+
     function _receiveMessage(
+        address _caller,
         uint32 _version,
         uint32 _sourceDomain,
         uint32 _destinationDomain,
@@ -655,6 +811,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _nonce,
             _sender,
             _recipient,
+            emptyDestinationCaller,
             _messageBody
         );
 
@@ -664,8 +821,15 @@ contract MessageTransmitterTest is Test, TestUtils {
 
         // assert that a MessageReceive event was logged with expected message bytes
         vm.expectEmit(true, true, true, true);
-        emit MessageReceived(_sourceDomain, _nonce, _sender, _messageBody);
+        emit MessageReceived(
+            _caller,
+            _sourceDomain,
+            _nonce,
+            _sender,
+            _messageBody
+        );
 
+        vm.prank(_caller);
         bool success = destMessageTransmitter.receiveMessage(
             _message,
             _signature
@@ -721,6 +885,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _msgNonce,
             sender,
             recipient,
+            emptyDestinationCaller,
             messageBody
         );
     }
@@ -738,7 +903,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.setSignatureThreshold(2);
     }
 
-    function _sendReceiveMultisigMessage() internal {
+    function _sendReceiveMultisigMessage(address _caller) internal {
         uint64 _msgNonce = _sendMessage(
             version,
             sourceDomain,
@@ -755,6 +920,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _msgNonce,
             sender,
             recipient,
+            emptyDestinationCaller,
             messageBody
         );
 
@@ -771,8 +937,15 @@ contract MessageTransmitterTest is Test, TestUtils {
 
         // assert that a MessageReceive event was logged with expected message bytes
         vm.expectEmit(true, true, true, true);
-        emit MessageReceived(sourceDomain, _msgNonce, sender, messageBody);
+        emit MessageReceived(
+            _caller,
+            sourceDomain,
+            _msgNonce,
+            sender,
+            messageBody
+        );
 
+        vm.prank(_caller);
         bool success = destMessageTransmitter.receiveMessage(
             _message,
             _signature

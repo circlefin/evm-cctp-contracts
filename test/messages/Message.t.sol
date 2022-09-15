@@ -29,6 +29,7 @@ contract MessageTest is Test {
         uint64 _nonce,
         bytes32 _sender,
         bytes32 _recipient,
+        bytes32 _destinationCaller,
         bytes memory _messageBody
     ) public {
         bytes memory message = Message.formatMessage(
@@ -38,6 +39,7 @@ contract MessageTest is Test {
             _nonce,
             _sender,
             _recipient,
+            _destinationCaller,
             _messageBody
         );
 
@@ -48,6 +50,7 @@ contract MessageTest is Test {
         assertEq(_m.nonce(), uint256(_nonce));
         assertEq(_m.sender(), _sender);
         assertEq(_m.recipient(), _recipient);
+        assertEq(_m.destinationCaller(), _destinationCaller);
         assertEq(_m.messageBody().clone(), _messageBody);
     }
 
@@ -59,6 +62,7 @@ contract MessageTest is Test {
 
         bytes32 _sender = bytes32(uint256(uint160(vm.addr(1505))));
         bytes32 _recipient = bytes32(uint256(uint160(vm.addr(1506))));
+        bytes32 _destinationCaller = bytes32(uint256(uint160(vm.addr(1507))));
         bytes memory _messageBody = bytes("test message");
 
         bytes memory message = Message.formatMessage(
@@ -68,6 +72,7 @@ contract MessageTest is Test {
             _nonce,
             _sender,
             _recipient,
+            _destinationCaller,
             _messageBody
         );
 
