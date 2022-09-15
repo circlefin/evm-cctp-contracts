@@ -250,8 +250,8 @@ class TestCircleBridgeWithUSDC(unittest.TestCase):
 
         # parse MessageSent event emitted by avax_messageTransmitter
         avax_message_sent_filter = self.avax_messageTransmitter.events.MessageSent.createFilter(fromBlock="0x0")
-        avax_message_bytes = Web3.toHex(avax_message_sent_filter.get_new_entries()[0]['args']['message'])
-        avax_signed_message_bytes = hex(0x2e9d278d201a698f5908de5cbc9c1f7ee21b41f9ed5ec6104ce33045846bfe1b6373c1293d71b622ba3939d6a7081d814d5820eaadc04cb5c888f399bd3c60e01c)
+        avax_message_bytes = avax_message_sent_filter.get_new_entries()[0]['args']['message']
+        avax_signed_message_bytes = self.w3.eth.account.signHash(Web3.keccak(avax_message_bytes), keys["attester"]).signature
 
         # receiveMessage with eth_messageTransmitter to eth_bridge_user
         self.send_transaction(self.eth_messageTransmitter.functions.receiveMessage(avax_message_bytes, avax_signed_message_bytes), "eth_bridge_user")
@@ -266,8 +266,8 @@ class TestCircleBridgeWithUSDC(unittest.TestCase):
 
         # parse MessageSent event emitted by eth_messageTransmitter
         eth_message_sent_filter = self.eth_messageTransmitter.events.MessageSent.createFilter(fromBlock="0x0")
-        eth_message_bytes = Web3.toHex(eth_message_sent_filter.get_new_entries()[0]['args']['message'])
-        eth_signed_message_bytes = hex(0x6868dd267f550dae138be13553ea41a3ec90b053f210c5c07df7d845069d2b526bbd4464c64adb0474c9ace4c2fd7b81c1fdae24483762a4e90a3538461e25ab1c)
+        eth_message_bytes = eth_message_sent_filter.get_new_entries()[0]['args']['message']
+        eth_signed_message_bytes = self.w3.eth.account.signHash(Web3.keccak(eth_message_bytes), keys["attester"]).signature
 
         # receiveMessage with avax_messageTransmitter to avax_bridge_user
         self.send_transaction(self.avax_messageTransmitter.functions.receiveMessage(eth_message_bytes, eth_signed_message_bytes), "avax_bridge_user")
