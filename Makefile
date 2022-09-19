@@ -35,3 +35,7 @@ cast-send:
 	
 clean:
 	@${FOUNDRY} "forge clean"
+
+analyze:
+	pip3 install -r requirements.txt
+	slither .

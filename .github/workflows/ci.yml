@@ -27,3 +27,9 @@ jobs:
       
       - name: Run Integration Tests
         run: make anvil-test
+
+      - name: Run Slither
+        uses: crytic/slither-action@main
+        with:
+          fail-on: none
+
