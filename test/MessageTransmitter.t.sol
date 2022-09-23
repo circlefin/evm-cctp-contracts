@@ -167,6 +167,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _msgNonce,
             sender,
             recipient,
+            emptyDestinationCaller,
             messageBody
         );
     }
@@ -187,6 +188,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _nonce,
             _sender,
             recipient, // static (recipient must be a valid IMessageRecipient)
+            emptyDestinationCaller,
             _messageBody
         );
     }
@@ -282,6 +284,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _msgNonce,
             sender,
             recipient,
+            destinationCaller,
             messageBody
         );
     }
@@ -489,6 +492,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             nonce,
             sender,
             recipient,
+            emptyDestinationCaller,
             messageBody
         );
 
@@ -624,6 +628,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _nonce,
             sender,
             recipient,
+            emptyDestinationCaller,
             messageBody
         );
     }
@@ -802,6 +807,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         uint64 _nonce,
         bytes32 _sender,
         bytes32 _recipient,
+        bytes32 _destinationCaller,
         bytes memory _messageBody
     ) internal returns (bytes memory, bytes memory) {
         bytes memory _message = Message.formatMessage(
@@ -811,13 +817,11 @@ contract MessageTransmitterTest is Test, TestUtils {
             _nonce,
             _sender,
             _recipient,
-            emptyDestinationCaller,
+            _destinationCaller,
             _messageBody
         );
 
-        uint256[] memory attesterPrivateKeys = new uint256[](1);
-        attesterPrivateKeys[0] = attesterPK;
-        bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
+        bytes memory _signature = _signMessageWithAttesterPK(_message);
 
         // assert that a MessageReceive event was logged with expected message bytes
         vm.expectEmit(true, true, true, true);
@@ -847,6 +851,15 @@ contract MessageTransmitterTest is Test, TestUtils {
     }
 
     // ============ Internal: Utils ============
+    function _signMessageWithAttesterPK(bytes memory _message)
+        internal
+        returns (bytes memory)
+    {
+        uint256[] memory attesterPrivateKeys = new uint256[](1);
+        attesterPrivateKeys[0] = attesterPK;
+        return _signMessage(_message, attesterPrivateKeys);
+    }
+
     function _signMessage(bytes memory _message, uint256[] memory _privKeys)
         internal
         returns (bytes memory)

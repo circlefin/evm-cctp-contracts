@@ -54,7 +54,7 @@ contract BurnMessageTest is Test {
         assertEq(_expectedMessageBody.ref(0).keccak(), _m.keccak());
     }
 
-    function isValidBurnMessage_returnsFalseForWrongVersion(
+    function testIsValidBurnMessage_returnsFalseForWrongVersion(
         bytes32 _burnToken,
         bytes32 _mintRecipient,
         uint256 _amount
@@ -73,7 +73,7 @@ contract BurnMessageTest is Test {
         assertFalse(_m.isValidBurnMessage(2));
     }
 
-    function isValidBurnMessage_returnsFalseForWrongLength(
+    function testIsValidBurnMessage_returnsFalseForWrongLength(
         bytes32 _burnToken,
         bytes32 _mintRecipient,
         uint256 _amount
