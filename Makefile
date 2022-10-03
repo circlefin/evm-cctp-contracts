@@ -17,8 +17,7 @@ deploy:
 
 anvil:
 	docker rm -f anvil || true
-	@${ANVIL} "anvil --host 0.0.0.0 -a 11"
-	
+	@${ANVIL} "anvil --host 0.0.0.0 -a 11 --code-size-limit 250000"	
 
 anvil-test: anvil
 	pip3 install -r requirements.txt
