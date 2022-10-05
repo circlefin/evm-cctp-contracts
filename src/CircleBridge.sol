@@ -153,34 +153,34 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
      * to this contract is less than `amount`.
      * - burn() reverts. For example, if `amount` is 0.
      * - MessageTransmitter returns false or reverts.
-     * @param _amount amount of tokens to burn
-     * @param _destinationDomain destination domain
-     * @param _mintRecipient address of mint recipient on destination domain
-     * @param _burnToken address of contract to burn deposited tokens, on local domain
+     * @param amount amount of tokens to burn
+     * @param destinationDomain destination domain
+     * @param mintRecipient address of mint recipient on destination domain
+     * @param burnToken address of contract to burn deposited tokens, on local domain
      * @return _nonce unique nonce reserved by message
      */
     function depositForBurn(
-        uint256 _amount,
-        uint32 _destinationDomain,
-        bytes32 _mintRecipient,
-        address _burnToken
+        uint256 amount,
+        uint32 destinationDomain,
+        bytes32 mintRecipient,
+        address burnToken
     ) external returns (uint64 _nonce) {
         return
             _depositForBurn(
-                _amount,
-                _destinationDomain,
-                _mintRecipient,
-                _burnToken,
+                amount,
+                destinationDomain,
+                mintRecipient,
+                burnToken,
                 // (bytes32(0) here indicates that any address can call receiveMessage()
-                // on the destination domain, triggering mint to specified `_mintRecipient`)
+                // on the destination domain, triggering mint to specified `mintRecipient`)
                 bytes32(0)
             );
     }
 
     /**
      * @notice Deposits and burns tokens from sender to be minted on destination domain. The mint
-     * on the destination domain must be called by `_destinationCaller`.
-     * WARNING: if the `_destinationCaller` does not represent a valid address as bytes32, then it will not be possible
+     * on the destination domain must be called by `destinationCaller`.
+     * WARNING: if the `destinationCaller` does not represent a valid address as bytes32, then it will not be possible
      * to broadcast the message on the destination domain. This is an advanced feature, and the standard
      * depositForBurn() should be preferred for use cases where a specific destination caller is not required.
      * Emits a `DepositForBurn` event.
@@ -192,32 +192,32 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
      * to this contract is less than `amount`.
      * - burn() reverts. For example, if `amount` is 0.
      * - MessageTransmitter returns false or reverts.
-     * @param _amount amount of tokens to burn
-     * @param _destinationDomain destination domain
-     * @param _mintRecipient address of mint recipient on destination domain
-     * @param _burnToken address of contract to burn deposited tokens, on local domain
-     * @param _destinationCaller caller on the destination domain, as bytes32
+     * @param amount amount of tokens to burn
+     * @param destinationDomain destination domain
+     * @param mintRecipient address of mint recipient on destination domain
+     * @param burnToken address of contract to burn deposited tokens, on local domain
+     * @param destinationCaller caller on the destination domain, as bytes32
      * @return _nonce unique nonce reserved by message
      */
     function depositForBurnWithCaller(
-        uint256 _amount,
-        uint32 _destinationDomain,
-        bytes32 _mintRecipient,
-        address _burnToken,
-        bytes32 _destinationCaller
+        uint256 amount,
+        uint32 destinationDomain,
+        bytes32 mintRecipient,
+        address burnToken,
+        bytes32 destinationCaller
     ) external returns (uint64 _nonce) {
         require(
-            _destinationCaller != bytes32(0),
+            destinationCaller != bytes32(0),
             "Destination caller must be nonzero"
         );
 
         return
             _depositForBurn(
-                _amount,
-                _destinationDomain,
-                _mintRecipient,
-                _burnToken,
-                _destinationCaller
+                amount,
+                destinationDomain,
+                mintRecipient,
+                burnToken,
+                destinationCaller
             );
     }
 
@@ -234,55 +234,55 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
      * at the nonce confirms, at which point all others are invalidated.
      * Note: The msg.sender of the replaced message must be the same as the
      * msg.sender of the original message.
-     * @param _originalMessage original message bytes (to replace)
-     * @param _originalAttestation original attestation bytes
-     * @param _newDestinationCaller the new destination caller, which may be the
+     * @param originalMessage original message bytes (to replace)
+     * @param originalAttestation original attestation bytes
+     * @param newDestinationCaller the new destination caller, which may be the
      * same as the original destination caller, a new destination caller, or an empty
      * destination caller (bytes32(0), indicating that any destination caller is valid.)
-     * @param _newMintRecipient the new mint recipient, which may be the same as the
+     * @param newMintRecipient the new mint recipient, which may be the same as the
      * original mint recipient, or different.
      */
     function replaceDepositForBurn(
-        bytes memory _originalMessage,
-        bytes calldata _originalAttestation,
-        bytes32 _newDestinationCaller,
-        bytes32 _newMintRecipient
+        bytes memory originalMessage,
+        bytes calldata originalAttestation,
+        bytes32 newDestinationCaller,
+        bytes32 newMintRecipient
     ) external {
-        bytes29 _originalMsg = _originalMessage.ref(0);
-        bytes29 _originalMsgBody = _originalMsg.messageBody();
-        bytes32 _originalMsgSender = _originalMsgBody.getMessageSender();
+        bytes29 _originalMsg = originalMessage.ref(0);
+        bytes29 _originalMsgBody = _originalMsg._messageBody();
+        bytes32 _originalMsgSender = _originalMsgBody._getMessageSender();
         require(
-            msg.sender == Message.bytes32ToAddress(_originalMsgSender),
+            msg.sender == Message._bytes32ToAddress(_originalMsgSender),
             "Sender does not have permission to replace message"
         );
 
-        bytes32 _burnToken = _originalMsgBody.getBurnToken();
-        uint256 _amount = _originalMsgBody.getAmount();
+        bytes32 _burnToken = _originalMsgBody._getBurnToken();
+        uint256 _amount = _originalMsgBody._getAmount();
 
-        bytes memory _newMessageBody = BurnMessage.formatMessage(
+        bytes memory _newMessageBody = BurnMessage._formatMessage(
             messageBodyVersion,
             _burnToken,
-            _newMintRecipient,
+            newMintRecipient,
             _amount,
             _originalMsgSender
         );
 
         localMessageTransmitter.replaceMessage(
-            _originalMessage,
-            _originalAttestation,
+            originalMessage,
+            originalAttestation,
             _newMessageBody,
-            _newDestinationCaller
+            newDestinationCaller
         );
 
         emit DepositForBurn(
-            _originalMsg.nonce(),
+            _originalMsg._nonce(),
             msg.sender,
-            Message.bytes32ToAddress(_burnToken),
+            Message._bytes32ToAddress(_burnToken),
             _amount,
-            _newMintRecipient,
-            _originalMsg.destinationDomain(),
-            _originalMsg.recipient(),
-            _newDestinationCaller
+            newMintRecipient,
+            _originalMsg._destinationDomain(),
+            _originalMsg._recipient(),
+            newDestinationCaller
         );
     }
 
@@ -291,39 +291,42 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
      * and takes the appropriate action. For a burn message, mints the
      * associated token to the requested recipient on the local domain.
      * @dev Validates the local sender is the local MessageTransmitter, and the
-     * remote sender is a registered remote CircleBridge for `_remoteDomain`.
-     * @param _remoteDomain The domain where the message originated from.
-     * @param _sender The sender of the message (remote CircleBridge).
-     * @param _messageBody The message body bytes.
+     * remote sender is a registered remote CircleBridge for `remoteDomain`.
+     * @param remoteDomain The domain where the message originated from.
+     * @param sender The sender of the message (remote CircleBridge).
+     * @param messageBody The message body bytes.
      * @return success Bool, true if successful.
      */
     function handleReceiveMessage(
-        uint32 _remoteDomain,
-        bytes32 _sender,
-        bytes memory _messageBody
+        uint32 remoteDomain,
+        bytes32 sender,
+        bytes memory messageBody
     )
         external
         override
         onlyLocalMessageTransmitter
-        onlyRemoteCircleBridge(_remoteDomain, _sender)
+        onlyRemoteCircleBridge(remoteDomain, sender)
         returns (bool)
     {
-        bytes29 _msg = _messageBody.ref(0);
-        require(_msg.isValidBurnMessage(messageBodyVersion), "Invalid message");
+        bytes29 _msg = messageBody.ref(0);
+        require(
+            _msg._isValidBurnMessage(messageBodyVersion),
+            "Invalid message"
+        );
 
-        bytes32 _mintRecipient = _msg.getMintRecipient();
-        bytes32 _burnToken = _msg.getBurnToken();
-        uint256 _amount = _msg.getAmount();
+        bytes32 _mintRecipient = _msg._getMintRecipient();
+        bytes32 _burnToken = _msg._getBurnToken();
+        uint256 _amount = _msg._getAmount();
 
         IMinter _localMinter = _getLocalMinter();
         address _mintToken = _localMinter.getEnabledLocalToken(
-            _remoteDomain,
+            remoteDomain,
             _burnToken
         );
 
         _mintAndWithdraw(
             address(_localMinter),
-            Message.bytes32ToAddress(_mintRecipient),
+            Message._bytes32ToAddress(_mintRecipient),
             _amount,
             _mintToken
         );
@@ -334,55 +337,55 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
     /**
      * @notice Add the CircleBridge for a remote domain.
      * @dev Reverts if there is already a CircleBridge set for domain.
-     * @param _domain Domain of remote CircleBridge.
-     * @param _circleBridge Address of remote CircleBridge as bytes32.
+     * @param domain Domain of remote CircleBridge.
+     * @param circleBridge Address of remote CircleBridge as bytes32.
      */
-    function addRemoteCircleBridge(uint32 _domain, bytes32 _circleBridge)
+    function addRemoteCircleBridge(uint32 domain, bytes32 circleBridge)
         external
         onlyOwner
     {
         require(
-            remoteCircleBridges[_domain] == bytes32(0),
+            remoteCircleBridges[domain] == bytes32(0),
             "CircleBridge already set for given remote domain."
         );
 
-        remoteCircleBridges[_domain] = _circleBridge;
-        emit RemoteCircleBridgeAdded(_domain, _circleBridge);
+        remoteCircleBridges[domain] = circleBridge;
+        emit RemoteCircleBridgeAdded(domain, circleBridge);
     }
 
     /**
      * @notice Remove the CircleBridge for a remote domain.
      * @dev Reverts if there is no CircleBridge set for `domain`.
-     * @param _domain Domain of remote CircleBridge
-     * @param _circleBridge Address of remote CircleBridge as bytes32
+     * @param domain Domain of remote CircleBridge
+     * @param circleBridge Address of remote CircleBridge as bytes32
      */
-    function removeRemoteCircleBridge(uint32 _domain, bytes32 _circleBridge)
+    function removeRemoteCircleBridge(uint32 domain, bytes32 circleBridge)
         external
         onlyOwner
     {
         require(
-            remoteCircleBridges[_domain] != bytes32(0),
+            remoteCircleBridges[domain] != bytes32(0),
             "No CircleBridge set for given remote domain."
         );
 
-        remoteCircleBridges[_domain] = bytes32(0);
-        emit RemoteCircleBridgeRemoved(_domain, _circleBridge);
+        remoteCircleBridges[domain] = bytes32(0);
+        emit RemoteCircleBridgeRemoved(domain, circleBridge);
     }
 
     /**
      * @notice Add minter for the local domain.
      * @dev Reverts if a minter is already set for the local domain.
-     * @param _localMinter The address of the minter on the local domain.
+     * @param newLocalMinter The address of the minter on the local domain.
      */
-    function addLocalMinter(address _localMinter) external onlyOwner {
+    function addLocalMinter(address newLocalMinter) external onlyOwner {
         require(
             address(localMinter) == address(0),
             "Local minter is already set."
         );
 
-        localMinter = IMinter(_localMinter);
+        localMinter = IMinter(newLocalMinter);
 
-        emit LocalMinterAdded(_localMinter);
+        emit LocalMinterAdded(newLocalMinter);
     }
 
     /**
@@ -390,11 +393,11 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
      * @dev Reverts if the minter of the local domain is not set.
      */
     function removeLocalMinter() external onlyOwner {
-        address localMinterAddress = address(localMinter);
-        require(localMinterAddress != address(0), "No local minter is set.");
+        address _localMinterAddress = address(localMinter);
+        require(_localMinterAddress != address(0), "No local minter is set.");
 
         localMinter = IMinter(address(0));
-        emit LocalMinterRemoved(localMinterAddress);
+        emit LocalMinterRemoved(_localMinterAddress);
     }
 
     /**
@@ -419,12 +422,19 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
         );
 
         IMinter _localMinter = _getLocalMinter();
-        IMintBurnToken mintBurnToken = IMintBurnToken(_burnToken);
-        mintBurnToken.transferFrom(msg.sender, address(_localMinter), _amount);
+        IMintBurnToken _mintBurnToken = IMintBurnToken(_burnToken);
+        require(
+            _mintBurnToken.transferFrom(
+                msg.sender,
+                address(_localMinter),
+                _amount
+            ),
+            "Transfer operation failed"
+        );
         _localMinter.burn(_burnToken, _amount);
 
         // Format message body
-        bytes memory _burnMessage = BurnMessage.formatMessage(
+        bytes memory _burnMessage = BurnMessage._formatMessage(
             messageBodyVersion,
             Message.addressToBytes32(_burnToken),
             _mintRecipient,

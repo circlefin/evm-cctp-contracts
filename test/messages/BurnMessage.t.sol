@@ -40,7 +40,7 @@ contract BurnMessageTest is Test {
             Message.addressToBytes32(msgSender)
         );
 
-        bytes memory _messageBody = BurnMessage.formatMessage(
+        bytes memory _messageBody = BurnMessage._formatMessage(
             version,
             _burnToken,
             _mintRecipient,
@@ -49,12 +49,12 @@ contract BurnMessageTest is Test {
         );
 
         bytes29 _m = _messageBody.ref(0);
-        assertEq(_m.getMintRecipient(), _mintRecipient);
-        assertEq(_m.getBurnToken(), _burnToken);
-        assertEq(_m.getAmount(), _amount);
-        assertEq(uint256(_m.getVersion()), uint256(version));
-        assertEq(_m.getMessageSender(), Message.addressToBytes32(msgSender));
-        assertTrue(_m.isValidBurnMessage(version));
+        assertEq(_m._getMintRecipient(), _mintRecipient);
+        assertEq(_m._getBurnToken(), _burnToken);
+        assertEq(_m._getAmount(), _amount);
+        assertEq(uint256(_m._getVersion()), uint256(version));
+        assertEq(_m._getMessageSender(), Message.addressToBytes32(msgSender));
+        assertTrue(_m._isValidBurnMessage(version));
 
         assertEq(_expectedMessageBody.ref(0).keccak(), _m.keccak());
     }
@@ -64,7 +64,7 @@ contract BurnMessageTest is Test {
         bytes32 _mintRecipient,
         uint256 _amount
     ) public {
-        bytes memory _messageBody = BurnMessage.formatMessage(
+        bytes memory _messageBody = BurnMessage._formatMessage(
             version,
             _burnToken,
             _mintRecipient,
@@ -73,11 +73,11 @@ contract BurnMessageTest is Test {
         );
 
         bytes29 _m = _messageBody.ref(0);
-        assertEq(_m.getMintRecipient(), _mintRecipient);
-        assertEq(_m.getBurnToken(), _burnToken);
-        assertEq(_m.getAmount(), _amount);
-        assertEq(_m.getMessageSender(), Message.addressToBytes32(msg.sender));
-        assertFalse(_m.isValidBurnMessage(2));
+        assertEq(_m._getMintRecipient(), _mintRecipient);
+        assertEq(_m._getBurnToken(), _burnToken);
+        assertEq(_m._getAmount(), _amount);
+        assertEq(_m._getMessageSender(), Message.addressToBytes32(msg.sender));
+        assertFalse(_m._isValidBurnMessage(2));
     }
 
     function testIsValidBurnMessage_returnsFalseForWrongLength(
@@ -96,9 +96,9 @@ contract BurnMessageTest is Test {
         );
 
         bytes29 _m = _tooLongMessageBody.ref(0);
-        assertEq(_m.getMintRecipient(), _mintRecipient);
-        assertEq(_m.getBurnToken(), _burnToken);
-        assertEq(_m.getAmount(), _amount);
-        assertFalse(_m.isValidBurnMessage(2));
+        assertEq(_m._getMintRecipient(), _mintRecipient);
+        assertEq(_m._getBurnToken(), _burnToken);
+        assertEq(_m._getAmount(), _amount);
+        assertFalse(_m._isValidBurnMessage(2));
     }
 }

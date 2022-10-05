@@ -32,7 +32,7 @@ contract MessageTest is Test {
         bytes32 _destinationCaller,
         bytes memory _messageBody
     ) public {
-        bytes memory message = Message.formatMessage(
+        bytes memory message = Message._formatMessage(
             _version,
             _sourceDomain,
             _destinationDomain,
@@ -44,14 +44,14 @@ contract MessageTest is Test {
         );
 
         bytes29 _m = message.ref(0);
-        assertEq(uint256(_m.version()), uint256(_version));
-        assertEq(uint256(_m.sourceDomain()), uint256(_sourceDomain));
-        assertEq(uint256(_m.destinationDomain()), uint256(_destinationDomain));
-        assertEq(_m.nonce(), uint256(_nonce));
-        assertEq(_m.sender(), _sender);
-        assertEq(_m.recipient(), _recipient);
-        assertEq(_m.destinationCaller(), _destinationCaller);
-        assertEq(_m.messageBody().clone(), _messageBody);
+        assertEq(uint256(_m._version()), uint256(_version));
+        assertEq(uint256(_m._sourceDomain()), uint256(_sourceDomain));
+        assertEq(uint256(_m._destinationDomain()), uint256(_destinationDomain));
+        assertEq(_m._nonce(), uint256(_nonce));
+        assertEq(_m._sender(), _sender);
+        assertEq(_m._recipient(), _recipient);
+        assertEq(_m._destinationCaller(), _destinationCaller);
+        assertEq(_m._messageBody().clone(), _messageBody);
     }
 
     function testFormatMessage() public {
@@ -65,7 +65,7 @@ contract MessageTest is Test {
         bytes32 _destinationCaller = bytes32(uint256(uint160(vm.addr(1507))));
         bytes memory _messageBody = bytes("test message");
 
-        bytes memory message = Message.formatMessage(
+        bytes memory message = Message._formatMessage(
             _version,
             _sourceDomain,
             _destinationDomain,
@@ -77,18 +77,18 @@ contract MessageTest is Test {
         );
 
         bytes29 _m = message.ref(0);
-        assertEq(uint256(_m.version()), uint256(_version));
-        assertEq(uint256(_m.sourceDomain()), uint256(_sourceDomain));
-        assertEq(uint256(_m.destinationDomain()), uint256(_destinationDomain));
-        assertEq(_m.sender(), _sender);
-        assertEq(_m.recipient(), _recipient);
-        assertEq(_m.messageBody().clone(), _messageBody);
-        assertEq(uint256(_m.nonce()), uint256(_nonce));
+        assertEq(uint256(_m._version()), uint256(_version));
+        assertEq(uint256(_m._sourceDomain()), uint256(_sourceDomain));
+        assertEq(uint256(_m._destinationDomain()), uint256(_destinationDomain));
+        assertEq(_m._sender(), _sender);
+        assertEq(_m._recipient(), _recipient);
+        assertEq(_m._messageBody().clone(), _messageBody);
+        assertEq(uint256(_m._nonce()), uint256(_nonce));
     }
 
     function testAddressToBytes32ToAddress_fuzz(address _addr) public {
         bytes32 _bytes32FromAddr = Message.addressToBytes32(_addr);
-        address _addrFromBytes32 = Message.bytes32ToAddress(_bytes32FromAddr);
+        address _addrFromBytes32 = Message._bytes32ToAddress(_bytes32FromAddr);
         assertEq(_addrFromBytes32, _addr);
     }
 }

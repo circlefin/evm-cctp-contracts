@@ -22,11 +22,11 @@ interface IReceiver {
     /**
      * @notice Receives an incoming message, validating the header and passing
      * the body to application-specific handler.
-     * @param _message The message raw bytes
-     * @param _signature The message signature
+     * @param message The message raw bytes
+     * @param signature The message signature
      * @return success bool, true if successful
      */
-    function receiveMessage(bytes memory _message, bytes memory _signature)
+    function receiveMessage(bytes memory message, bytes memory signature)
         external
         returns (bool success);
 }

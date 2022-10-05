@@ -66,111 +66,111 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
 
     /**
      * @notice Mint tokens.
-     * @param _mintToken Mintable Circle-issued token address.
-     * @param _to Address to receive minted tokens.
-     * @param _amount Amount of tokens to mint. Must be less than or equal
+     * @param mintToken Mintable Circle-issued token address.
+     * @param to Address to receive minted tokens.
+     * @param amount Amount of tokens to mint. Must be less than or equal
      * to the minterAllowance of this CircleMinter for given `_mintToken`.
      */
     function mint(
-        address _mintToken,
-        address _to,
-        uint256 _amount
+        address mintToken,
+        address to,
+        uint256 amount
     ) external override whenNotPaused onlyLocalCircleBridge {
-        require(localTokens[_mintToken], "Given mint token is not supported");
+        require(localTokens[mintToken], "Given mint token is not supported");
 
-        IMintBurnToken _token = IMintBurnToken(_mintToken);
-        _token.mint(_to, _amount);
+        IMintBurnToken _token = IMintBurnToken(mintToken);
+        require(_token.mint(to, amount), "Mint operation failed");
     }
 
     /**
      * @notice Burn tokens owned by this CircleMinter.
-     * @param _remoteToken burnable Circle-issued token.
-     * @param _amount amount of tokens to burn. Must be less than or equal to this
+     * @param remoteToken burnable Circle-issued token.
+     * @param amount amount of tokens to burn. Must be less than or equal to this
      * CircleMinter's balance of given `_remoteToken`.
      */
-    function burn(address _remoteToken, uint256 _amount)
+    function burn(address remoteToken, uint256 amount)
         external
         override
         whenNotPaused
         onlyLocalCircleBridge
     {
-        require(localTokens[_remoteToken], "Given burn token is not supported");
+        require(localTokens[remoteToken], "Given burn token is not supported");
 
-        IMintBurnToken _token = IMintBurnToken(_remoteToken);
-        _token.burn(_amount);
+        IMintBurnToken _token = IMintBurnToken(remoteToken);
+        _token.burn(amount);
     }
 
     /**
      * @notice Links a pair of local and remote tokens to be supported by this CircleMinter.
-     * @dev Associates a (`_remoteToken`, `_localToken`) pair by updating remoteTokensToLocalTokens mapping.
-     * Reverts if the remote token (for the given `_remoteDomain`) already maps to a nonzero local token.
+     * @dev Associates a (`remoteToken`, `localToken`) pair by updating remoteTokensToLocalTokens mapping.
+     * Reverts if the remote token (for the given `remoteDomain`) already maps to a nonzero local token.
      * Note:
      * - A remote token (on a certain remote domain) can only map to one local token, but many remote tokens
      * can map to the same local token.
-     * - Setting a token pair does not enable the `_localToken` (that requires calling setLocalTokenEnabledStatus.)
+     * - Setting a token pair does not enable the `localToken` (that requires calling setLocalTokenEnabledStatus.)
      */
     function linkTokenPair(
-        address _localToken,
-        uint32 _remoteDomain,
-        bytes32 _remoteToken
+        address localToken,
+        uint32 remoteDomain,
+        bytes32 remoteToken
     ) external override onlyOwner {
-        bytes32 remoteTokensKey = _hashRemoteDomainAndToken(
-            _remoteDomain,
-            _remoteToken
+        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
+            remoteDomain,
+            remoteToken
         );
 
         require(
-            remoteTokensToLocalTokens[remoteTokensKey] == address(0),
+            remoteTokensToLocalTokens[_remoteTokensKey] == address(0),
             "Unable to link token pair, remote token already linked to a local token"
         );
 
-        remoteTokensToLocalTokens[remoteTokensKey] = _localToken;
+        remoteTokensToLocalTokens[_remoteTokensKey] = localToken;
 
-        emit TokenPairLinked(_localToken, _remoteDomain, _remoteToken);
+        emit TokenPairLinked(localToken, remoteDomain, remoteToken);
     }
 
     /**
      * @notice Unlinks a pair of local and remote tokens for this CircleMinter.
-     * @dev Removes link from `_remoteToken`, to `_localToken` for given `_remoteDomain`
+     * @dev Removes link from `remoteToken`, to `localToken` for given `remoteDomain`
      * by updating remoteTokensToLocalTokens mapping.
-     * Reverts if the remote token (for the given `_remoteDomain`) already maps to the zero address.
+     * Reverts if the remote token (for the given `remoteDomain`) already maps to the zero address.
      * Note:
      * - A remote token (on a certain remote domain) can only map to one local token, but many remote tokens
      * can map to the same local token.
-     * - Unlinking a token pair does not disable the `_localToken` (that requires calling setLocalTokenEnabledStatus.)
+     * - Unlinking a token pair does not disable the `localToken` (that requires calling setLocalTokenEnabledStatus.)
      */
     function unlinkTokenPair(
-        address _localToken,
-        uint32 _remoteDomain,
-        bytes32 _remoteToken
+        address localToken,
+        uint32 remoteDomain,
+        bytes32 remoteToken
     ) external override onlyOwner {
-        bytes32 remoteTokensKey = _hashRemoteDomainAndToken(
-            _remoteDomain,
-            _remoteToken
+        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
+            remoteDomain,
+            remoteToken
         );
 
         require(
-            remoteTokensToLocalTokens[remoteTokensKey] != address(0),
+            remoteTokensToLocalTokens[_remoteTokensKey] != address(0),
             "Unable to unlink token pair, remote token is already not linked to any local token"
         );
 
-        remoteTokensToLocalTokens[remoteTokensKey] = address(0);
+        remoteTokensToLocalTokens[_remoteTokensKey] = address(0);
 
-        emit TokenPairUnlinked(_localToken, _remoteDomain, _remoteToken);
+        emit TokenPairUnlinked(localToken, remoteDomain, remoteToken);
     }
 
     /**
      * @notice Add CircleBridge for the local domain. Only this CircleBridge
      * has permission to call mint() and burn() on this CircleMinter.
      * @dev Reverts if a CircleBridge is already set for the local domain.
-     * @param _newLocalCircleBridge The address of the new CircleBridge on the local domain.
+     * @param newLocalCircleBridge The address of the new CircleBridge on the local domain.
      */
-    function addLocalCircleBridge(address _newLocalCircleBridge)
+    function addLocalCircleBridge(address newLocalCircleBridge)
         external
         onlyOwner
     {
         require(
-            _newLocalCircleBridge != address(0),
+            newLocalCircleBridge != address(0),
             "New local CircleBridge address must be non-zero."
         );
 
@@ -179,7 +179,7 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
             "Local CircleBridge is already set."
         );
 
-        localCircleBridge = _newLocalCircleBridge;
+        localCircleBridge = newLocalCircleBridge;
 
         emit LocalCircleBridgeAdded(localCircleBridge);
     }
@@ -201,60 +201,65 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
 
     /**
      * @notice Enable or disable a local token
-     * @dev Sets `enabledStatus` boolean for given `_localToken`. (True to enable, false to disable.)
-     * @param _localToken Local token to set enabled status of.
-     * @param _enabledStatus Enabled/disabled status to set for `_localToken`.
+     * @dev Sets `enabledStatus` boolean for given `localToken`. (True to enable, false to disable.)
+     * @param localToken Local token to set enabled status of.
+     * @param enabledStatus Enabled/disabled status to set for `localToken`.
      * (True to enable, false to disable.)
      */
-    function setLocalTokenEnabledStatus(
-        address _localToken,
-        bool _enabledStatus
-    ) external override onlyOwner {
-        localTokens[_localToken] = _enabledStatus;
+    function setLocalTokenEnabledStatus(address localToken, bool enabledStatus)
+        external
+        override
+        onlyOwner
+    {
+        localTokens[localToken] = enabledStatus;
 
-        emit LocalTokenEnabledStatusSet(_localToken, _enabledStatus);
+        emit LocalTokenEnabledStatusSet(localToken, enabledStatus);
     }
 
     /**
      * @notice Get the enabled local token associated with the given remote domain and token.
      * @dev Reverts if unable to find an enabled local token for the
-     * given (`_remoteDomain`, `_remoteToken`) pair.
-     * @param _remoteDomain Remote domain
-     * @param _remoteToken Remote token
+     * given (`remoteDomain`, `remoteToken`) pair.
+     * @param remoteDomain Remote domain
+     * @param remoteToken Remote token
      * @return Local token address
      */
-    function getEnabledLocalToken(uint32 _remoteDomain, bytes32 _remoteToken)
+    function getEnabledLocalToken(uint32 remoteDomain, bytes32 remoteToken)
         external
         view
         override
         returns (address)
     {
         bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
-            _remoteDomain,
-            _remoteToken
+            remoteDomain,
+            remoteToken
         );
 
-        address _localToken = remoteTokensToLocalTokens[_remoteTokensKey];
+        address _associatedLocalToken = remoteTokensToLocalTokens[
+            _remoteTokensKey
+        ];
 
         require(
-            _localToken != address(0) && localTokens[_localToken],
+            _associatedLocalToken != address(0) &&
+                localTokens[_associatedLocalToken],
             "No enabled local token is associated with remote domain and token pair"
         );
 
-        return _localToken;
+        return _associatedLocalToken;
     }
 
     /**
      * @notice hashes packed `_remoteDomain` and `_remoteToken`.
-     * @param _remoteDomain Domain where message originated from
-     * @param _remoteToken Address of remote token as bytes32
+     * @param remoteDomain Domain where message originated from
+     * @param remoteToken Address of remote token as bytes32
      * @return keccak hash of packed remote domain and token
      */
-    function _hashRemoteDomainAndToken(
-        uint32 _remoteDomain,
-        bytes32 _remoteToken
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_remoteDomain, _remoteToken));
+    function _hashRemoteDomainAndToken(uint32 remoteDomain, bytes32 remoteToken)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(remoteDomain, remoteToken));
     }
 
     /**

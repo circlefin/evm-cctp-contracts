@@ -259,6 +259,24 @@ contract CircleBridgeTest is Test, TestUtils {
         );
     }
 
+    function testDepositForBurn_revertsOnFailedTokenTransfer(uint256 _amount)
+        public
+    {
+        vm.prank(owner);
+        vm.mockCall(
+            address(localToken),
+            abi.encodeWithSelector(MockMintBurnToken.transferFrom.selector),
+            abi.encode(false)
+        );
+        vm.expectRevert("Transfer operation failed");
+        localCircleBridge.depositForBurn(
+            _amount,
+            remoteDomain,
+            remoteCircleBridge,
+            address(localToken)
+        );
+    }
+
     function testDepositForBurn_succeeds() public {
         uint256 _amount = 5;
         address _mintRecipientAddr = vm.addr(1505);
@@ -343,7 +361,7 @@ contract CircleBridgeTest is Test, TestUtils {
         bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
             address(localToken)
         );
-        bytes memory _messageBody = BurnMessage.formatMessage(
+        bytes memory _messageBody = BurnMessage._formatMessage(
             messageBodyVersion,
             localTokenAddressBytes32,
             _mintRecipient,
@@ -351,7 +369,7 @@ contract CircleBridgeTest is Test, TestUtils {
             Message.addressToBytes32(address(owner))
         );
         uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
-        bytes memory _expectedMessage = Message.formatMessage(
+        bytes memory _expectedMessage = Message._formatMessage(
             version,
             localDomain,
             remoteDomain,
@@ -391,7 +409,7 @@ contract CircleBridgeTest is Test, TestUtils {
         bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
             address(localToken)
         );
-        bytes memory _messageBody = BurnMessage.formatMessage(
+        bytes memory _messageBody = BurnMessage._formatMessage(
             messageBodyVersion,
             localTokenAddressBytes32,
             _mintRecipient,
@@ -399,7 +417,7 @@ contract CircleBridgeTest is Test, TestUtils {
             Message.addressToBytes32(address(owner))
         );
         uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
-        bytes memory _expectedMessage = Message.formatMessage(
+        bytes memory _expectedMessage = Message._formatMessage(
             version,
             localDomain,
             remoteDomain,
@@ -439,7 +457,7 @@ contract CircleBridgeTest is Test, TestUtils {
             address(localToken)
         );
 
-        bytes memory _expectedMessage = Message.formatMessage(
+        bytes memory _expectedMessage = Message._formatMessage(
             version,
             localDomain,
             remoteDomain,
@@ -447,7 +465,7 @@ contract CircleBridgeTest is Test, TestUtils {
             Message.addressToBytes32(address(localCircleBridge)),
             remoteCircleBridge,
             emptyDestinationCaller,
-            BurnMessage.formatMessage(
+            BurnMessage._formatMessage(
                 messageBodyVersion,
                 localTokenAddressBytes32,
                 _mintRecipient,
@@ -529,7 +547,7 @@ contract CircleBridgeTest is Test, TestUtils {
         bytes32 _mintRecipient,
         uint256 _amount
     ) public {
-        bytes memory _messageBody = BurnMessage.formatMessage(
+        bytes memory _messageBody = BurnMessage._formatMessage(
             messageBodyVersion,
             Message.addressToBytes32(address(localToken)),
             _mintRecipient,
@@ -556,7 +574,7 @@ contract CircleBridgeTest is Test, TestUtils {
         bytes32 _mintRecipient,
         uint256 _amount
     ) public {
-        bytes memory _messageBody = BurnMessage.formatMessage(
+        bytes memory _messageBody = BurnMessage._formatMessage(
             messageBodyVersion,
             _localToken,
             _mintRecipient,
@@ -780,7 +798,7 @@ contract CircleBridgeTest is Test, TestUtils {
             address(localToken)
         );
 
-        bytes memory _messageBody = BurnMessage.formatMessage(
+        bytes memory _messageBody = BurnMessage._formatMessage(
             messageBodyVersion,
             localTokenAddressBytes32,
             _mintRecipient,
@@ -790,7 +808,7 @@ contract CircleBridgeTest is Test, TestUtils {
 
         uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
 
-        bytes memory _expectedMessage = Message.formatMessage(
+        bytes memory _expectedMessage = Message._formatMessage(
             version,
             localDomain,
             remoteDomain,
@@ -828,12 +846,12 @@ contract CircleBridgeTest is Test, TestUtils {
 
         bytes29 _m = _messageBody.ref(0);
         assertEq(
-            _m.getBurnToken(),
+            _m._getBurnToken(),
             Message.addressToBytes32(address(localToken))
         );
-        assertEq(_m.getMintRecipient(), _mintRecipient);
-        assertEq(_m.getBurnToken(), localTokenAddressBytes32);
-        assertEq(_m.getAmount(), _amount);
+        assertEq(_m._getMintRecipient(), _mintRecipient);
+        assertEq(_m._getBurnToken(), localTokenAddressBytes32);
+        assertEq(_m._getAmount(), _amount);
 
         return _messageBody;
     }
@@ -856,7 +874,7 @@ contract CircleBridgeTest is Test, TestUtils {
         );
 
         // Format message body
-        bytes memory _messageBody = BurnMessage.formatMessage(
+        bytes memory _messageBody = BurnMessage._formatMessage(
             messageBodyVersion,
             localTokenAddressBytes32,
             _mintRecipient,
@@ -867,7 +885,7 @@ contract CircleBridgeTest is Test, TestUtils {
         // assert that a MessageSent event was logged with expected message bytes
         uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
 
-        bytes memory _expectedMessage = Message.formatMessage(
+        bytes memory _expectedMessage = Message._formatMessage(
             version,
             localDomain,
             remoteDomain,
@@ -907,12 +925,12 @@ contract CircleBridgeTest is Test, TestUtils {
         // deserialize _messageBody
         bytes29 _m = _messageBody.ref(0);
         assertEq(
-            _m.getBurnToken(),
+            _m._getBurnToken(),
             Message.addressToBytes32(address(localToken))
         );
-        assertEq(_m.getMintRecipient(), _mintRecipient);
-        assertEq(_m.getBurnToken(), localTokenAddressBytes32);
-        assertEq(_m.getAmount(), _amount);
+        assertEq(_m._getMintRecipient(), _mintRecipient);
+        assertEq(_m._getBurnToken(), localTokenAddressBytes32);
+        assertEq(_m._getAmount(), _amount);
 
         return _messageBody;
     }

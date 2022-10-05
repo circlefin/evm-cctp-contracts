@@ -50,9 +50,10 @@ library BurnMessage {
      * @param _burnToken The burn token address on source domain as bytes32
      * @param _mintRecipient The mint recipient address as bytes32
      * @param _amount The burn amount
+     * @param _messageSender The message sender
      * @return Burn formatted message.
      */
-    function formatMessage(
+    function _formatMessage(
         uint32 _version,
         bytes32 _burnToken,
         bytes32 _mintRecipient,
@@ -74,7 +75,7 @@ library BurnMessage {
      * @param _message The message
      * @return sourceToken address as bytes32
      */
-    function getMessageSender(bytes29 _message)
+    function _getMessageSender(bytes29 _message)
         internal
         pure
         returns (bytes32)
@@ -87,7 +88,7 @@ library BurnMessage {
      * @param _message The message
      * @return sourceToken address as bytes32
      */
-    function getBurnToken(bytes29 _message) internal pure returns (bytes32) {
+    function _getBurnToken(bytes29 _message) internal pure returns (bytes32) {
         return _message.index(BURN_TOKEN_INDEX, BURN_TOKEN_LEN);
     }
 
@@ -96,7 +97,7 @@ library BurnMessage {
      * @param _message The message
      * @return mintRecipient
      */
-    function getMintRecipient(bytes29 _message)
+    function _getMintRecipient(bytes29 _message)
         internal
         pure
         returns (bytes32)
@@ -109,7 +110,7 @@ library BurnMessage {
      * @param _message The message
      * @return amount
      */
-    function getAmount(bytes29 _message) internal pure returns (uint256) {
+    function _getAmount(bytes29 _message) internal pure returns (uint256) {
         return _message.indexUint(AMOUNT_INDEX, AMOUNT_LEN);
     }
 
@@ -118,21 +119,22 @@ library BurnMessage {
      * @param _message The message
      * @return version
      */
-    function getVersion(bytes29 _message) internal pure returns (uint32) {
-        return uint32(_message.indexUint(VERSION_INDEX, 4));
+    function _getVersion(bytes29 _message) internal pure returns (uint32) {
+        return uint32(_message.indexUint(VERSION_INDEX, VERSION_LEN));
     }
 
     /**
      * @notice Checks that view is a valid message length
      * @param _message The bytes string
+     * @param _version The message version
      * @return true if message is correct length and version for a burn message
      */
-    function isValidBurnMessage(bytes29 _message, uint32 _version)
+    function _isValidBurnMessage(bytes29 _message, uint32 _version)
         internal
         pure
         returns (bool)
     {
         uint256 _len = _message.len();
-        return _len == BURN_MESSAGE_LEN && _version == getVersion(_message);
+        return _len == BURN_MESSAGE_LEN && _version == _getVersion(_message);
     }
 }

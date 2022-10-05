@@ -78,32 +78,32 @@ contract Attestable {
 
     /**
      * @dev The constructor sets the original attester manager of the contract to the sender account.
-     * @param _attester attester to initialize
+     * @param attester attester to initialize
      */
-    constructor(address _attester) public {
+    constructor(address attester) public {
         _setAttesterManager(msg.sender);
         // Initially 1 signature is required. Threshold can be increased by attesterManager.
         signatureThreshold = 1;
-        enableAttester(_attester);
+        enableAttester(attester);
     }
 
     /**
      * @notice Enables an attester
      * @dev Only callable by attesterManager. New attester must be nonzero, and currently disabled.
-     * @param _newAttester attester to enable
+     * @param newAttester attester to enable
      */
-    function enableAttester(address _newAttester) public onlyAttesterManager {
-        require(_newAttester != address(0), "New attester must be nonzero");
-        require(enabledAttesters.add(_newAttester), "Attester already enabled");
-        emit AttesterEnabled(_newAttester);
+    function enableAttester(address newAttester) public onlyAttesterManager {
+        require(newAttester != address(0), "New attester must be nonzero");
+        require(enabledAttesters.add(newAttester), "Attester already enabled");
+        emit AttesterEnabled(newAttester);
     }
 
     /**
-     * @notice returns true if given `_attester` is enabled, else false
-     * @return true if given `_attester` is enabled, else false
+     * @notice returns true if given `attester` is enabled, else false
+     * @return true if given `attester` is enabled, else false
      */
-    function isEnabledAttester(address _attester) public view returns (bool) {
-        return enabledAttesters.contains(_attester);
+    function isEnabledAttester(address attester) public view returns (bool) {
+        return enabledAttesters.contains(attester);
     }
 
     /**
@@ -116,18 +116,18 @@ contract Attestable {
 
     /**
      * @dev Allows the current attester manager to transfer control of the contract to a newAttesterManager.
-     * @param _newAttesterManager The address to update attester manager to.
+     * @param newAttesterManager The address to update attester manager to.
      */
-    function updateAttesterManager(address _newAttesterManager)
+    function updateAttesterManager(address newAttesterManager)
         external
         onlyAttesterManager
     {
         require(
-            _newAttesterManager != address(0),
+            newAttesterManager != address(0),
             "Attestable: new attester manager is the zero address"
         );
-        _setAttesterManager(_newAttesterManager);
-        emit AttesterManagerUpdated(_newAttesterManager, _newAttesterManager);
+        _setAttesterManager(newAttesterManager);
+        emit AttesterManagerUpdated(newAttesterManager, newAttesterManager);
     }
 
     /**
@@ -135,9 +135,9 @@ contract Attestable {
      * @dev Only callable by attesterManager. Disabling the attester is not allowed if there is only one attester
      * enabled, or if it would cause the number of enabled attesters to become less than signatureThreshold.
      * (Attester must be currently enabled.)
-     * @param _attester attester to disable
+     * @param attester attester to disable
      */
-    function disableAttester(address _attester) external onlyAttesterManager {
+    function disableAttester(address attester) external onlyAttesterManager {
         // Disallow disabling attester if there is only 1 active attester
         require(
             getNumEnabledAttesters() > 1,
@@ -150,11 +150,8 @@ contract Attestable {
             "Unable to disable attester because signature threshold is too low"
         );
 
-        require(
-            enabledAttesters.remove(_attester),
-            "Attester already disabled"
-        );
-        emit AttesterDisabled(_attester);
+        require(enabledAttesters.remove(attester), "Attester already disabled");
+        emit AttesterDisabled(attester);
     }
 
     /**
@@ -162,29 +159,29 @@ contract Attestable {
      * (This is the m in m/n multisig.)
      * @dev new signature threshold must be nonzero, and must not exceed number
      * of enabled attesters.
-     * @param _newSignatureThreshold new signature threshold
+     * @param newSignatureThreshold new signature threshold
      */
-    function setSignatureThreshold(uint256 _newSignatureThreshold)
+    function setSignatureThreshold(uint256 newSignatureThreshold)
         external
         onlyAttesterManager
     {
         require(
-            _newSignatureThreshold != 0,
+            newSignatureThreshold != 0,
             "New signature threshold must be nonzero"
         );
 
         require(
-            _newSignatureThreshold <= enabledAttesters.length(),
+            newSignatureThreshold <= enabledAttesters.length(),
             "New signature threshold cannot exceed the number of enabled attesters"
         );
 
         require(
-            _newSignatureThreshold != signatureThreshold,
+            newSignatureThreshold != signatureThreshold,
             "New signature threshold must not equal current signature threshold"
         );
 
         uint256 _oldSignatureThreshold = signatureThreshold;
-        signatureThreshold = _newSignatureThreshold;
+        signatureThreshold = newSignatureThreshold;
         emit SignatureThresholdUpdated(
             _oldSignatureThreshold,
             signatureThreshold
@@ -200,23 +197,19 @@ contract Attestable {
     }
 
     /**
-     * @notice gets enabled attester at given `_index`
-     * @param _index index of attester to check
-     * @return enabled attester at given `_index`
+     * @notice gets enabled attester at given `index`
+     * @param index index of attester to check
+     * @return enabled attester at given `index`
      */
-    function getEnabledAttester(uint256 _index)
-        external
-        view
-        returns (address)
-    {
-        return enabledAttesters.at(_index);
+    function getEnabledAttester(uint256 index) external view returns (address) {
+        return enabledAttesters.at(index);
     }
 
     /**
      * @dev Sets a new attester manager address
      */
-    function _setAttesterManager(address newAttesterManager) internal {
-        _attesterManager = newAttesterManager;
+    function _setAttesterManager(address _newAttesterManager) internal {
+        _attesterManager = _newAttesterManager;
     }
 
     /**
@@ -243,25 +236,25 @@ contract Attestable {
         );
 
         // (Attesters cannot be address(0))
-        address latestAttesterAddress = address(0);
+        address _latestAttesterAddress = address(0);
         // Address recovered from signatures must be in increasing order, to prevent duplicates
         for (uint256 i = 0; i < signatureThreshold; i++) {
             bytes memory _signature = _attestation[i * signatureLength:i *
                 signatureLength +
                 signatureLength];
-            address recoveredAttester = _recoverAttesterSignature(
+            address _recoveredAttester = _recoverAttesterSignature(
                 _message,
                 _signature
             );
             require(
-                recoveredAttester > latestAttesterAddress,
+                _recoveredAttester > _latestAttesterAddress,
                 "Signature verification failed: signer is out of order or duplicate"
             );
             require(
-                isEnabledAttester(recoveredAttester),
+                isEnabledAttester(_recoveredAttester),
                 "Signature verification failed: signer is not enabled attester"
             );
-            latestAttesterAddress = recoveredAttester;
+            _latestAttesterAddress = _recoveredAttester;
         }
     }
 

@@ -22,49 +22,49 @@ interface IRelayer {
     /**
      * @notice Sends an outgoing message from the source domain.
      * @dev Increment nonce, format the message, and emit `MessageSent` event with message information.
-     * @param _destinationDomain Domain of destination chain
-     * @param _recipient Address of message recipient on destination domain as bytes32
-     * @param _messageBody Raw bytes content of message
+     * @param destinationDomain Domain of destination chain
+     * @param recipient Address of message recipient on destination domain as bytes32
+     * @param messageBody Raw bytes content of message
      * @return _nonce unique nonce reserved by message
      */
     function sendMessage(
-        uint32 _destinationDomain,
-        bytes32 _recipient,
-        bytes memory _messageBody
+        uint32 destinationDomain,
+        bytes32 recipient,
+        bytes memory messageBody
     ) external returns (uint64 _nonce);
 
     /**
      * @notice Sends an outgoing message from the source domain, with a specified caller on the
      * destination domain.
      * @dev Increment nonce, format the message, and emit `MessageSent` event with message information.
-     * WARNING: if the `_destinationCaller` does not represent a valid address as bytes32, then it will not be possible
+     * WARNING: if the `destinationCaller` does not represent a valid address as bytes32, then it will not be possible
      * to broadcast the message on the destination domain. This is an advanced feature, and the standard
      * sendMessage() should be preferred for use cases where a specific destination caller is not required.
-     * @param _destinationDomain Domain of destination chain
-     * @param _recipient Address of message recipient on destination domain as bytes32
-     * @param _destinationCaller caller on the destination domain, as bytes32
-     * @param _messageBody Raw bytes content of message
+     * @param destinationDomain Domain of destination chain
+     * @param recipient Address of message recipient on destination domain as bytes32
+     * @param destinationCaller caller on the destination domain, as bytes32
+     * @param messageBody Raw bytes content of message
      * @return _nonce unique nonce reserved by message
      */
     function sendMessageWithCaller(
-        uint32 _destinationDomain,
-        bytes32 _recipient,
-        bytes32 _destinationCaller,
-        bytes memory _messageBody
+        uint32 destinationDomain,
+        bytes32 recipient,
+        bytes32 destinationCaller,
+        bytes memory messageBody
     ) external returns (uint64 _nonce);
 
     /**
      * @notice Replace a message with a new message body and/or destination caller.
-     * @dev The `_originalAttestation` must be a valid attestation of `_originalMessage`.
-     * @param _originalMessage original message to replace
-     * @param _originalAttestation attestation of `_originalMessage`
-     * @param _newMessageBody new message body of replaced message
-     * @param _newDestinationCaller the new destination caller
+     * @dev The `originalAttestation` must be a valid attestation of `originalMessage`.
+     * @param originalMessage original message to replace
+     * @param originalAttestation attestation of `originalMessage`
+     * @param newMessageBody new message body of replaced message
+     * @param newDestinationCaller the new destination caller
      */
     function replaceMessage(
-        bytes memory _originalMessage,
-        bytes calldata _originalAttestation,
-        bytes memory _newMessageBody,
-        bytes32 _newDestinationCaller
+        bytes memory originalMessage,
+        bytes calldata originalAttestation,
+        bytes memory newMessageBody,
+        bytes32 newDestinationCaller
     ) external;
 }

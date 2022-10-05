@@ -22,14 +22,14 @@ pragma solidity 0.7.6;
 interface IMessageDestinationHandler {
     /**
      * @notice handles an incoming message from a Receiver
-     * @param _sourceDomain the source domain of the message
-     * @param _sender the sender of the message
-     * @param _messageBody The message raw bytes
+     * @param sourceDomain the source domain of the message
+     * @param sender the sender of the message
+     * @param messageBody The message raw bytes
      * @return success bool, true if successful
      */
     function handleReceiveMessage(
-        uint32 _sourceDomain,
-        bytes32 _sender,
-        bytes memory _messageBody
+        uint32 sourceDomain,
+        bytes32 sender,
+        bytes memory messageBody
     ) external returns (bool);
 }

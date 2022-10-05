@@ -52,51 +52,51 @@ library Message {
 
     /**
      * @notice Returns formatted (packed) message with provided fields
-     * @param _version the version of the message format
-     * @param _sourceDomain Domain of home chain
-     * @param _destinationDomain Domain of destination chain
-     * @param _nonce Destination-specific nonce
-     * @param _sender Address of sender on source chain as bytes32
-     * @param _recipient Address of recipient on destination chain as bytes32
-     * @param _destinationCaller Address of caller on destination chain as bytes32
-     * @param _messageBody Raw bytes of message body
+     * @param _msgVersion the version of the message format
+     * @param _msgSourceDomain Domain of home chain
+     * @param _msgDestinationDomain Domain of destination chain
+     * @param _msgNonce Destination-specific nonce
+     * @param _msgSender Address of sender on source chain as bytes32
+     * @param _msgRecipient Address of recipient on destination chain as bytes32
+     * @param _msgDestinationCaller Address of caller on destination chain as bytes32
+     * @param _msgRawBody Raw bytes of message body
      * @return Formatted message
      **/
-    function formatMessage(
-        uint32 _version,
-        uint32 _sourceDomain,
-        uint32 _destinationDomain,
-        uint64 _nonce,
-        bytes32 _sender,
-        bytes32 _recipient,
-        bytes32 _destinationCaller,
-        bytes memory _messageBody
+    function _formatMessage(
+        uint32 _msgVersion,
+        uint32 _msgSourceDomain,
+        uint32 _msgDestinationDomain,
+        uint64 _msgNonce,
+        bytes32 _msgSender,
+        bytes32 _msgRecipient,
+        bytes32 _msgDestinationCaller,
+        bytes memory _msgRawBody
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
-                _version,
-                _sourceDomain,
-                _destinationDomain,
-                _nonce,
-                _sender,
-                _recipient,
-                _destinationCaller,
-                _messageBody
+                _msgVersion,
+                _msgSourceDomain,
+                _msgDestinationDomain,
+                _msgNonce,
+                _msgSender,
+                _msgRecipient,
+                _msgDestinationCaller,
+                _msgRawBody
             );
     }
 
-    // @notice Returns message's version field
-    function version(bytes29 _message) internal pure returns (uint32) {
+    // @notice Returns _message's version field
+    function _version(bytes29 _message) internal pure returns (uint32) {
         return uint32(_message.indexUint(VERSION_INDEX, 4));
     }
 
-    // @notice Returns message's sourceDomain field
-    function sourceDomain(bytes29 _message) internal pure returns (uint32) {
+    // @notice Returns _message's sourceDomain field
+    function _sourceDomain(bytes29 _message) internal pure returns (uint32) {
         return uint32(_message.indexUint(SOURCE_DOMAIN_INDEX, 4));
     }
 
-    // @notice Returns message's destinationDomain field
-    function destinationDomain(bytes29 _message)
+    // @notice Returns _message's destinationDomain field
+    function _destinationDomain(bytes29 _message)
         internal
         pure
         returns (uint32)
@@ -104,23 +104,23 @@ library Message {
         return uint32(_message.indexUint(DESTINATION_DOMAIN_INDEX, 4));
     }
 
-    // @notice Returns message's nonce field
-    function nonce(bytes29 _message) internal pure returns (uint64) {
+    // @notice Returns _message's nonce field
+    function _nonce(bytes29 _message) internal pure returns (uint64) {
         return uint64(_message.indexUint(NONCE_INDEX, 8));
     }
 
-    // @notice Returns message's sender field
-    function sender(bytes29 _message) internal pure returns (bytes32) {
+    // @notice Returns _message's sender field
+    function _sender(bytes29 _message) internal pure returns (bytes32) {
         return _message.index(SENDER_INDEX, 32);
     }
 
-    // @notice Returns message's recipient field
-    function recipient(bytes29 _message) internal pure returns (bytes32) {
+    // @notice Returns _message's recipient field
+    function _recipient(bytes29 _message) internal pure returns (bytes32) {
         return _message.index(RECIPIENT_INDEX, 32);
     }
 
-    // @notice Returns message's destinationCaller field
-    function destinationCaller(bytes29 _message)
+    // @notice Returns _message's destinationCaller field
+    function _destinationCaller(bytes29 _message)
         internal
         pure
         returns (bytes32)
@@ -128,8 +128,8 @@ library Message {
         return _message.index(DESTINATION_CALLER_INDEX, 32);
     }
 
-    // @notice Returns message's messageBody field
-    function messageBody(bytes29 _message) internal pure returns (bytes29) {
+    // @notice Returns _message's messageBody field
+    function _messageBody(bytes29 _message) internal pure returns (bytes29) {
         return
             _message.slice(
                 MESSAGE_BODY_INDEX,
@@ -138,28 +138,28 @@ library Message {
             );
     }
 
-    // @notice Returns message's recipient field as an address
-    function recipientAddress(bytes29 _message)
+    // @notice Returns _message's recipient field as an address
+    function _recipientAddress(bytes29 _message)
         internal
         pure
         returns (address)
     {
-        return bytes32ToAddress(recipient(_message));
+        return _bytes32ToAddress(_recipient(_message));
     }
 
     /**
      * @notice converts address to bytes32 (alignment preserving cast.)
-     * @param _addr the address to convert to bytes32
+     * @param addr the address to convert to bytes32
      */
-    function addressToBytes32(address _addr) public pure returns (bytes32) {
-        return bytes32(uint256(uint160(_addr)));
+    function addressToBytes32(address addr) external pure returns (bytes32) {
+        return bytes32(uint256(uint160(addr)));
     }
 
     /**
      * @notice converts bytes32 to address (alignment preserving cast.)
      * @param _buf the bytes32 to convert to address
      */
-    function bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
+    function _bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
         return address(uint160(uint256(_buf)));
     }
 }

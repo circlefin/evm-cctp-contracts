@@ -112,6 +112,21 @@ contract CircleMinterTest is Test, TestUtils {
         _mint(_amount);
     }
 
+    function testMint_revertsOnFailedTokenMint(address _to, uint256 _amount)
+        public
+    {
+        _linkTokenPair(localTokenAddress);
+        vm.mockCall(
+            localTokenAddress,
+            abi.encodeWithSelector(MockMintBurnToken.mint.selector),
+            abi.encode(false)
+        );
+        vm.startPrank(localCircleBridge);
+        vm.expectRevert("Mint operation failed");
+        circleMinter.mint(localTokenAddress, _to, _amount);
+        vm.stopPrank();
+    }
+
     function testBurn_succeeds(uint256 _amount) public {
         uint256 _amount = 100; // must be > 0
 

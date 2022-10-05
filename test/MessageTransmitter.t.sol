@@ -197,7 +197,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     }
 
     function testReceiveMessage_rejectInvalidDestinationDomain() public {
-        bytes memory _message = Message.formatMessage(
+        bytes memory _message = Message._formatMessage(
             version,
             sourceDomain,
             2,
@@ -217,7 +217,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     }
 
     function testReceiveMessage_rejectsNotEnabledSigner() public {
-        bytes memory _message = Message.formatMessage(
+        bytes memory _message = Message._formatMessage(
             version,
             sourceDomain,
             destinationDomain,
@@ -249,7 +249,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         bytes32 _recipient,
         bytes memory _messageBody
     ) public {
-        bytes memory _message = Message.formatMessage(
+        bytes memory _message = Message._formatMessage(
             _version,
             _sourceDomain,
             destinationDomain,
@@ -339,7 +339,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         _setup2of3Multisig();
 
         bytes memory _originalMessage = _getMessage();
-        assertEq(_originalMessage.ref(0).sender(), sender);
+        assertEq(_originalMessage.ref(0)._sender(), sender);
 
         bytes memory _signature = _sign2OfNMultisigMessage(_originalMessage);
 
@@ -364,7 +364,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         _setup2of3Multisig();
 
         bytes memory _originalMessage = _getMessage();
-        assertEq(_originalMessage.ref(0).sender(), sender);
+        assertEq(_originalMessage.ref(0)._sender(), sender);
 
         bytes memory _signature = _sign2OfNMultisigMessage(_originalMessage);
         address _newDestinationCallerAddr = vm.addr(1803);
@@ -376,7 +376,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         bytes memory _newMessageBody = "newMessageBody";
 
         // assert that a MessageSent event was logged with expected message bytes
-        vm.prank(Message.bytes32ToAddress(sender));
+        vm.prank(Message._bytes32ToAddress(sender));
         vm.expectRevert("Message not originally sent from this domain");
         destMessageTransmitter.replaceMessage(
             _originalMessage,
@@ -408,7 +408,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         emit MessageReceived(
             _newDestinationCallerAddr,
             sourceDomain,
-            _m.nonce(),
+            _m._nonce(),
             sender,
             newMessageBody
         );
@@ -432,11 +432,11 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
 
         bytes29 _m = _originalMessage.ref(0);
-        bytes memory _expectedMessage = Message.formatMessage(
+        bytes memory _expectedMessage = Message._formatMessage(
             version,
             sourceDomain,
             destinationDomain,
-            _m.nonce(),
+            _m._nonce(),
             sender,
             recipient,
             _newDestinationCaller,
@@ -447,7 +447,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
 
-        vm.prank(Message.bytes32ToAddress(sender));
+        vm.prank(Message._bytes32ToAddress(sender));
         srcMessageTransmitter.replaceMessage(
             _originalMessage,
             _signature,
@@ -466,10 +466,10 @@ contract MessageTransmitterTest is Test, TestUtils {
         address owner = vm.addr(1801);
         emit MessageReceived(
             owner,
-            _m.sourceDomain(),
-            _m.nonce(),
+            _m._sourceDomain(),
+            _m._nonce(),
             sender,
-            _m.messageBody().clone()
+            _m._messageBody().clone()
         );
 
         vm.prank(owner);
@@ -501,7 +501,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         bytes32 _recipient,
         bytes memory _messageBody
     ) public {
-        Message.formatMessage(
+        Message._formatMessage(
             _version,
             _sourceDomain,
             _destinationDomain,
@@ -703,7 +703,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     function testReceiveMessage_rejectsReusedNonceInSingleTransactionFromExternalCaller()
         public
     {
-        bytes memory _message = Message.formatMessage(
+        bytes memory _message = Message._formatMessage(
             version,
             sourceDomain,
             destinationDomain,
@@ -732,7 +732,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     function testReceiveMessage_rejectsReusedNonceFromReentrantCaller() public {
         MockReentrantCaller _mockReentrantCaller = new MockReentrantCaller();
 
-        bytes memory _message = Message.formatMessage(
+        bytes memory _message = Message._formatMessage(
             version,
             sourceDomain,
             destinationDomain,
@@ -755,7 +755,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     }
 
     function testReceiveMessage_doesNotUseNonceOnRevert(uint32 _nonce) public {
-        bytes memory _message = Message.formatMessage(
+        bytes memory _message = Message._formatMessage(
             version,
             sourceDomain,
             destinationDomain,
@@ -784,7 +784,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     function testReceiveMessage_revertsIfHandleReceiveMessageReturnsFalse()
         public
     {
-        bytes memory _message = Message.formatMessage(
+        bytes memory _message = Message._formatMessage(
             version,
             sourceDomain,
             destinationDomain,
@@ -916,7 +916,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _destinationDomain
         );
 
-        bytes memory _expectedMessage = Message.formatMessage(
+        bytes memory _expectedMessage = Message._formatMessage(
             _version,
             _sourceDomain,
             _destinationDomain,
@@ -928,7 +928,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
 
         // assert that a MessageSent event was logged with expected message bytes
-        vm.prank(Message.bytes32ToAddress(_sender));
+        vm.prank(Message._bytes32ToAddress(_sender));
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
 
@@ -963,7 +963,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             _destinationDomain
         );
 
-        bytes memory _expectedMessage = Message.formatMessage(
+        bytes memory _expectedMessage = Message._formatMessage(
             _version,
             _sourceDomain,
             _destinationDomain,
@@ -978,7 +978,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
 
-        vm.prank(Message.bytes32ToAddress(_sender));
+        vm.prank(Message._bytes32ToAddress(_sender));
         uint64 _nonceReserved = srcMessageTransmitter.sendMessageWithCaller(
             _destinationDomain,
             _recipient,
@@ -1009,7 +1009,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         bytes32 _destinationCaller,
         bytes memory _messageBody
     ) internal returns (bytes memory, bytes memory) {
-        bytes memory _message = Message.formatMessage(
+        bytes memory _message = Message._formatMessage(
             _version,
             _sourceDomain,
             _destinationDomain,
@@ -1061,7 +1061,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
 
         return
-            Message.formatMessage(
+            Message._formatMessage(
                 version,
                 sourceDomain,
                 destinationDomain,
@@ -1083,7 +1083,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             messageBody
         );
 
-        bytes memory _message = Message.formatMessage(
+        bytes memory _message = Message._formatMessage(
             version,
             sourceDomain,
             destinationDomain,
@@ -1167,11 +1167,11 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
 
         bytes29 _m = _originalMessage.ref(0);
-        bytes memory _expectedMessage = Message.formatMessage(
+        bytes memory _expectedMessage = Message._formatMessage(
             version,
             sourceDomain,
             destinationDomain,
-            _m.nonce(),
+            _m._nonce(),
             sender,
             recipient,
             _newDestinationCaller,
@@ -1181,7 +1181,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         // assert that a MessageSent event was logged with expected message bytes
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
-        vm.prank(Message.bytes32ToAddress(sender));
+        vm.prank(Message._bytes32ToAddress(sender));
         srcMessageTransmitter.replaceMessage(
             _originalMessage,
             _signature,
