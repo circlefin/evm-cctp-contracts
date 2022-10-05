@@ -25,6 +25,7 @@ import "@memview-sol/contracts/TypedMemView.sol";
  * burnToken             32         bytes32    4
  * mintRecipient         32         bytes32    36
  * amount                32         uint256    68
+ * messageSender         32         bytes32    100
  **/
 library BurnMessage {
     using TypedMemView for bytes;
@@ -38,8 +39,10 @@ library BurnMessage {
     uint8 private constant MINT_RECIPIENT_LEN = 32;
     uint8 private constant AMOUNT_INDEX = 68;
     uint8 private constant AMOUNT_LEN = 32;
-    // 4 byte version + 32 bytes burnToken + 32 bytes mintRecipient + 32 bytes amount
-    uint8 private constant BURN_MESSAGE_LEN = 100;
+    uint8 private constant MSG_SENDER_INDEX = 100;
+    uint8 private constant MSG_SENDER_LEN = 32;
+    // 4 byte version + 32 bytes burnToken + 32 bytes mintRecipient + 32 bytes amount + 32 bytes messageSender
+    uint8 private constant BURN_MESSAGE_LEN = 132;
 
     /**
      * @notice Formats Burn message
@@ -53,9 +56,30 @@ library BurnMessage {
         uint32 _version,
         bytes32 _burnToken,
         bytes32 _mintRecipient,
-        uint256 _amount
+        uint256 _amount,
+        bytes32 _messageSender
     ) internal pure returns (bytes memory) {
-        return abi.encodePacked(_version, _burnToken, _mintRecipient, _amount);
+        return
+            abi.encodePacked(
+                _version,
+                _burnToken,
+                _mintRecipient,
+                _amount,
+                _messageSender
+            );
+    }
+
+    /**
+     * @notice Retrieves the burnToken from a DepositForBurn BurnMessage
+     * @param _message The message
+     * @return sourceToken address as bytes32
+     */
+    function getMessageSender(bytes29 _message)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return _message.index(MSG_SENDER_INDEX, MSG_SENDER_LEN);
     }
 
     /**

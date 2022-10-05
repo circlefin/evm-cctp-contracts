@@ -32,6 +32,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     MockReentrantCaller mockReentrantCaller;
 
     address pauser = vm.addr(1509);
+    bytes newMessageBody = "new message body";
 
     /**
      * @notice Emitted when a new message is dispatched
@@ -60,6 +61,11 @@ contract MessageTransmitterTest is Test, TestUtils {
      * @param newMaxMessageBodySize new maximum message body size, in bytes
      */
     event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
+
+    // ============ Libraries ============
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+    using Message for bytes29;
 
     function setUp() public {
         // message transmitter on source domain
@@ -111,7 +117,6 @@ contract MessageTransmitterTest is Test, TestUtils {
 
     function testSendMessage_revertsWhenPaused(
         uint32 _destinationDomain,
-        bytes32 _recipient,
         bytes memory _messageBody
     ) public {
         vm.prank(pauser);
@@ -119,7 +124,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         vm.expectRevert("Pausable: paused");
         srcMessageTransmitter.sendMessage(
             _destinationDomain,
-            _recipient,
+            recipient,
             _messageBody
         );
 
@@ -131,20 +136,18 @@ contract MessageTransmitterTest is Test, TestUtils {
             sourceDomain,
             _destinationDomain,
             sender,
-            _recipient,
+            recipient,
             messageBody
         );
     }
 
-    function testSendMessage_fuzz(uint32 _destinationDomain, bytes32 _recipient)
-        public
-    {
+    function testSendMessage_fuzz(uint32 _destinationDomain) public {
         _sendMessage(
             version,
             sourceDomain,
             _destinationDomain,
             sender,
-            _recipient,
+            recipient,
             messageBody
         );
     }
@@ -289,6 +292,206 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
     }
 
+    function testReplaceMessage_revertsWhenPaused(
+        bytes memory _originalMessage,
+        bytes calldata _originalAttestation,
+        bytes memory _newMessageBody,
+        bytes32 _newDestinationCaller
+    ) public {
+        vm.prank(pauser);
+        srcMessageTransmitter.pause();
+        vm.expectRevert("Pausable: paused");
+        srcMessageTransmitter.replaceMessage(
+            _originalMessage,
+            _originalAttestation,
+            _newMessageBody,
+            _newDestinationCaller
+        );
+    }
+
+    function testReplaceMessage_revertsOnInvalidSignature() public {
+        _setup2of3Multisig();
+
+        bytes memory _originalMessage = _getMessage();
+
+        uint256[] memory attesterPrivateKeys = new uint256[](2);
+        // attempt to use same private key to sign twice (disallowed)
+        attesterPrivateKeys[0] = attesterPK;
+        attesterPrivateKeys[1] = attesterPK;
+        bytes memory _originalAttestation = _signMessage(
+            _originalMessage,
+            attesterPrivateKeys
+        );
+
+        vm.expectRevert(
+            "Signature verification failed: signer is out of order or duplicate"
+        );
+
+        destMessageTransmitter.replaceMessage(
+            _originalMessage,
+            _originalAttestation,
+            messageBody,
+            emptyDestinationCaller
+        );
+    }
+
+    function testReplaceMessage_revertsOnWrongSender() public {
+        _setup2of3Multisig();
+
+        bytes memory _originalMessage = _getMessage();
+        assertEq(_originalMessage.ref(0).sender(), sender);
+
+        bytes memory _signature = _sign2OfNMultisigMessage(_originalMessage);
+
+        address _newMintRecipientAddr = vm.addr(1802);
+        address _newDestinationCallerAddr = vm.addr(1803);
+
+        bytes32 _newDestinationCaller = Message.addressToBytes32(
+            _newDestinationCallerAddr
+        );
+
+        vm.prank(_newMintRecipientAddr);
+        vm.expectRevert("Sender not permitted to use nonce");
+        srcMessageTransmitter.replaceMessage(
+            _originalMessage,
+            _signature,
+            messageBody,
+            _newDestinationCaller
+        );
+    }
+
+    function testReplaceMessage_revertsOnWrongSourceDomain() public {
+        _setup2of3Multisig();
+
+        bytes memory _originalMessage = _getMessage();
+        assertEq(_originalMessage.ref(0).sender(), sender);
+
+        bytes memory _signature = _sign2OfNMultisigMessage(_originalMessage);
+        address _newDestinationCallerAddr = vm.addr(1803);
+
+        bytes32 _newDestinationCaller = Message.addressToBytes32(
+            _newDestinationCallerAddr
+        );
+
+        bytes memory _newMessageBody = "newMessageBody";
+
+        // assert that a MessageSent event was logged with expected message bytes
+        vm.prank(Message.bytes32ToAddress(sender));
+        vm.expectRevert("Message not originally sent from this domain");
+        destMessageTransmitter.replaceMessage(
+            _originalMessage,
+            _signature,
+            _newMessageBody,
+            _newDestinationCaller
+        );
+    }
+
+    function testReplaceMessage_succeeds(address _newDestinationCallerAddr)
+        public
+    {
+        bytes memory _originalMessage = _getMessage();
+        bytes memory _expectedMessage = _replaceMessage(
+            _originalMessage,
+            _newDestinationCallerAddr
+        );
+
+        bytes29 _m = _originalMessage.ref(0);
+
+        // sign replaced message
+        bytes memory _replacingMessageSignature = _sign2OfNMultisigMessage(
+            _expectedMessage
+        );
+
+        // test receiving the replaced message
+        vm.prank(_newDestinationCallerAddr);
+        vm.expectEmit(true, true, true, true);
+        emit MessageReceived(
+            _newDestinationCallerAddr,
+            sourceDomain,
+            _m.nonce(),
+            sender,
+            newMessageBody
+        );
+
+        destMessageTransmitter.receiveMessage(
+            _expectedMessage,
+            _replacingMessageSignature
+        );
+    }
+
+    function testReplaceMessage_succeedsButFailsToReserveNonceInReceiveMessage(
+        address _newDestinationCallerAddr
+    ) public {
+        _setup2of3Multisig();
+
+        bytes memory _originalMessage = _getMessage();
+        bytes memory _signature = _sign2OfNMultisigMessage(_originalMessage);
+
+        bytes32 _newDestinationCaller = Message.addressToBytes32(
+            _newDestinationCallerAddr
+        );
+
+        bytes29 _m = _originalMessage.ref(0);
+        bytes memory _expectedMessage = Message.formatMessage(
+            version,
+            sourceDomain,
+            destinationDomain,
+            _m.nonce(),
+            sender,
+            recipient,
+            _newDestinationCaller,
+            newMessageBody
+        );
+
+        // assert that a MessageSent event was logged with expected message bytes
+        vm.expectEmit(true, true, true, true);
+        emit MessageSent(_expectedMessage);
+
+        vm.prank(Message.bytes32ToAddress(sender));
+        srcMessageTransmitter.replaceMessage(
+            _originalMessage,
+            _signature,
+            newMessageBody,
+            _newDestinationCaller
+        );
+
+        // sign original message
+        bytes memory _originalSignature = _sign2OfNMultisigMessage(
+            _originalMessage
+        );
+
+        // receive original message
+        // test receiving the replaced message
+        vm.expectEmit(true, true, true, true);
+        address owner = vm.addr(1801);
+        emit MessageReceived(
+            owner,
+            _m.sourceDomain(),
+            _m.nonce(),
+            sender,
+            _m.messageBody().clone()
+        );
+
+        vm.prank(owner);
+        destMessageTransmitter.receiveMessage(
+            _originalMessage,
+            _originalSignature
+        );
+
+        // sign replaced message
+        bytes memory _replacingMessageSignature = _sign2OfNMultisigMessage(
+            _expectedMessage
+        );
+
+        // fail to receive the replace (original message at nonce already received)
+        vm.prank(_newDestinationCallerAddr);
+        vm.expectRevert("Nonce already used");
+        destMessageTransmitter.receiveMessage(
+            _expectedMessage,
+            _replacingMessageSignature
+        );
+    }
+
     function testSendMessageWithCaller_rejectsZeroCaller(
         uint64 _nonce,
         uint32 _version,
@@ -361,11 +564,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     function testReceiveMessage_rejectsMessageOfLengthZero() public {
         bytes memory _message = "";
 
-        uint256[] memory attesterPrivateKeys = new uint256[](2);
-        // manually sort attesters in correct order
-        attesterPrivateKeys[1] = attesterPK;
-        attesterPrivateKeys[0] = secondAttesterPK;
-        bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
+        bytes memory _signature = _sign2OfNMultisigMessage(_message);
 
         // reverts because signature length 65 (immutable value) * signatureThreshold 1 (cannot be set to 0) != 0
         vm.expectRevert("Invalid attestation length");
@@ -851,36 +1050,6 @@ contract MessageTransmitterTest is Test, TestUtils {
     }
 
     // ============ Internal: Utils ============
-    function _signMessageWithAttesterPK(bytes memory _message)
-        internal
-        returns (bytes memory)
-    {
-        uint256[] memory attesterPrivateKeys = new uint256[](1);
-        attesterPrivateKeys[0] = attesterPK;
-        return _signMessage(_message, attesterPrivateKeys);
-    }
-
-    function _signMessage(bytes memory _message, uint256[] memory _privKeys)
-        internal
-        returns (bytes memory)
-    {
-        bytes memory _signaturesConcatenated = "";
-
-        for (uint256 i = 0; i < _privKeys.length; i++) {
-            uint256 _privKey = _privKeys[i];
-            bytes32 _digest = keccak256(_message);
-            (uint8 _v, bytes32 _r, bytes32 _s) = vm.sign(_privKey, _digest);
-            bytes memory _signature = abi.encodePacked(_r, _s, _v);
-
-            _signaturesConcatenated = abi.encodePacked(
-                _signaturesConcatenated,
-                _signature
-            );
-        }
-
-        return _signaturesConcatenated;
-    }
-
     function _getMessage() internal returns (bytes memory) {
         uint64 _msgNonce = _sendMessage(
             version,
@@ -891,29 +1060,17 @@ contract MessageTransmitterTest is Test, TestUtils {
             messageBody
         );
 
-        bytes memory _message = Message.formatMessage(
-            version,
-            sourceDomain,
-            destinationDomain,
-            _msgNonce,
-            sender,
-            recipient,
-            emptyDestinationCaller,
-            messageBody
-        );
-    }
-
-    // setup second and third attester (first set in constructor), set sig threshold at 2
-    function _setup2of3Multisig() internal {
-        destMessageTransmitter.enableAttester(secondAttester);
-        destMessageTransmitter.enableAttester(thirdAttester);
-        destMessageTransmitter.setSignatureThreshold(2);
-    }
-
-    // setup second and third attester (first set in constructor), set sig threshold at 2
-    function _setup2of2Multisig() internal {
-        destMessageTransmitter.enableAttester(secondAttester);
-        destMessageTransmitter.setSignatureThreshold(2);
+        return
+            Message.formatMessage(
+                version,
+                sourceDomain,
+                destinationDomain,
+                _msgNonce,
+                sender,
+                recipient,
+                emptyDestinationCaller,
+                messageBody
+            );
     }
 
     function _sendReceiveMultisigMessage(address _caller) internal {
@@ -937,16 +1094,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             messageBody
         );
 
-        uint256[] memory attesterPrivateKeys = new uint256[](2);
-        // manually sort attesters in correct order
-        attesterPrivateKeys[1] = attesterPK;
-        // attester == 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
-        attesterPrivateKeys[0] = secondAttesterPK;
-        // second attester = 0x6813eb9362372eef6200f3b1dbc3f819671cba69
-        // sanity check order
-        assertTrue(attester > secondAttester);
-        assertTrue(secondAttester > address(0));
-        bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
+        bytes memory _signature = _sign2OfNMultisigMessage(_message);
 
         // assert that a MessageReceive event was logged with expected message bytes
         vm.expectEmit(true, true, true, true);
@@ -971,5 +1119,75 @@ contract MessageTransmitterTest is Test, TestUtils {
                 _hashSourceAndNonce(sourceDomain, _msgNonce)
             )
         );
+    }
+
+    // setup second and third attester (first set in constructor), set sig threshold at 2
+    function _setup2of3Multisig() internal {
+        destMessageTransmitter.enableAttester(secondAttester);
+        destMessageTransmitter.enableAttester(thirdAttester);
+        destMessageTransmitter.setSignatureThreshold(2);
+
+        srcMessageTransmitter.enableAttester(secondAttester);
+        srcMessageTransmitter.enableAttester(thirdAttester);
+        srcMessageTransmitter.setSignatureThreshold(2);
+    }
+
+    // setup second and third attester (first set in constructor), set sig threshold at 2
+    function _setup2of2Multisig() internal {
+        destMessageTransmitter.enableAttester(secondAttester);
+        destMessageTransmitter.setSignatureThreshold(2);
+    }
+
+    function _sign2OfNMultisigMessage(bytes memory _message)
+        internal
+        returns (bytes memory _signature)
+    {
+        uint256[] memory attesterPrivateKeys = new uint256[](2);
+        // manually sort attesters in correct order
+        attesterPrivateKeys[1] = attesterPK;
+        // attester == 0x7e5f4552091a69125d5dfcb7b8c2659029395bdf
+        attesterPrivateKeys[0] = secondAttesterPK;
+        // second attester = 0x6813eb9362372eef6200f3b1dbc3f819671cba69
+        // sanity check order
+        assertTrue(attester > secondAttester);
+        assertTrue(secondAttester > address(0));
+        return _signMessage(_message, attesterPrivateKeys);
+    }
+
+    function _replaceMessage(
+        bytes memory _originalMessage,
+        address _newDestinationCallerAddr
+    ) internal returns (bytes memory replacedMsg) {
+        _setup2of3Multisig();
+
+        bytes memory _signature = _sign2OfNMultisigMessage(_originalMessage);
+
+        bytes32 _newDestinationCaller = Message.addressToBytes32(
+            _newDestinationCallerAddr
+        );
+
+        bytes29 _m = _originalMessage.ref(0);
+        bytes memory _expectedMessage = Message.formatMessage(
+            version,
+            sourceDomain,
+            destinationDomain,
+            _m.nonce(),
+            sender,
+            recipient,
+            _newDestinationCaller,
+            newMessageBody
+        );
+
+        // assert that a MessageSent event was logged with expected message bytes
+        vm.expectEmit(true, true, true, true);
+        emit MessageSent(_expectedMessage);
+        vm.prank(Message.bytes32ToAddress(sender));
+        srcMessageTransmitter.replaceMessage(
+            _originalMessage,
+            _signature,
+            newMessageBody,
+            _newDestinationCaller
+        );
+        return _expectedMessage;
     }
 }

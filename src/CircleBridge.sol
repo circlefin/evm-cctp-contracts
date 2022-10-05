@@ -31,6 +31,7 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using BurnMessage for bytes29;
+    using Message for bytes29;
 
     // ============ Public Variables ============
     // Local Message Transmitter responsible for sending and receiving messages to/from remote domains
@@ -221,6 +222,71 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
     }
 
     /**
+     * @notice Replace a BurnMessage to change the mint recipient and/or
+     * destination caller. Allows the sender of a previous BurnMessage
+     * (created by depositForBurn or depositForBurnWithCaller)
+     * to send a new BurnMessage to replace the original.
+     * The new BurnMessage will reuse the amount and burn token of the original,
+     * without requiring a new deposit.
+     * @dev The new message will reuse the original message's nonce. For a
+     * given nonce, all replacement message(s) and the original message are
+     * valid to broadcast on the destination domain, until the first message
+     * at the nonce confirms, at which point all others are invalidated.
+     * Note: The msg.sender of the replaced message must be the same as the
+     * msg.sender of the original message.
+     * @param _originalMessage original message bytes (to replace)
+     * @param _originalAttestation original attestation bytes
+     * @param _newDestinationCaller the new destination caller, which may be the
+     * same as the original destination caller, a new destination caller, or an empty
+     * destination caller (bytes32(0), indicating that any destination caller is valid.)
+     * @param _newMintRecipient the new mint recipient, which may be the same as the
+     * original mint recipient, or different.
+     */
+    function replaceDepositForBurn(
+        bytes memory _originalMessage,
+        bytes calldata _originalAttestation,
+        bytes32 _newDestinationCaller,
+        bytes32 _newMintRecipient
+    ) external {
+        bytes29 _originalMsg = _originalMessage.ref(0);
+        bytes29 _originalMsgBody = _originalMsg.messageBody();
+        bytes32 _originalMsgSender = _originalMsgBody.getMessageSender();
+        require(
+            msg.sender == Message.bytes32ToAddress(_originalMsgSender),
+            "Sender does not have permission to replace message"
+        );
+
+        bytes32 _burnToken = _originalMsgBody.getBurnToken();
+        uint256 _amount = _originalMsgBody.getAmount();
+
+        bytes memory _newMessageBody = BurnMessage.formatMessage(
+            messageBodyVersion,
+            _burnToken,
+            _newMintRecipient,
+            _amount,
+            _originalMsgSender
+        );
+
+        localMessageTransmitter.replaceMessage(
+            _originalMessage,
+            _originalAttestation,
+            _newMessageBody,
+            _newDestinationCaller
+        );
+
+        emit DepositForBurn(
+            _originalMsg.nonce(),
+            msg.sender,
+            Message.bytes32ToAddress(_burnToken),
+            _amount,
+            _newMintRecipient,
+            _originalMsg.destinationDomain(),
+            _originalMsg.recipient(),
+            _newDestinationCaller
+        );
+    }
+
+    /**
      * @notice Handles an incoming message received by the local MessageTransmitter,
      * and takes the appropriate action. For a burn message, mints the
      * associated token to the requested recipient on the local domain.
@@ -362,7 +428,8 @@ contract CircleBridge is IMessageDestinationHandler, Rescuable {
             messageBodyVersion,
             Message.addressToBytes32(_burnToken),
             _mintRecipient,
-            _amount
+            _amount,
+            Message.addressToBytes32(msg.sender)
         );
 
         uint64 _nonceReserved = _sendDepositForBurnMessage(

@@ -52,4 +52,19 @@ interface IRelayer {
         bytes32 _destinationCaller,
         bytes memory _messageBody
     ) external returns (uint64 _nonce);
+
+    /**
+     * @notice Replace a message with a new message body and/or destination caller.
+     * @dev The `_originalAttestation` must be a valid attestation of `_originalMessage`.
+     * @param _originalMessage original message to replace
+     * @param _originalAttestation attestation of `_originalMessage`
+     * @param _newMessageBody new message body of replaced message
+     * @param _newDestinationCaller the new destination caller
+     */
+    function replaceMessage(
+        bytes memory _originalMessage,
+        bytes calldata _originalAttestation,
+        bytes memory _newMessageBody,
+        bytes32 _newDestinationCaller
+    ) external;
 }

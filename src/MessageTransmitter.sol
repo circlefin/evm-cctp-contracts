@@ -111,13 +111,70 @@ contract MessageTransmitter is
         bytes memory _messageBody
     ) external override whenNotPaused returns (uint64 _nonce) {
         bytes32 _emptyDestinationCaller = bytes32(0);
-        return
-            _sendMessage(
-                _destinationDomain,
-                _recipient,
-                _emptyDestinationCaller,
-                _messageBody
-            );
+        uint64 _nonceReserved = _reserveAndIncrementNonce(_destinationDomain);
+        bytes32 _messageSender = Message.addressToBytes32(msg.sender);
+
+        _sendMessage(
+            _destinationDomain,
+            _recipient,
+            _emptyDestinationCaller,
+            _messageSender,
+            _nonceReserved,
+            _messageBody
+        );
+
+        return _nonceReserved;
+    }
+
+    /**
+     * @notice Replace a message with a new message body and/or destination caller.
+     * @dev The `_originalAttestation` must be a valid attestation of `_originalMessage`.
+     * Reverts if msg.sender does not match sender of original message, or if the source domain of the original message
+     * does not match this MessageTransmitter's local domain.
+     * @param _originalMessage original message to replace
+     * @param _originalAttestation attestation of `_originalMessage`
+     * @param _newMessageBody new message body of replaced message
+     * @param _newDestinationCaller the new destination caller, which may be the
+     * same as the original destination caller, a new destination caller, or an empty
+     * destination caller (bytes32(0), indicating that any destination caller is valid.)
+     */
+    function replaceMessage(
+        bytes memory _originalMessage,
+        bytes calldata _originalAttestation,
+        bytes memory _newMessageBody,
+        bytes32 _newDestinationCaller
+    ) external override whenNotPaused {
+        // Validate each signature in the attestation
+        _verifyAttestationSignatures(_originalMessage, _originalAttestation);
+
+        bytes29 _originalMsg = _originalMessage.ref(0);
+
+        // Validate message sender
+        bytes32 _sender = _originalMsg.sender();
+        require(
+            msg.sender == Message.bytes32ToAddress(_sender),
+            "Sender not permitted to use nonce"
+        );
+
+        // Validate source domain
+        uint32 sourceDomain = _originalMsg.sourceDomain();
+        require(
+            sourceDomain == localDomain,
+            "Message not originally sent from this domain"
+        );
+
+        uint32 _destinationDomain = _originalMsg.destinationDomain();
+        bytes32 _recipient = _originalMsg.recipient();
+        uint64 _nonce = _originalMsg.nonce();
+
+        _sendMessage(
+            _destinationDomain,
+            _recipient,
+            _newDestinationCaller,
+            _sender,
+            _nonce,
+            _newMessageBody
+        );
     }
 
     /**
@@ -144,13 +201,19 @@ contract MessageTransmitter is
             "Destination caller must be nonzero"
         );
 
-        return
-            _sendMessage(
-                _destinationDomain,
-                _recipient,
-                _destinationCaller,
-                _messageBody
-            );
+        uint64 _nonceReserved = _reserveAndIncrementNonce(_destinationDomain);
+        bytes32 _messageSender = Message.addressToBytes32(msg.sender);
+
+        _sendMessage(
+            _destinationDomain,
+            _recipient,
+            _destinationCaller,
+            _messageSender,
+            _nonceReserved,
+            _messageBody
+        );
+
+        return _nonceReserved;
     }
 
     /**
@@ -241,15 +304,18 @@ contract MessageTransmitter is
      * @param _destinationDomain Domain of destination chain
      * @param _recipient Address of message recipient on destination domain as bytes32
      * @param _destinationCaller caller on the destination domain, as bytes32
+     * @param _sender message sender, as bytes32
+     * @param _nonce nonce reserved for message
      * @param _messageBody Raw bytes content of message
-     * @return _nonce unique nonce reserved by message
      */
     function _sendMessage(
         uint32 _destinationDomain,
         bytes32 _recipient,
         bytes32 _destinationCaller,
+        bytes32 _sender,
+        uint64 _nonce,
         bytes memory _messageBody
-    ) internal returns (uint64 _nonce) {
+    ) internal {
         // Validate message body length
         require(
             _messageBody.length <= maxMessageBodySize,
@@ -258,19 +324,13 @@ contract MessageTransmitter is
 
         require(_recipient != bytes32(0), "Recipient must be nonzero");
 
-        // Reserve a nonce for destination domain
-        uint64 _nonceReserved = availableNonces[_destinationDomain];
-
-        // Increment nonce
-        availableNonces[_destinationDomain] = _nonceReserved + 1;
-
         // serialize message
         bytes memory _message = Message.formatMessage(
             version,
             localDomain,
             _destinationDomain,
-            _nonceReserved,
-            Message.addressToBytes32(msg.sender),
+            _nonce,
+            _sender,
             _recipient,
             _destinationCaller,
             _messageBody
@@ -278,7 +338,6 @@ contract MessageTransmitter is
 
         // Emit MessageSent event
         emit MessageSent(_message);
-        return _nonceReserved;
     }
 
     /**
@@ -309,5 +368,17 @@ contract MessageTransmitter is
         returns (bytes32)
     {
         return keccak256(abi.encodePacked(_source, _nonce));
+    }
+
+    /**
+     * Reserve and increment next available nonce for given `_destinationDomain`
+     */
+    function _reserveAndIncrementNonce(uint32 _destinationDomain)
+        internal
+        returns (uint64 nonce)
+    {
+        uint64 _nonceReserved = availableNonces[_destinationDomain];
+        availableNonces[_destinationDomain] = _nonceReserved + 1;
+        return _nonceReserved;
     }
 }

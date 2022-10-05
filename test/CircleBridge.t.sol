@@ -333,35 +333,163 @@ contract CircleBridgeTest is Test, TestUtils {
         );
     }
 
-    // TODO [STABLE-926] test mint fails due to insufficient mintAllowance
-
-    function testHandleReceiveMessage_succeedsForMint() public {
-        address _mintRecipientAddr = vm.addr(1505);
-        uint256 _amount = 5;
-        bytes memory _messageBody = _depositForBurn(
-            _mintRecipientAddr,
-            _amount
+    function testReplaceDepositForBurn_revertsForWrongSender(
+        address _mintRecipientAddr,
+        uint256 _amount,
+        address _newDestinationCallerAddr
+    ) public {
+        address _newMintRecipientAddr = vm.addr(1802);
+        bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
+        bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
+            address(localToken)
+        );
+        bytes memory _messageBody = BurnMessage.formatMessage(
+            messageBodyVersion,
+            localTokenAddressBytes32,
+            _mintRecipient,
+            _amount,
+            Message.addressToBytes32(address(owner))
+        );
+        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
+        bytes memory _expectedMessage = Message.formatMessage(
+            version,
+            localDomain,
+            remoteDomain,
+            _nonce,
+            Message.addressToBytes32(address(localCircleBridge)),
+            remoteCircleBridge,
+            emptyDestinationCaller,
+            _messageBody
         );
 
-        // assert balance of recipient is initially 0
-        assertEq(destToken.balanceOf(_mintRecipientAddr), 0);
+        // attempt to replace message from wrong sender
+        bytes32 _newDestinationCaller = Message.addressToBytes32(
+            _newDestinationCallerAddr
+        );
+        bytes32 _newMintRecipient = Message.addressToBytes32(
+            _newMintRecipientAddr
+        );
+        bytes memory _originalAttestation = bytes("mockAttestation");
 
-        // test event is emitted
-        vm.expectEmit(true, true, true, true);
-        emit MintAndWithdraw(_mintRecipientAddr, _amount, address(destToken));
+        vm.prank(_newMintRecipientAddr);
+        vm.expectRevert("Sender does not have permission to replace message");
+        localCircleBridge.replaceDepositForBurn(
+            _expectedMessage,
+            _originalAttestation,
+            _newDestinationCaller,
+            _newMintRecipient
+        );
+    }
 
-        vm.startPrank(address(remoteMessageTransmitter));
-        assertTrue(
-            destCircleBridge.handleReceiveMessage(
-                localDomain,
-                Message.addressToBytes32(address(localCircleBridge)),
-                _messageBody
+    function testReplaceDepositForBurn_revertsInvalidAttestation(
+        address _mintRecipientAddr,
+        uint256 _amount,
+        address _newDestinationCallerAddr,
+        address _newMintRecipientAddr
+    ) public {
+        bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
+        bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
+            address(localToken)
+        );
+        bytes memory _messageBody = BurnMessage.formatMessage(
+            messageBodyVersion,
+            localTokenAddressBytes32,
+            _mintRecipient,
+            _amount,
+            Message.addressToBytes32(address(owner))
+        );
+        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
+        bytes memory _expectedMessage = Message.formatMessage(
+            version,
+            localDomain,
+            remoteDomain,
+            _nonce,
+            Message.addressToBytes32(address(localCircleBridge)),
+            remoteCircleBridge,
+            emptyDestinationCaller,
+            _messageBody
+        );
+
+        // attempt to replace message from wrong sender
+        bytes32 _newDestinationCaller = Message.addressToBytes32(
+            _newDestinationCallerAddr
+        );
+        bytes32 _newMintRecipient = Message.addressToBytes32(
+            _newMintRecipientAddr
+        );
+        bytes memory _originalAttestation = bytes("mockAttestation");
+
+        vm.prank(owner);
+        vm.expectRevert("Invalid attestation length");
+        localCircleBridge.replaceDepositForBurn(
+            _expectedMessage,
+            _originalAttestation,
+            _newDestinationCaller,
+            _newMintRecipient
+        );
+    }
+
+    function testReplaceDepositForBurn_succeeds(
+        uint64 _nonce,
+        bytes32 _mintRecipient,
+        address _newDestinationCallerAddr
+    ) public {
+        uint256 _amount = 5;
+        bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
+            address(localToken)
+        );
+
+        bytes memory _expectedMessage = Message.formatMessage(
+            version,
+            localDomain,
+            remoteDomain,
+            _nonce,
+            Message.addressToBytes32(address(localCircleBridge)),
+            remoteCircleBridge,
+            emptyDestinationCaller,
+            BurnMessage.formatMessage(
+                messageBodyVersion,
+                localTokenAddressBytes32,
+                _mintRecipient,
+                _amount,
+                Message.addressToBytes32(address(owner))
             )
         );
-        vm.stopPrank();
 
-        // assert balance of recipient is incremented by mint amount
-        assertEq(destToken.balanceOf(_mintRecipientAddr), _amount);
+        bytes32 _newDestinationCaller = Message.addressToBytes32(
+            _newDestinationCallerAddr
+        );
+        address _newMintRecipientAddr = vm.addr(1802);
+        bytes32 _newMintRecipient = Message.addressToBytes32(
+            _newMintRecipientAddr
+        );
+        uint256[] memory attesterPrivateKeys = new uint256[](1);
+        attesterPrivateKeys[0] = attesterPK;
+        bytes memory _signature = _signMessage(
+            _expectedMessage,
+            attesterPrivateKeys
+        );
+
+        // emits DepositForBurn
+        vm.expectEmit(true, true, true, true);
+        emit DepositForBurn(
+            _nonce,
+            owner,
+            address(localToken),
+            _amount,
+            _newMintRecipient,
+            remoteDomain,
+            remoteCircleBridge,
+            _newDestinationCaller
+        );
+
+        vm.prank(owner);
+        localCircleBridge.replaceDepositForBurn(
+            _expectedMessage,
+            _signature,
+            _newDestinationCaller,
+            _newMintRecipient
+        );
     }
 
     function testHandleReceiveMessage_failsIfRecipientIsNotRemoteCircleBridge()
@@ -405,7 +533,8 @@ contract CircleBridgeTest is Test, TestUtils {
             messageBodyVersion,
             Message.addressToBytes32(address(localToken)),
             _mintRecipient,
-            _amount
+            _amount,
+            Message.addressToBytes32(address(remoteMessageTransmitter))
         );
 
         destCircleBridge.removeLocalMinter();
@@ -431,7 +560,8 @@ contract CircleBridgeTest is Test, TestUtils {
             messageBodyVersion,
             _localToken,
             _mintRecipient,
-            _amount
+            _amount,
+            Message.addressToBytes32(address(remoteMessageTransmitter))
         );
 
         bytes32 _localCircleBridge = Message.addressToBytes32(
@@ -654,7 +784,8 @@ contract CircleBridgeTest is Test, TestUtils {
             messageBodyVersion,
             localTokenAddressBytes32,
             _mintRecipient,
-            _amount
+            _amount,
+            Message.addressToBytes32(address(owner))
         );
 
         uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
@@ -729,7 +860,8 @@ contract CircleBridgeTest is Test, TestUtils {
             messageBodyVersion,
             localTokenAddressBytes32,
             _mintRecipient,
-            _amount
+            _amount,
+            Message.addressToBytes32(address(owner))
         );
 
         // assert that a MessageSent event was logged with expected message bytes

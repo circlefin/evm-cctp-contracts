@@ -17,6 +17,7 @@ pragma solidity ^0.7.6;
 import "@memview-sol/contracts/TypedMemView.sol";
 import "forge-std/Test.sol";
 import "../../src/messages/BurnMessage.sol";
+import "../../src/messages/Message.sol";
 
 contract BurnMessageTest is Test {
     using TypedMemView for bytes;
@@ -28,20 +29,23 @@ contract BurnMessageTest is Test {
     function testFormatMessage_succeeds(
         bytes32 _burnToken,
         bytes32 _mintRecipient,
-        uint256 _amount
+        uint256 _amount,
+        address msgSender
     ) public {
         bytes memory _expectedMessageBody = abi.encodePacked(
             version,
             _burnToken,
             _mintRecipient,
-            _amount
+            _amount,
+            Message.addressToBytes32(msgSender)
         );
 
         bytes memory _messageBody = BurnMessage.formatMessage(
             version,
             _burnToken,
             _mintRecipient,
-            _amount
+            _amount,
+            Message.addressToBytes32(msgSender)
         );
 
         bytes29 _m = _messageBody.ref(0);
@@ -49,6 +53,7 @@ contract BurnMessageTest is Test {
         assertEq(_m.getBurnToken(), _burnToken);
         assertEq(_m.getAmount(), _amount);
         assertEq(uint256(_m.getVersion()), uint256(version));
+        assertEq(_m.getMessageSender(), Message.addressToBytes32(msgSender));
         assertTrue(_m.isValidBurnMessage(version));
 
         assertEq(_expectedMessageBody.ref(0).keccak(), _m.keccak());
@@ -63,26 +68,30 @@ contract BurnMessageTest is Test {
             version,
             _burnToken,
             _mintRecipient,
-            _amount
+            _amount,
+            Message.addressToBytes32(msg.sender)
         );
 
         bytes29 _m = _messageBody.ref(0);
         assertEq(_m.getMintRecipient(), _mintRecipient);
         assertEq(_m.getBurnToken(), _burnToken);
         assertEq(_m.getAmount(), _amount);
+        assertEq(_m.getMessageSender(), Message.addressToBytes32(msg.sender));
         assertFalse(_m.isValidBurnMessage(2));
     }
 
     function testIsValidBurnMessage_returnsFalseForWrongLength(
         bytes32 _burnToken,
         bytes32 _mintRecipient,
-        uint256 _amount
+        uint256 _amount,
+        address msgSender
     ) public {
         bytes memory _tooLongMessageBody = abi.encodePacked(
             version,
             _burnToken,
             _mintRecipient,
             _amount,
+            Message.addressToBytes32(msgSender),
             _amount // encode _amount twice (invalid)
         );
 

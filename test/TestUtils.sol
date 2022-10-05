@@ -166,4 +166,34 @@ contract TestUtils is Test {
         assertEq(_ownableContract.owner(), _newOwner);
         assertFalse(_newOwner == initialOwner);
     }
+
+    function _signMessageWithAttesterPK(bytes memory _message)
+        internal
+        returns (bytes memory)
+    {
+        uint256[] memory attesterPrivateKeys = new uint256[](1);
+        attesterPrivateKeys[0] = attesterPK;
+        return _signMessage(_message, attesterPrivateKeys);
+    }
+
+    function _signMessage(bytes memory _message, uint256[] memory _privKeys)
+        internal
+        returns (bytes memory)
+    {
+        bytes memory _signaturesConcatenated = "";
+
+        for (uint256 i = 0; i < _privKeys.length; i++) {
+            uint256 _privKey = _privKeys[i];
+            bytes32 _digest = keccak256(_message);
+            (uint8 _v, bytes32 _r, bytes32 _s) = vm.sign(_privKey, _digest);
+            bytes memory _signature = abi.encodePacked(_r, _s, _v);
+
+            _signaturesConcatenated = abi.encodePacked(
+                _signaturesConcatenated,
+                _signature
+            );
+        }
+
+        return _signaturesConcatenated;
+    }
 }
