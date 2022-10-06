@@ -26,21 +26,21 @@ contract AttestableTest is Test, TestUtils {
      * @param newAttesterManager representing the address of the new attester manager
      */
     event AttesterManagerUpdated(
-        address previousAttesterManager,
-        address newAttesterManager
+        address indexed previousAttesterManager,
+        address indexed newAttesterManager
     );
 
     /**
      * @notice Emitted when an attester is enabled
      * @param attester newly enabled attester
      */
-    event AttesterEnabled(address attester);
+    event AttesterEnabled(address indexed attester);
 
     /**
      * @notice Emitted when an attester is disabled
      * @param attester newly disabled attester
      */
-    event AttesterDisabled(address attester);
+    event AttesterDisabled(address indexed attester);
 
     /**
      * @notice Emitted when threshold number of attestations (m in m/n multisig) is updated
@@ -48,8 +48,8 @@ contract AttestableTest is Test, TestUtils {
      * @param newSignatureThreshold new signature threshold
      */
     event SignatureThresholdUpdated(
-        uint256 oldSignatureThreshold,
-        uint256 newSignatureThreshold
+        uint256 indexed oldSignatureThreshold,
+        uint256 indexed newSignatureThreshold
     );
 
     address initialAttesterManager = vm.addr(1505);
@@ -72,7 +72,7 @@ contract AttestableTest is Test, TestUtils {
         assertEq(attestable.attesterManager(), initialAttesterManager);
         address _newAttesterManager = vm.addr(1506);
 
-        vm.expectRevert("Attestable: caller is not the attester manager");
+        vm.expectRevert("Caller not attester manager");
         attestable.updateAttesterManager(_newAttesterManager);
 
         assertEq(attestable.attesterManager(), initialAttesterManager);
@@ -83,7 +83,7 @@ contract AttestableTest is Test, TestUtils {
         address _newAttesterManager = address(0);
 
         vm.prank(initialAttesterManager);
-        vm.expectRevert("Attestable: new attester manager is the zero address");
+        vm.expectRevert("Invalid attester manager address");
         attestable.updateAttesterManager(_newAttesterManager);
 
         assertEq(attestable.attesterManager(), initialAttesterManager);
@@ -109,7 +109,7 @@ contract AttestableTest is Test, TestUtils {
     {
         address _nonAttesterManager = vm.addr(1602);
         vm.prank(_nonAttesterManager);
-        vm.expectRevert("Attestable: caller is not the attester manager");
+        vm.expectRevert("Caller not attester manager");
         attestable.setSignatureThreshold(1);
     }
 
@@ -136,7 +136,7 @@ contract AttestableTest is Test, TestUtils {
     function testSetSignatureThreshold_rejectsZeroValue() public {
         vm.startPrank(initialAttesterManager);
 
-        vm.expectRevert("New signature threshold must be nonzero");
+        vm.expectRevert("Invalid signature threshold");
         attestable.setSignatureThreshold(0);
 
         vm.stopPrank();
@@ -155,7 +155,7 @@ contract AttestableTest is Test, TestUtils {
 
         // fail to update signatureThreshold to 2
         vm.expectRevert(
-            "New signature threshold cannot exceed the number of enabled attesters"
+            "New signature threshold too high"
         );
         _localMessageTransmitter.setSignatureThreshold(2);
 
@@ -168,7 +168,7 @@ contract AttestableTest is Test, TestUtils {
         vm.startPrank(initialAttesterManager);
 
         vm.expectRevert(
-            "New signature threshold must not equal current signature threshold"
+            "Signature threshold already set"
         );
         attestable.setSignatureThreshold(1);
 
@@ -212,7 +212,7 @@ contract AttestableTest is Test, TestUtils {
         address _nonAttesterManager = vm.addr(1602);
         vm.prank(_nonAttesterManager);
 
-        vm.expectRevert("Attestable: caller is not the attester manager");
+        vm.expectRevert("Caller not attester manager");
         attestable.enableAttester(_addr);
     }
 
@@ -257,7 +257,7 @@ contract AttestableTest is Test, TestUtils {
         address _nonAttesterManager = vm.addr(1602);
         vm.prank(_nonAttesterManager);
 
-        vm.expectRevert("Attestable: caller is not the attester manager");
+        vm.expectRevert("Caller not attester manager");
         attestable.disableAttester(attester);
     }
 
@@ -266,9 +266,7 @@ contract AttestableTest is Test, TestUtils {
     {
         vm.startPrank(initialAttesterManager);
 
-        vm.expectRevert(
-            "Unable to disable attester because 1 or less attesters are enabled"
-        );
+        vm.expectRevert("Too few enabled attesters");
         attestable.disableAttester(attester);
 
         vm.stopPrank();
@@ -280,9 +278,7 @@ contract AttestableTest is Test, TestUtils {
         attestable.enableAttester(secondAttester);
         attestable.setSignatureThreshold(2);
 
-        vm.expectRevert(
-            "Unable to disable attester because signature threshold is too low"
-        );
+        vm.expectRevert("Signature threshold is too low");
         attestable.disableAttester(attester);
 
         vm.stopPrank();

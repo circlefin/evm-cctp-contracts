@@ -88,7 +88,7 @@ contract MessageTest is Test {
 
     function testAddressToBytes32ToAddress_fuzz(address _addr) public {
         bytes32 _bytes32FromAddr = Message.addressToBytes32(_addr);
-        address _addrFromBytes32 = Message._bytes32ToAddress(_bytes32FromAddr);
+        address _addrFromBytes32 = Message.bytes32ToAddress(_bytes32FromAddr);
         assertEq(_addrFromBytes32, _addr);
     }
 }

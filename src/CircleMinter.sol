@@ -30,17 +30,17 @@ import "./CircleBridge.sol";
 contract CircleMinter is IMinter, Pausable, Rescuable {
     /**
      * @notice Emitted when a local CircleBridge is added
-     * @param _localCircleBridge address of local CircleBridge
+     * @param localCircleBridge address of local CircleBridge
      * @notice Emitted when a local CircleBridge is added
      */
-    event LocalCircleBridgeAdded(address _localCircleBridge);
+    event LocalCircleBridgeAdded(address indexed localCircleBridge);
 
     /**
      * @notice Emitted when a local CircleBridge is removed
-     * @param _localCircleBridge address of local CircleBridge
+     * @param localCircleBridge address of local CircleBridge
      * @notice Emitted when a local CircleBridge is removed
      */
-    event LocalCircleBridgeRemoved(address _localCircleBridge);
+    event LocalCircleBridgeRemoved(address indexed localCircleBridge);
 
     // Supported mintable tokens on the local domain
     // local token (address) => supported (bool)
@@ -57,10 +57,7 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
      * @notice Only accept messages from the registered message transmitter on local domain
      */
     modifier onlyLocalCircleBridge() {
-        require(
-            _isLocalCircleBridge(),
-            "Caller is not the registered CircleBridge for this domain"
-        );
+        require(_isLocalCircleBridge(), "Caller not local CircleBridge");
         _;
     }
 
@@ -76,7 +73,7 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
         address to,
         uint256 amount
     ) external override whenNotPaused onlyLocalCircleBridge {
-        require(localTokens[mintToken], "Given mint token is not supported");
+        require(localTokens[mintToken], "Mint token not supported");
 
         IMintBurnToken _token = IMintBurnToken(mintToken);
         require(_token.mint(to, amount), "Mint operation failed");
@@ -94,7 +91,7 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
         whenNotPaused
         onlyLocalCircleBridge
     {
-        require(localTokens[remoteToken], "Given burn token is not supported");
+        require(localTokens[remoteToken], "Burn token not supported");
 
         IMintBurnToken _token = IMintBurnToken(remoteToken);
         _token.burn(amount);
@@ -119,9 +116,10 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
             remoteToken
         );
 
+        // remote token must not be already linked to a local token
         require(
             remoteTokensToLocalTokens[_remoteTokensKey] == address(0),
-            "Unable to link token pair, remote token already linked to a local token"
+            "Unable to link token pair"
         );
 
         remoteTokensToLocalTokens[_remoteTokensKey] = localToken;
@@ -149,12 +147,13 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
             remoteToken
         );
 
+        // remote token must be linked to a local token before unlink
         require(
             remoteTokensToLocalTokens[_remoteTokensKey] != address(0),
-            "Unable to unlink token pair, remote token is already not linked to any local token"
+            "Unable to unlink token pair"
         );
 
-        remoteTokensToLocalTokens[_remoteTokensKey] = address(0);
+        delete remoteTokensToLocalTokens[_remoteTokensKey];
 
         emit TokenPairUnlinked(localToken, remoteDomain, remoteToken);
     }
@@ -171,12 +170,12 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
     {
         require(
             newLocalCircleBridge != address(0),
-            "New local CircleBridge address must be non-zero."
+            "Invalid CircleBridge address"
         );
 
         require(
             localCircleBridge == address(0),
-            "Local CircleBridge is already set."
+            "Local CircleBridge already set"
         );
 
         localCircleBridge = newLocalCircleBridge;
@@ -192,10 +191,10 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
         address _localCircleBridgeBeforeRemoval = localCircleBridge;
         require(
             _localCircleBridgeBeforeRemoval != address(0),
-            "No local CircleBridge is set."
+            "No local CircleBridge is set"
         );
 
-        localCircleBridge = address(0);
+        delete localCircleBridge;
         emit LocalCircleBridgeRemoved(_localCircleBridgeBeforeRemoval);
     }
 
@@ -239,10 +238,11 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
             _remoteTokensKey
         ];
 
+        // an enabled local token must be associated with remote domain and token pair
         require(
             _associatedLocalToken != address(0) &&
                 localTokens[_associatedLocalToken],
-            "No enabled local token is associated with remote domain and token pair"
+            "Local token not enabled"
         );
 
         return _associatedLocalToken;

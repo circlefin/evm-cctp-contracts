@@ -81,7 +81,7 @@ contract CircleMinterTest is Test, TestUtils {
 
     function testMint_revertsOnUnsupportedMintToken(uint256 _amount) public {
         vm.startPrank(localCircleBridge);
-        vm.expectRevert("Given mint token is not supported");
+        vm.expectRevert("Mint token not supported");
         circleMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
         vm.stopPrank();
     }
@@ -90,9 +90,7 @@ contract CircleMinterTest is Test, TestUtils {
         uint256 _amount
     ) public {
         vm.prank(nonCircleBridge);
-        vm.expectRevert(
-            "Caller is not the registered CircleBridge for this domain"
-        );
+        vm.expectRevert("Caller not local CircleBridge");
         circleMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
     }
 
@@ -128,14 +126,13 @@ contract CircleMinterTest is Test, TestUtils {
     }
 
     function testBurn_succeeds(uint256 _amount) public {
-        uint256 _amount = 100; // must be > 0
-
+        vm.assume(_amount > 0);
         _mintAndBurn(_amount);
     }
 
     function testBurn_revertsOnUnsupportedBurnToken(uint256 _amount) public {
         vm.startPrank(localCircleBridge);
-        vm.expectRevert("Given burn token is not supported");
+        vm.expectRevert("Burn token not supported");
         circleMinter.burn(localTokenAddress, _amount);
         vm.stopPrank();
     }
@@ -145,14 +142,14 @@ contract CircleMinterTest is Test, TestUtils {
         address _remoteToken
     ) public {
         vm.prank(nonCircleBridge);
-        vm.expectRevert(
-            "Caller is not the registered CircleBridge for this domain"
-        );
+        vm.expectRevert("Caller not local CircleBridge");
         circleMinter.burn(_remoteToken, _amount);
     }
 
-    function testBurn_revertsWhenPaused(address _remoteToken) public {
-        uint256 _amount = 1000;
+    function testBurn_revertsWhenPaused(address _remoteToken, uint256 _amount)
+        public
+    {
+        vm.assume(_amount > 0);
 
         vm.prank(pauser);
         circleMinter.pause();
@@ -171,9 +168,7 @@ contract CircleMinterTest is Test, TestUtils {
 
     function testLinkTokenPair_revertsOnAlreadyLinkedToken() public {
         _linkTokenPair(localTokenAddress);
-        vm.expectRevert(
-            "Unable to link token pair, remote token already linked to a local token"
-        );
+        vm.expectRevert("Unable to link token pair");
         circleMinter.linkTokenPair(
             address(localToken),
             remoteDomain,
@@ -209,9 +204,7 @@ contract CircleMinterTest is Test, TestUtils {
         );
 
         // reverts because there is no enabled local token for the given _remoteDomain, _remoteToken pair
-        vm.expectRevert(
-            "No enabled local token is associated with remote domain and token pair"
-        );
+        vm.expectRevert("Local token not enabled");
         circleMinter.getEnabledLocalToken(remoteDomain, remoteTokenBytes32);
         assertEq(
             circleMinter.remoteTokensToLocalTokens(remoteTokensKey),
@@ -220,9 +213,7 @@ contract CircleMinterTest is Test, TestUtils {
     }
 
     function testUnlinkTokenPair_revertsOnAlreadyUnlinkedToken() public {
-        vm.expectRevert(
-            "Unable to unlink token pair, remote token is already not linked to any local token"
-        );
+        vm.expectRevert("Unable to unlink token pair");
         circleMinter.unlinkTokenPair(
             address(localToken),
             remoteDomain,
@@ -244,9 +235,7 @@ contract CircleMinterTest is Test, TestUtils {
     }
 
     function testGetEnabledLocalToken_revertsOnNotFoundMintToken() public {
-        vm.expectRevert(
-            "No enabled local token is associated with remote domain and token pair"
-        );
+        vm.expectRevert("Local token not enabled");
         circleMinter.getEnabledLocalToken(remoteDomain, remoteTokenBytes32);
     }
 
@@ -280,14 +269,14 @@ contract CircleMinterTest is Test, TestUtils {
         public
     {
         address _circleBridge = vm.addr(1700);
-        vm.expectRevert("Local CircleBridge is already set.");
+        vm.expectRevert("Local CircleBridge already set");
         circleMinter.addLocalCircleBridge(_circleBridge);
     }
 
     function testAddLocalCircleBridge_revertsWhenNewCircleBridgeIsZeroAddress()
         public
     {
-        vm.expectRevert("New local CircleBridge address must be non-zero.");
+        vm.expectRevert("Invalid CircleBridge address");
         circleMinter.addLocalCircleBridge(address(0));
     }
 
@@ -308,7 +297,7 @@ contract CircleMinterTest is Test, TestUtils {
         public
     {
         CircleMinter _circleMinter = new CircleMinter();
-        vm.expectRevert("No local CircleBridge is set.");
+        vm.expectRevert("No local CircleBridge is set");
         _circleMinter.removeLocalCircleBridge();
     }
 

@@ -48,9 +48,9 @@ contract MessageTransmitter is
      * @param messageBody message body bytes
      */
     event MessageReceived(
-        address caller,
-        uint32 sourceDomain,
-        uint64 nonce,
+        address indexed caller,
+        uint32 indexed sourceDomain,
+        uint64 indexed nonce,
         bytes32 sender,
         bytes messageBody
     );
@@ -59,7 +59,7 @@ contract MessageTransmitter is
      * @notice Emitted when max message body size is updated
      * @param newMaxMessageBodySize new maximum message body size, in bytes
      */
-    event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
+    event MaxMessageBodySizeUpdated(uint256 indexed newMaxMessageBodySize);
 
     // ============ Libraries ============
     using TypedMemView for bytes;
@@ -67,12 +67,15 @@ contract MessageTransmitter is
     using Message for bytes29;
 
     // ============ State Variables ============
+    // Domain of chain on which the contract is deployed
+    uint32 public immutable localDomain;
+
+    // Message Format version
+    uint32 public immutable version;
+
     // Maximum size of message body, in bytes.
     // This value is set by owner.
     uint256 public maxMessageBodySize;
-
-    // Domain of chain on which the contract is deployed
-    uint32 public immutable localDomain;
 
     // Maps domain -> next available sequential nonce
     mapping(uint32 => uint64) public availableNonces;
@@ -80,9 +83,6 @@ contract MessageTransmitter is
     // Maps a hash of (sourceDomain, nonce) -> boolean
     // boolean value is true if nonce is used
     mapping(bytes32 => bool) public usedNonces;
-
-    // message format version
-    uint32 public version;
 
     // ============ Constructor ============
     constructor(
@@ -152,7 +152,7 @@ contract MessageTransmitter is
         // Validate message sender
         bytes32 _sender = _originalMsg._sender();
         require(
-            msg.sender == Message._bytes32ToAddress(_sender),
+            msg.sender == Message.bytes32ToAddress(_sender),
             "Sender not permitted to use nonce"
         );
 
@@ -268,6 +268,9 @@ contract MessageTransmitter is
                 "Invalid caller for message"
             );
         }
+
+        // Validate version
+        require(_m._version() == version, "Invalid message version");
 
         // Validate nonce is available
         uint32 _sourceDomain = _m._sourceDomain();

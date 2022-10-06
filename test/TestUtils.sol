@@ -21,17 +21,17 @@ import "./mocks/MockMintBurnToken.sol";
 contract TestUtils is Test {
     /**
      * @notice Emitted when a local CircleBridge is added
-     * @param _localCircleBridge address of local CircleBridge
+     * @param localCircleBridge address of local CircleBridge
      * @notice Emitted when a local CircleBridge is added
      */
-    event LocalCircleBridgeAdded(address _localCircleBridge);
+    event LocalCircleBridgeAdded(address indexed localCircleBridge);
 
     /**
      * @notice Emitted when a local CircleBridge is removed
-     * @param _localCircleBridge address of local CircleBridge
+     * @param localCircleBridge address of local CircleBridge
      * @notice Emitted when a local CircleBridge is removed
      */
-    event LocalCircleBridgeRemoved(address _localCircleBridge);
+    event LocalCircleBridgeRemoved(address indexed localCircleBridge);
 
     // test keys
     uint256 attesterPK = 1;

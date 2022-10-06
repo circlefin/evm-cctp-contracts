@@ -49,9 +49,9 @@ contract MessageTransmitterTest is Test, TestUtils {
      * @param messageBody message body bytes
      */
     event MessageReceived(
-        address caller,
-        uint32 sourceDomain,
-        uint64 nonce,
+        address indexed caller,
+        uint32 indexed sourceDomain,
+        uint64 indexed nonce,
         bytes32 sender,
         bytes messageBody
     );
@@ -60,7 +60,7 @@ contract MessageTransmitterTest is Test, TestUtils {
      * @notice Emitted when max message body size is updated
      * @param newMaxMessageBodySize new maximum message body size, in bytes
      */
-    event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
+    event MaxMessageBodySizeUpdated(uint256 indexed newMaxMessageBodySize);
 
     // ============ Libraries ============
     using TypedMemView for bytes;
@@ -177,7 +177,6 @@ contract MessageTransmitterTest is Test, TestUtils {
 
     function testReceiveMessage_fuzz(
         address _caller,
-        uint32 _version,
         uint32 _sourceDomain,
         uint64 _nonce,
         bytes32 _sender,
@@ -185,7 +184,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     ) public {
         _receiveMessage(
             _caller,
-            _version,
+            version,
             _sourceDomain,
             destinationDomain, // static (messageRecipient must be deployed on the destination domain)
             _nonce,
@@ -216,6 +215,26 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
+    function testReceiveMessage_rejectInvalidVersion() public {
+        bytes memory _message = Message._formatMessage(
+            2,
+            sourceDomain,
+            destinationDomain,
+            nonce,
+            sender,
+            recipient,
+            emptyDestinationCaller,
+            messageBody
+        );
+
+        uint256[] memory attesterPrivateKeys = new uint256[](1);
+        attesterPrivateKeys[0] = attesterPK;
+        bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
+
+        vm.expectRevert("Invalid message version");
+        destMessageTransmitter.receiveMessage(_message, _signature);
+    }
+
     function testReceiveMessage_rejectsNotEnabledSigner() public {
         bytes memory _message = Message._formatMessage(
             version,
@@ -235,9 +254,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             fakeAttesterPrivateKeys
         );
 
-        vm.expectRevert(
-            "Signature verification failed: signer is not enabled attester"
-        );
+        vm.expectRevert("Invalid signature: not attester");
         destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
@@ -323,9 +340,7 @@ contract MessageTransmitterTest is Test, TestUtils {
             attesterPrivateKeys
         );
 
-        vm.expectRevert(
-            "Signature verification failed: signer is out of order or duplicate"
-        );
+        vm.expectRevert("Invalid signature order or dupe");
 
         destMessageTransmitter.replaceMessage(
             _originalMessage,
@@ -376,7 +391,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         bytes memory _newMessageBody = "newMessageBody";
 
         // assert that a MessageSent event was logged with expected message bytes
-        vm.prank(Message._bytes32ToAddress(sender));
+        vm.prank(Message.bytes32ToAddress(sender));
         vm.expectRevert("Message not originally sent from this domain");
         destMessageTransmitter.replaceMessage(
             _originalMessage,
@@ -447,7 +462,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
 
-        vm.prank(Message._bytes32ToAddress(sender));
+        vm.prank(Message.bytes32ToAddress(sender));
         srcMessageTransmitter.replaceMessage(
             _originalMessage,
             _signature,
@@ -543,9 +558,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         attesterPrivateKeys[1] = secondAttesterPK;
         bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
 
-        vm.expectRevert(
-            "Signature verification failed: signer is out of order or duplicate"
-        );
+        vm.expectRevert("Invalid signature order or dupe");
         destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
@@ -584,9 +597,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         attesterPrivateKeys[1] = attesterPK;
         bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
 
-        vm.expectRevert(
-            "Signature verification failed: signer is out of order or duplicate"
-        );
+        vm.expectRevert("Invalid signature order or dupe");
         destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
@@ -928,7 +939,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
 
         // assert that a MessageSent event was logged with expected message bytes
-        vm.prank(Message._bytes32ToAddress(_sender));
+        vm.prank(Message.bytes32ToAddress(_sender));
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
 
@@ -978,7 +989,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
 
-        vm.prank(Message._bytes32ToAddress(_sender));
+        vm.prank(Message.bytes32ToAddress(_sender));
         uint64 _nonceReserved = srcMessageTransmitter.sendMessageWithCaller(
             _destinationDomain,
             _recipient,
@@ -1181,7 +1192,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         // assert that a MessageSent event was logged with expected message bytes
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
-        vm.prank(Message._bytes32ToAddress(sender));
+        vm.prank(Message.bytes32ToAddress(sender));
         srcMessageTransmitter.replaceMessage(
             _originalMessage,
             _signature,

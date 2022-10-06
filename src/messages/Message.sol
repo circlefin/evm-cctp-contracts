@@ -41,14 +41,14 @@ library Message {
     using TypedMemView for bytes29;
 
     // Indices of each field in message
-    uint32 internal constant VERSION_INDEX = 0;
-    uint32 internal constant SOURCE_DOMAIN_INDEX = 4;
-    uint32 internal constant DESTINATION_DOMAIN_INDEX = 8;
-    uint32 internal constant NONCE_INDEX = 12;
-    uint32 internal constant SENDER_INDEX = 20;
-    uint32 internal constant RECIPIENT_INDEX = 52;
-    uint32 internal constant DESTINATION_CALLER_INDEX = 84;
-    uint32 internal constant MESSAGE_BODY_INDEX = 116;
+    uint8 internal constant VERSION_INDEX = 0;
+    uint8 internal constant SOURCE_DOMAIN_INDEX = 4;
+    uint8 internal constant DESTINATION_DOMAIN_INDEX = 8;
+    uint8 internal constant NONCE_INDEX = 12;
+    uint8 internal constant SENDER_INDEX = 20;
+    uint8 internal constant RECIPIENT_INDEX = 52;
+    uint8 internal constant DESTINATION_CALLER_INDEX = 84;
+    uint8 internal constant MESSAGE_BODY_INDEX = 116;
 
     /**
      * @notice Returns formatted (packed) message with provided fields
@@ -144,7 +144,7 @@ library Message {
         pure
         returns (address)
     {
-        return _bytes32ToAddress(_recipient(_message));
+        return bytes32ToAddress(_recipient(_message));
     }
 
     /**
@@ -159,7 +159,7 @@ library Message {
      * @notice converts bytes32 to address (alignment preserving cast.)
      * @param _buf the bytes32 to convert to address
      */
-    function _bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
+    function bytes32ToAddress(bytes32 _buf) public pure returns (address) {
         return address(uint160(uint256(_buf)));
     }
 }

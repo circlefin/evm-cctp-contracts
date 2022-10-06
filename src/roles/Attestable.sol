@@ -22,13 +22,13 @@ contract Attestable {
      * @notice Emitted when an attester is enabled
      * @param attester newly enabled attester
      */
-    event AttesterEnabled(address attester);
+    event AttesterEnabled(address indexed attester);
 
     /**
      * @notice Emitted when an attester is disabled
      * @param attester newly disabled attester
      */
-    event AttesterDisabled(address attester);
+    event AttesterDisabled(address indexed attester);
 
     /**
      * @notice Emitted when threshold number of attestations (m in m/n multisig) is updated
@@ -36,8 +36,8 @@ contract Attestable {
      * @param newSignatureThreshold new signature threshold
      */
     event SignatureThresholdUpdated(
-        uint256 oldSignatureThreshold,
-        uint256 newSignatureThreshold
+        uint256 indexed oldSignatureThreshold,
+        uint256 indexed newSignatureThreshold
     );
 
     /**
@@ -46,8 +46,8 @@ contract Attestable {
      * @param newAttesterManager representing the address of the new attester manager
      */
     event AttesterManagerUpdated(
-        address previousAttesterManager,
-        address newAttesterManager
+        address indexed previousAttesterManager,
+        address indexed newAttesterManager
     );
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -69,10 +69,7 @@ contract Attestable {
      * @dev Throws if called by any account other than the attester manager.
      */
     modifier onlyAttesterManager() {
-        require(
-            msg.sender == _attesterManager,
-            "Attestable: caller is not the attester manager"
-        );
+        require(msg.sender == _attesterManager, "Caller not attester manager");
         _;
     }
 
@@ -124,7 +121,7 @@ contract Attestable {
     {
         require(
             newAttesterManager != address(0),
-            "Attestable: new attester manager is the zero address"
+            "Invalid attester manager address"
         );
         _setAttesterManager(newAttesterManager);
         emit AttesterManagerUpdated(newAttesterManager, newAttesterManager);
@@ -139,15 +136,12 @@ contract Attestable {
      */
     function disableAttester(address attester) external onlyAttesterManager {
         // Disallow disabling attester if there is only 1 active attester
-        require(
-            getNumEnabledAttesters() > 1,
-            "Unable to disable attester because 1 or less attesters are enabled"
-        );
+        require(getNumEnabledAttesters() > 1, "Too few enabled attesters");
 
         // Disallow disabling an attester if it would cause the n in m/n multisig to fall below m (threshold # of signers).
         require(
             getNumEnabledAttesters() > signatureThreshold,
-            "Unable to disable attester because signature threshold is too low"
+            "Signature threshold is too low"
         );
 
         require(enabledAttesters.remove(attester), "Attester already disabled");
@@ -165,19 +159,17 @@ contract Attestable {
         external
         onlyAttesterManager
     {
-        require(
-            newSignatureThreshold != 0,
-            "New signature threshold must be nonzero"
-        );
+        require(newSignatureThreshold != 0, "Invalid signature threshold");
 
+        // New signature threshold cannot exceed the number of enabled attesters
         require(
             newSignatureThreshold <= enabledAttesters.length(),
-            "New signature threshold cannot exceed the number of enabled attesters"
+            "New signature threshold too high"
         );
 
         require(
             newSignatureThreshold != signatureThreshold,
-            "New signature threshold must not equal current signature threshold"
+            "Signature threshold already set"
         );
 
         uint256 _oldSignatureThreshold = signatureThreshold;
@@ -246,13 +238,15 @@ contract Attestable {
                 _message,
                 _signature
             );
+
+            // Signatures must be in increasing order of address, and may not duplicate signatures from same address
             require(
                 _recoveredAttester > _latestAttesterAddress,
-                "Signature verification failed: signer is out of order or duplicate"
+                "Invalid signature order or dupe"
             );
             require(
                 isEnabledAttester(_recoveredAttester),
-                "Signature verification failed: signer is not enabled attester"
+                "Invalid signature: not attester"
             );
             _latestAttesterAddress = _recoveredAttester;
         }
