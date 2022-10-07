@@ -18,29 +18,30 @@ import "./interfaces/IMinter.sol";
 import "./interfaces/IMintBurnToken.sol";
 import "./roles/Pausable.sol";
 import "./roles/Rescuable.sol";
-import "./CircleBridge.sol";
+import "./TokenMessenger.sol";
 
 /**
- * @title CircleMinter
- * @notice Minter and burner of Circle-issued stablecoins.
+ * @title TokenMinter
+ * @notice Token Minter and Burner
  * @dev Maintains registry of local mintable tokens and corresponding tokens on remote domains.
  * This registry can be used by caller to determine which token on local domain to mint for a
  * burned token on a remote domain, and vice versa.
+ * It is assumed that local and remote tokens are fungible at a constant 1:1 exchange rate.
  */
-contract CircleMinter is IMinter, Pausable, Rescuable {
+contract TokenMinter is IMinter, Pausable, Rescuable {
     /**
-     * @notice Emitted when a local CircleBridge is added
-     * @param localCircleBridge address of local CircleBridge
-     * @notice Emitted when a local CircleBridge is added
+     * @notice Emitted when a local TokenMessenger is added
+     * @param localTokenMessenger address of local TokenMessenger
+     * @notice Emitted when a local TokenMessenger is added
      */
-    event LocalCircleBridgeAdded(address indexed localCircleBridge);
+    event LocalTokenMessengerAdded(address indexed localTokenMessenger);
 
     /**
-     * @notice Emitted when a local CircleBridge is removed
-     * @param localCircleBridge address of local CircleBridge
-     * @notice Emitted when a local CircleBridge is removed
+     * @notice Emitted when a local TokenMessenger is removed
+     * @param localTokenMessenger address of local TokenMessenger
+     * @notice Emitted when a local TokenMessenger is removed
      */
-    event LocalCircleBridgeRemoved(address indexed localCircleBridge);
+    event LocalTokenMessengerRemoved(address indexed localTokenMessenger);
 
     // Supported mintable tokens on the local domain
     // local token (address) => supported (bool)
@@ -50,29 +51,29 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
     // hash(remote domain & remote token bytes32 address) => local token (address)
     mapping(bytes32 => address) public remoteTokensToLocalTokens;
 
-    // Local CircleBridge with permission to call mint and burn on this CircleMinter
-    address public localCircleBridge;
+    // Local TokenMessenger with permission to call mint and burn on this TokenMinter
+    address public localTokenMessenger;
 
     /**
      * @notice Only accept messages from the registered message transmitter on local domain
      */
-    modifier onlyLocalCircleBridge() {
-        require(_isLocalCircleBridge(), "Caller not local CircleBridge");
+    modifier onlyLocalTokenMessenger() {
+        require(_isLocalTokenMessenger(), "Caller not local TokenMessenger");
         _;
     }
 
     /**
      * @notice Mint tokens.
-     * @param mintToken Mintable Circle-issued token address.
+     * @param mintToken Mintable token address.
      * @param to Address to receive minted tokens.
      * @param amount Amount of tokens to mint. Must be less than or equal
-     * to the minterAllowance of this CircleMinter for given `_mintToken`.
+     * to the minterAllowance of this TokenMinter for given `_mintToken`.
      */
     function mint(
         address mintToken,
         address to,
         uint256 amount
-    ) external override whenNotPaused onlyLocalCircleBridge {
+    ) external override whenNotPaused onlyLocalTokenMessenger {
         require(localTokens[mintToken], "Mint token not supported");
 
         IMintBurnToken _token = IMintBurnToken(mintToken);
@@ -80,25 +81,25 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
     }
 
     /**
-     * @notice Burn tokens owned by this CircleMinter.
-     * @param remoteToken burnable Circle-issued token.
+     * @notice Burn tokens owned by this TokenMinter.
+     * @param burnToken burnable token address.
      * @param amount amount of tokens to burn. Must be less than or equal to this
-     * CircleMinter's balance of given `_remoteToken`.
+     * TokenMinter's balance of given `burnToken`.
      */
-    function burn(address remoteToken, uint256 amount)
+    function burn(address burnToken, uint256 amount)
         external
         override
         whenNotPaused
-        onlyLocalCircleBridge
+        onlyLocalTokenMessenger
     {
-        require(localTokens[remoteToken], "Burn token not supported");
+        require(localTokens[burnToken], "Burn token not supported");
 
-        IMintBurnToken _token = IMintBurnToken(remoteToken);
+        IMintBurnToken _token = IMintBurnToken(burnToken);
         _token.burn(amount);
     }
 
     /**
-     * @notice Links a pair of local and remote tokens to be supported by this CircleMinter.
+     * @notice Links a pair of local and remote tokens to be supported by this TokenMinter.
      * @dev Associates a (`remoteToken`, `localToken`) pair by updating remoteTokensToLocalTokens mapping.
      * Reverts if the remote token (for the given `remoteDomain`) already maps to a nonzero local token.
      * Note:
@@ -128,7 +129,7 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
     }
 
     /**
-     * @notice Unlinks a pair of local and remote tokens for this CircleMinter.
+     * @notice Unlinks a pair of local and remote tokens for this TokenMinter.
      * @dev Removes link from `remoteToken`, to `localToken` for given `remoteDomain`
      * by updating remoteTokensToLocalTokens mapping.
      * Reverts if the remote token (for the given `remoteDomain`) already maps to the zero address.
@@ -159,43 +160,43 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
     }
 
     /**
-     * @notice Add CircleBridge for the local domain. Only this CircleBridge
-     * has permission to call mint() and burn() on this CircleMinter.
-     * @dev Reverts if a CircleBridge is already set for the local domain.
-     * @param newLocalCircleBridge The address of the new CircleBridge on the local domain.
+     * @notice Add TokenMessenger for the local domain. Only this TokenMessenger
+     * has permission to call mint() and burn() on this TokenMinter.
+     * @dev Reverts if a TokenMessenger is already set for the local domain.
+     * @param newLocalTokenMessenger The address of the new TokenMessenger on the local domain.
      */
-    function addLocalCircleBridge(address newLocalCircleBridge)
+    function addLocalTokenMessenger(address newLocalTokenMessenger)
         external
         onlyOwner
     {
         require(
-            newLocalCircleBridge != address(0),
-            "Invalid CircleBridge address"
+            newLocalTokenMessenger != address(0),
+            "Invalid TokenMessenger address"
         );
 
         require(
-            localCircleBridge == address(0),
-            "Local CircleBridge already set"
+            localTokenMessenger == address(0),
+            "Local TokenMessenger already set"
         );
 
-        localCircleBridge = newLocalCircleBridge;
+        localTokenMessenger = newLocalTokenMessenger;
 
-        emit LocalCircleBridgeAdded(localCircleBridge);
+        emit LocalTokenMessengerAdded(localTokenMessenger);
     }
 
     /**
-     * @notice Remove the CircleBridge for the local domain.
-     * @dev Reverts if the CircleBridge of the local domain is not set.
+     * @notice Remove the TokenMessenger for the local domain.
+     * @dev Reverts if the TokenMessenger of the local domain is not set.
      */
-    function removeLocalCircleBridge() external onlyOwner {
-        address _localCircleBridgeBeforeRemoval = localCircleBridge;
+    function removeLocalTokenMessenger() external onlyOwner {
+        address _localTokenMessengerBeforeRemoval = localTokenMessenger;
         require(
-            _localCircleBridgeBeforeRemoval != address(0),
-            "No local CircleBridge is set"
+            _localTokenMessengerBeforeRemoval != address(0),
+            "No local TokenMessenger is set"
         );
 
-        delete localCircleBridge;
-        emit LocalCircleBridgeRemoved(_localCircleBridgeBeforeRemoval);
+        delete localTokenMessenger;
+        emit LocalTokenMessengerRemoved(_localTokenMessengerBeforeRemoval);
     }
 
     /**
@@ -263,12 +264,12 @@ contract CircleMinter is IMinter, Pausable, Rescuable {
     }
 
     /**
-     * @notice Returns true if the message sender is the registered local CircleBridge
-     * @return True if the message sender is the registered local CircleBridge
+     * @notice Returns true if the message sender is the registered local TokenMessenger
+     * @return True if the message sender is the registered local TokenMessenger
      */
-    function _isLocalCircleBridge() internal view returns (bool) {
+    function _isLocalTokenMessenger() internal view returns (bool) {
         return
-            address(localCircleBridge) != address(0) &&
-            msg.sender == address(localCircleBridge);
+            address(localTokenMessenger) != address(0) &&
+            msg.sender == address(localTokenMessenger);
     }
 }

@@ -18,7 +18,7 @@ import "@memview-sol/contracts/TypedMemView.sol";
 
 /**
  * @title BurnMessage Library
- * @notice Library for formatted BurnMessages used by CircleBridge.
+ * @notice Library for formatted BurnMessages used by TokenMessenger.
  * @dev BurnMessage format:
  * Field                 Bytes      Type       Index
  * version               4          uint8      0

@@ -55,15 +55,15 @@ Use Docker to run Foundry commands. Run `make build` to build Foundry docker ima
 The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tutorials/solidity-scripting). The script is located in [script/deploy.s.sol](/scripts/deploy.s.sol). Follow the below steps to deploy the contracts:
 1. Add the below environment variables to your [env](.env) file
     - `MESSAGE_TRANSMITTER_DEPLOYER_KEY`
-    - `CIRCLE_BRIDGE_DEPLOYER_KEY`
-    - `CIRCLE_MINTER_DEPLOYER_KEY`
+    - `TOKEN_MESSENGER_DEPLOYER_KEY`
+    - `TOKEN_MINTER_DEPLOYER_KEY`
     - `ATTESTER_ADDRESS`
     - `USDC_CONTRACT_ADDRESS`
     
     We use these keys to deploy corresponding contracts
     If you also want to link remote token and bridge then add the below env variables:
     - `REMOTE_USDC_CONTRACT_ADDRESS`
-    - `REMOTE_BRIDGE_ADDRESS`
+    - `REMOTE_TOKEN_MESSENGER_ADDRESS`
     - `REMOTE_AVAILABLE=true`
 
 2. Run `make simulate RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run. *Note: Use address from one of the private keys (used for deploying) above as `sender`. It is used to deploy the shared libraries that contracts use*

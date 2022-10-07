@@ -16,7 +16,7 @@ pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/math/Math.sol";
-import "./mocks/MockCircleBridge.sol";
+import "./mocks/MockTokenMessenger.sol";
 import "./mocks/MockReentrantCaller.sol";
 import "./mocks/MockRepeatCaller.sol";
 import "../src/interfaces/IReceiver.sol";
@@ -27,8 +27,8 @@ import "./TestUtils.sol";
 contract MessageTransmitterTest is Test, TestUtils {
     MessageTransmitter srcMessageTransmitter;
     MessageTransmitter destMessageTransmitter;
-    MockCircleBridge srcMockCircleBridge;
-    MockCircleBridge destMockCircleBridge;
+    MockTokenMessenger srcMockTokenMessenger;
+    MockTokenMessenger destMockTokenMessenger;
     MockReentrantCaller mockReentrantCaller;
 
     address pauser = vm.addr(1509);
@@ -84,11 +84,11 @@ contract MessageTransmitterTest is Test, TestUtils {
             version
         );
 
-        srcMockCircleBridge = new MockCircleBridge();
-        destMockCircleBridge = new MockCircleBridge();
+        srcMockTokenMessenger = new MockTokenMessenger();
+        destMockTokenMessenger = new MockTokenMessenger();
 
-        recipient = bytes32(uint256(uint160(address(destMockCircleBridge))));
-        sender = bytes32(uint256(uint160(address(srcMockCircleBridge))));
+        recipient = bytes32(uint256(uint160(address(destMockTokenMessenger))));
+        sender = bytes32(uint256(uint160(address(srcMockTokenMessenger))));
         srcMessageTransmitter.updatePauser(pauser);
     }
 

@@ -14,24 +14,24 @@
  */
 pragma solidity 0.7.6;
 
-import "../src/CircleMinter.sol";
+import "../src/TokenMinter.sol";
 import "../lib/forge-std/src/Test.sol";
 import "./mocks/MockMintBurnToken.sol";
 
 contract TestUtils is Test {
     /**
-     * @notice Emitted when a local CircleBridge is added
-     * @param localCircleBridge address of local CircleBridge
-     * @notice Emitted when a local CircleBridge is added
+     * @notice Emitted when a local TokenMessenger is added
+     * @param localTokenMessenger address of local TokenMessenger
+     * @notice Emitted when a local TokenMessenger is added
      */
-    event LocalCircleBridgeAdded(address indexed localCircleBridge);
+    event LocalTokenMessengerAdded(address indexed localTokenMessenger);
 
     /**
-     * @notice Emitted when a local CircleBridge is removed
-     * @param localCircleBridge address of local CircleBridge
-     * @notice Emitted when a local CircleBridge is removed
+     * @notice Emitted when a local TokenMessenger is removed
+     * @param localTokenMessenger address of local TokenMessenger
+     * @notice Emitted when a local TokenMessenger is removed
      */
-    event LocalCircleBridgeRemoved(address indexed localCircleBridge);
+    event LocalTokenMessengerRemoved(address indexed localTokenMessenger);
 
     // test keys
     uint256 attesterPK = 1;
@@ -64,20 +64,20 @@ contract TestUtils is Test {
         "00000000000000000000000000000000000000000000000000000000000000000";
 
     function linkTokenPair(
-        CircleMinter circleMinter,
+        TokenMinter tokenMinter,
         address _localToken,
         uint32 _remoteDomain,
         bytes32 _remoteTokenBytes32
     ) public {
-        circleMinter.setLocalTokenEnabledStatus(_localToken, true);
+        tokenMinter.setLocalTokenEnabledStatus(_localToken, true);
 
-        circleMinter.linkTokenPair(
+        tokenMinter.linkTokenPair(
             address(_localToken),
             _remoteDomain,
             _remoteTokenBytes32
         );
 
-        address _actualLocalToken = circleMinter.getEnabledLocalToken(
+        address _actualLocalToken = tokenMinter.getEnabledLocalToken(
             _remoteDomain,
             _remoteTokenBytes32
         );
@@ -85,28 +85,28 @@ contract TestUtils is Test {
         assertEq(_actualLocalToken, address(_localToken));
     }
 
-    function addLocalCircleBridge(
-        CircleMinter _circleMinter,
-        address _localCircleBridge
+    function addLocalTokenMessenger(
+        TokenMinter _tokenMinter,
+        address _localTokenMessenger
     ) public {
-        assertEq(_circleMinter.localCircleBridge(), address(0));
+        assertEq(_tokenMinter.localTokenMessenger(), address(0));
 
         vm.expectEmit(true, true, true, true);
-        emit LocalCircleBridgeAdded(_localCircleBridge);
-        _circleMinter.addLocalCircleBridge(_localCircleBridge);
+        emit LocalTokenMessengerAdded(_localTokenMessenger);
+        _tokenMinter.addLocalTokenMessenger(_localTokenMessenger);
 
-        assertEq(_circleMinter.localCircleBridge(), _localCircleBridge);
+        assertEq(_tokenMinter.localTokenMessenger(), _localTokenMessenger);
     }
 
-    function removeLocalBridge(CircleMinter _circleMinter) public {
-        address _currentCircleBridge = _circleMinter.localCircleBridge();
-        assertTrue(_currentCircleBridge != address(0));
+    function removeLocalTokenMessenger(TokenMinter _tokenMinter) public {
+        address _currentTokenMessenger = _tokenMinter.localTokenMessenger();
+        assertTrue(_currentTokenMessenger != address(0));
 
         vm.expectEmit(true, true, true, true);
-        emit LocalCircleBridgeRemoved(_currentCircleBridge);
-        _circleMinter.removeLocalCircleBridge();
+        emit LocalTokenMessengerRemoved(_currentTokenMessenger);
+        _tokenMinter.removeLocalTokenMessenger();
 
-        assertEq(_circleMinter.localCircleBridge(), address(0));
+        assertEq(_tokenMinter.localTokenMessenger(), address(0));
     }
 
     function expectRevertWithWrongOwner() public {

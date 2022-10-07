@@ -41,7 +41,7 @@ interface IMinter {
     function burn(address burnToken, uint256 amount) external;
 
     /**
-     * @notice Links a pair of local and remote tokens to be supported by this CircleMinter.
+     * @notice Links a pair of local and remote tokens to be supported by this TokenMinter.
      * @dev Associates a (`remoteToken`, `localToken`) pair by updating remoteTokensToLocalTokens mapping.
      * Reverts if the remote token (for the given `remoteDomain`) already maps to a nonzero local token.
      * Note:
@@ -56,7 +56,7 @@ interface IMinter {
     ) external;
 
     /**
-     * @notice Unlinks a pair of local and remote tokens for this CircleMinter.
+     * @notice Unlinks a pair of local and remote tokens for this TokenMinter.
      * @dev Removes link from `remoteToken`, to `localToken` for given `remoteDomain`
      * by updating remoteTokensToLocalTokens mapping.
      * Reverts if the remote token (for the given `remoteDomain`) already maps to the zero address.

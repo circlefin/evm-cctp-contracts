@@ -15,12 +15,12 @@
 pragma solidity ^0.7.6;
 
 import "../src/messages/Message.sol";
-import "../src/CircleMinter.sol";
+import "../src/TokenMinter.sol";
 import "./TestUtils.sol";
 import "./mocks/MockMintBurnToken.sol";
 import "../lib/forge-std/src/Test.sol";
 
-contract CircleMinterTest is Test, TestUtils {
+contract TokenMinterTest is Test, TestUtils {
     /**
      * @notice Emitted when a token pair is linked
      * @param localToken local token to support
@@ -56,23 +56,23 @@ contract CircleMinterTest is Test, TestUtils {
 
     IMintBurnToken localToken;
     IMintBurnToken remoteToken;
-    CircleMinter circleMinter;
+    TokenMinter tokenMinter;
 
     address localTokenAddress;
     bytes32 remoteTokenBytes32;
     address mintRecipientAddress = address(vm.addr(1506));
-    address localCircleBridge = address(vm.addr(1507));
-    address nonCircleBridge = address(vm.addr(1508));
+    address localTokenMessenger = address(vm.addr(1507));
+    address nonTokenMessenger = address(vm.addr(1508));
     address pauser = vm.addr(1509);
 
     function setUp() public {
-        circleMinter = new CircleMinter();
+        tokenMinter = new TokenMinter();
         localToken = new MockMintBurnToken();
         localTokenAddress = address(localToken);
         remoteToken = new MockMintBurnToken();
         remoteTokenBytes32 = Message.addressToBytes32(address(remoteToken));
-        circleMinter.addLocalCircleBridge(localCircleBridge);
-        circleMinter.updatePauser(pauser);
+        tokenMinter.addLocalTokenMessenger(localTokenMessenger);
+        tokenMinter.updatePauser(pauser);
     }
 
     function testMint_succeeds(uint256 _amount) public {
@@ -80,18 +80,18 @@ contract CircleMinterTest is Test, TestUtils {
     }
 
     function testMint_revertsOnUnsupportedMintToken(uint256 _amount) public {
-        vm.startPrank(localCircleBridge);
+        vm.startPrank(localTokenMessenger);
         vm.expectRevert("Mint token not supported");
-        circleMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
+        tokenMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
         vm.stopPrank();
     }
 
-    function testMint_revertsIfCallerIsNotRegisteredCircleBridge(
+    function testMint_revertsIfCallerIsNotRegisteredTokenMessenger(
         uint256 _amount
     ) public {
-        vm.prank(nonCircleBridge);
-        vm.expectRevert("Caller not local CircleBridge");
-        circleMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
+        vm.prank(nonTokenMessenger);
+        vm.expectRevert("Caller not local TokenMessenger");
+        tokenMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
     }
 
     function testMint_revertsWhenPaused(
@@ -100,13 +100,13 @@ contract CircleMinterTest is Test, TestUtils {
         uint256 _amount
     ) public {
         vm.prank(pauser);
-        circleMinter.pause();
+        tokenMinter.pause();
         vm.expectRevert("Pausable: paused");
-        circleMinter.mint(_mintToken, _to, _amount);
+        tokenMinter.mint(_mintToken, _to, _amount);
 
         // Mint works again after unpause
         vm.prank(pauser);
-        circleMinter.unpause();
+        tokenMinter.unpause();
         _mint(_amount);
     }
 
@@ -119,9 +119,9 @@ contract CircleMinterTest is Test, TestUtils {
             abi.encodeWithSelector(MockMintBurnToken.mint.selector),
             abi.encode(false)
         );
-        vm.startPrank(localCircleBridge);
+        vm.startPrank(localTokenMessenger);
         vm.expectRevert("Mint operation failed");
-        circleMinter.mint(localTokenAddress, _to, _amount);
+        tokenMinter.mint(localTokenAddress, _to, _amount);
         vm.stopPrank();
     }
 
@@ -131,19 +131,19 @@ contract CircleMinterTest is Test, TestUtils {
     }
 
     function testBurn_revertsOnUnsupportedBurnToken(uint256 _amount) public {
-        vm.startPrank(localCircleBridge);
+        vm.startPrank(localTokenMessenger);
         vm.expectRevert("Burn token not supported");
-        circleMinter.burn(localTokenAddress, _amount);
+        tokenMinter.burn(localTokenAddress, _amount);
         vm.stopPrank();
     }
 
-    function testBurn_revertsIfCallerIsNotRegisteredCircleBridge(
+    function testBurn_revertsIfCallerIsNotRegisteredTokenMessenger(
         uint256 _amount,
         address _remoteToken
     ) public {
-        vm.prank(nonCircleBridge);
-        vm.expectRevert("Caller not local CircleBridge");
-        circleMinter.burn(_remoteToken, _amount);
+        vm.prank(nonTokenMessenger);
+        vm.expectRevert("Caller not local TokenMessenger");
+        tokenMinter.burn(_remoteToken, _amount);
     }
 
     function testBurn_revertsWhenPaused(address _remoteToken, uint256 _amount)
@@ -152,13 +152,13 @@ contract CircleMinterTest is Test, TestUtils {
         vm.assume(_amount > 0);
 
         vm.prank(pauser);
-        circleMinter.pause();
+        tokenMinter.pause();
         vm.expectRevert("Pausable: paused");
-        circleMinter.burn(_remoteToken, _amount);
+        tokenMinter.burn(_remoteToken, _amount);
 
         // Mint works again after unpause
         vm.prank(pauser);
-        circleMinter.unpause();
+        tokenMinter.unpause();
         _mintAndBurn(_amount);
     }
 
@@ -169,7 +169,7 @@ contract CircleMinterTest is Test, TestUtils {
     function testLinkTokenPair_revertsOnAlreadyLinkedToken() public {
         _linkTokenPair(localTokenAddress);
         vm.expectRevert("Unable to link token pair");
-        circleMinter.linkTokenPair(
+        tokenMinter.linkTokenPair(
             address(localToken),
             remoteDomain,
             remoteTokenBytes32
@@ -178,7 +178,7 @@ contract CircleMinterTest is Test, TestUtils {
 
     function testLinkTokenPair_revertsWhenCalledByNonOwner() public {
         expectRevertWithWrongOwner();
-        circleMinter.linkTokenPair(
+        tokenMinter.linkTokenPair(
             address(localToken),
             remoteDomain,
             remoteTokenBytes32
@@ -193,11 +193,11 @@ contract CircleMinterTest is Test, TestUtils {
             remoteTokenBytes32
         );
         assertEq(
-            circleMinter.remoteTokensToLocalTokens(remoteTokensKey),
+            tokenMinter.remoteTokensToLocalTokens(remoteTokensKey),
             localTokenAddress
         );
 
-        circleMinter.unlinkTokenPair(
+        tokenMinter.unlinkTokenPair(
             address(localToken),
             remoteDomain,
             remoteTokenBytes32
@@ -205,16 +205,16 @@ contract CircleMinterTest is Test, TestUtils {
 
         // reverts because there is no enabled local token for the given _remoteDomain, _remoteToken pair
         vm.expectRevert("Local token not enabled");
-        circleMinter.getEnabledLocalToken(remoteDomain, remoteTokenBytes32);
+        tokenMinter.getEnabledLocalToken(remoteDomain, remoteTokenBytes32);
         assertEq(
-            circleMinter.remoteTokensToLocalTokens(remoteTokensKey),
+            tokenMinter.remoteTokensToLocalTokens(remoteTokensKey),
             address(0)
         );
     }
 
     function testUnlinkTokenPair_revertsOnAlreadyUnlinkedToken() public {
         vm.expectRevert("Unable to unlink token pair");
-        circleMinter.unlinkTokenPair(
+        tokenMinter.unlinkTokenPair(
             address(localToken),
             remoteDomain,
             remoteTokenBytes32
@@ -223,7 +223,7 @@ contract CircleMinterTest is Test, TestUtils {
 
     function testUnlinkTokenPair_revertsWhenCalledByNonOwner() public {
         expectRevertWithWrongOwner();
-        circleMinter.unlinkTokenPair(
+        tokenMinter.unlinkTokenPair(
             address(localToken),
             remoteDomain,
             remoteTokenBytes32
@@ -236,74 +236,76 @@ contract CircleMinterTest is Test, TestUtils {
 
     function testGetEnabledLocalToken_revertsOnNotFoundMintToken() public {
         vm.expectRevert("Local token not enabled");
-        circleMinter.getEnabledLocalToken(remoteDomain, remoteTokenBytes32);
+        tokenMinter.getEnabledLocalToken(remoteDomain, remoteTokenBytes32);
     }
 
     function testSetLocalTokenEnabledStatus(address _localToken) public {
-        assertFalse(circleMinter.localTokens(_localToken));
+        assertFalse(tokenMinter.localTokens(_localToken));
 
         vm.expectEmit(true, true, true, true);
         emit LocalTokenEnabledStatusSet(_localToken, true);
-        circleMinter.setLocalTokenEnabledStatus(_localToken, true);
-        assertTrue(circleMinter.localTokens(_localToken));
+        tokenMinter.setLocalTokenEnabledStatus(_localToken, true);
+        assertTrue(tokenMinter.localTokens(_localToken));
 
         vm.expectEmit(true, true, true, true);
         emit LocalTokenEnabledStatusSet(_localToken, false);
-        circleMinter.setLocalTokenEnabledStatus(_localToken, false);
-        assertFalse(circleMinter.localTokens(_localToken));
+        tokenMinter.setLocalTokenEnabledStatus(_localToken, false);
+        assertFalse(tokenMinter.localTokens(_localToken));
     }
 
     function testSetLocalTokenEnabledStatus_revertsWhenCalledByNonOwner()
         public
     {
         expectRevertWithWrongOwner();
-        circleMinter.setLocalTokenEnabledStatus(address(localToken), false);
+        tokenMinter.setLocalTokenEnabledStatus(address(localToken), false);
     }
 
-    function testAddLocalCircleBridge_succeeds() public {
-        CircleMinter _circleMinter = new CircleMinter();
-        addLocalCircleBridge(_circleMinter, localCircleBridge);
+    function testAddLocalTokenMessenger_succeeds() public {
+        TokenMinter _tokenMinter = new TokenMinter();
+        addLocalTokenMessenger(_tokenMinter, localTokenMessenger);
     }
 
-    function testAddLocalCircleBridge_revertsWhenLocalBridgeAlreadySet()
+    function testAddLocalTokenMessenger_revertsWhenLocalTokenMinterAlreadySet()
         public
     {
-        address _circleBridge = vm.addr(1700);
-        vm.expectRevert("Local CircleBridge already set");
-        circleMinter.addLocalCircleBridge(_circleBridge);
+        address _tokenMessenger = vm.addr(1700);
+        vm.expectRevert("Local TokenMessenger already set");
+        tokenMinter.addLocalTokenMessenger(_tokenMessenger);
     }
 
-    function testAddLocalCircleBridge_revertsWhenNewCircleBridgeIsZeroAddress()
+    function testAddLocalTokenMessenger_revertsWhenNewTokenMessengerIsZeroAddress()
         public
     {
-        vm.expectRevert("Invalid CircleBridge address");
-        circleMinter.addLocalCircleBridge(address(0));
+        vm.expectRevert("Invalid TokenMessenger address");
+        tokenMinter.addLocalTokenMessenger(address(0));
     }
 
-    function testAddLocalCircleBridge_revertsWhenCalledByNonOwner(
-        address _circleBridge
+    function testAddLocalTokenMessenger_revertsWhenCalledByNonOwner(
+        address _tokenMessenger
     ) public {
         expectRevertWithWrongOwner();
-        circleMinter.addLocalCircleBridge(_circleBridge);
+        tokenMinter.addLocalTokenMessenger(_tokenMessenger);
     }
 
-    function testRemoveLocalCircleBridge_succeeds() public {
-        CircleMinter _circleMinter = new CircleMinter();
-        addLocalCircleBridge(_circleMinter, localCircleBridge);
-        removeLocalBridge(_circleMinter);
+    function testRemoveLocalTokenMessenger_succeeds() public {
+        TokenMinter _tokenMinter = new TokenMinter();
+        addLocalTokenMessenger(_tokenMinter, localTokenMessenger);
+        removeLocalTokenMessenger(_tokenMinter);
     }
 
-    function testRemoveLocalCircleBridge_revertsWhenNoLocalCircleBridgeSet()
+    function testRemoveLocalTokenMessenger_revertsWhenNoLocalTokenMessengerSet()
         public
     {
-        CircleMinter _circleMinter = new CircleMinter();
-        vm.expectRevert("No local CircleBridge is set");
-        _circleMinter.removeLocalCircleBridge();
+        TokenMinter _tokenMinter = new TokenMinter();
+        vm.expectRevert("No local TokenMessenger is set");
+        _tokenMinter.removeLocalTokenMessenger();
     }
 
-    function testRemoveLocalCircleBridge_revertsWhenCalledByNonOwner() public {
+    function testRemoveLocalTokenMessenger_revertsWhenCalledByNonOwner()
+        public
+    {
         expectRevertWithWrongOwner();
-        circleMinter.removeLocalCircleBridge();
+        tokenMinter.removeLocalTokenMessenger();
     }
 
     function testRescuable(
@@ -312,7 +314,7 @@ contract CircleMinterTest is Test, TestUtils {
         uint256 _amount
     ) public {
         assertContractIsRescuable(
-            address(circleMinter),
+            address(tokenMinter),
             _rescuer,
             _rescueRecipient,
             _amount
@@ -321,12 +323,12 @@ contract CircleMinterTest is Test, TestUtils {
 
     function testTransferOwnership() public {
         address _newOwner = vm.addr(1509);
-        transferOwnership(address(circleMinter), _newOwner);
+        transferOwnership(address(tokenMinter), _newOwner);
     }
 
     function _linkTokenPair(address _localToken) internal {
         linkTokenPair(
-            circleMinter,
+            tokenMinter,
             _localToken,
             remoteDomain,
             remoteTokenBytes32
@@ -340,8 +342,8 @@ contract CircleMinterTest is Test, TestUtils {
         assertEq(localToken.balanceOf(mintRecipientAddress), 0);
         assertEq(localToken.totalSupply(), 0);
 
-        vm.startPrank(localCircleBridge);
-        circleMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
+        vm.startPrank(localTokenMessenger);
+        tokenMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
         vm.stopPrank();
 
         // Assert balance of recipient and total supply is incremented by mint amount
@@ -352,21 +354,20 @@ contract CircleMinterTest is Test, TestUtils {
     function _mintAndBurn(uint256 _amount) internal {
         _mint(_amount);
 
-        // (Using an EOA here to simulate bridge contract. This will be a contract in bridge test suite.)
-        address mockCircleBridge = vm.addr(1507);
+        address mockTokenMessenger = vm.addr(1507);
 
         vm.prank(mintRecipientAddress);
-        localToken.approve(address(mockCircleBridge), _amount);
+        localToken.approve(address(mockTokenMessenger), _amount);
 
-        vm.prank(mockCircleBridge);
+        vm.prank(mockTokenMessenger);
         localToken.transferFrom(
             mintRecipientAddress,
-            address(circleMinter),
+            address(tokenMinter),
             _amount
         );
 
-        vm.startPrank(localCircleBridge);
-        circleMinter.burn(localTokenAddress, _amount);
+        vm.startPrank(localTokenMessenger);
+        tokenMinter.burn(localTokenAddress, _amount);
         vm.stopPrank();
 
         // assert balance and total supply decreased back to 0

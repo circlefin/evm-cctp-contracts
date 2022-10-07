@@ -1,8 +1,8 @@
 pragma solidity ^0.7.6;
 
 import "forge-std/Script.sol";
-import "../src/CircleBridge.sol";
-import "../src/CircleMinter.sol";
+import "../src/TokenMessenger.sol";
+import "../src/TokenMinter.sol";
 import "../src/MessageTransmitter.sol";
 import "../src/messages/Message.sol";
 
@@ -10,7 +10,7 @@ contract DeployScript is Script {
     address private attesterAddress;
     address private usdcContractAddress;
     address private usdcRemoteContractAddress;
-    address private remoteBridgeAddress;
+    address private remoteTokenMessengerAddress;
 
     bool private remoteAvailable = false;
 
@@ -21,8 +21,8 @@ contract DeployScript is Script {
     uint32 private maxMessageBodySize = 8192;
 
     uint256 private messageTransmitterDeployerPrivateKey;
-    uint256 private circleBridgeDeployerPrivateKey;
-    uint256 private circleMinterDeployerPrivateKey;
+    uint256 private tokenMessengerDeployerPrivateKey;
+    uint256 private tokenMinterDeployerPrivateKey;
 
     /**
      * @notice deploys Message Transmitter
@@ -45,20 +45,20 @@ contract DeployScript is Script {
     }
 
     /**
-     * @notice deploys circle bridge
+     * @notice deploys TokenMessenger
      * @param privateKey Private Key for siginig the transactions
      * @param messageTransmitterAddress Message Transmitter Contract address
-     * @return CircleBridge instance
+     * @return TokenMessenger instance
      */
-    function deployCircleBridge(
+    function deployTokenMessenger(
         uint256 privateKey,
         address messageTransmitterAddress
-    ) private returns (CircleBridge) {
+    ) private returns (TokenMessenger) {
         // Start recording transations
         vm.startBroadcast(privateKey);
 
-        // Deploy Bridge
-        CircleBridge circleBridge = new CircleBridge(
+        // Deploy TokenMessenger
+        TokenMessenger tokenMessenger = new TokenMessenger(
             messageTransmitterAddress,
             messageBodyVersion
         );
@@ -66,49 +66,49 @@ contract DeployScript is Script {
         // Stop recording transations
         vm.stopBroadcast();
 
-        return circleBridge;
+        return tokenMessenger;
     }
 
     /**
-     * @notice deploys circle minter
+     * @notice deploys TokenMinter
      * @param privateKey Private Key for siginig the transactions
-     * @param circleBridgeAddress Circle Bridge Contract address
-     * @return CircleMinter instance
+     * @param tokenMessengerAddress TokenMessenger Contract address
+     * @return TokenMinter instance
      */
-    function deployCircleMinter(uint256 privateKey, address circleBridgeAddress)
-        private
-        returns (CircleMinter)
-    {
+    function deployTokenMinter(
+        uint256 privateKey,
+        address tokenMessengerAddress
+    ) private returns (TokenMinter) {
         // Start recording transations
         vm.startBroadcast(privateKey);
 
-        // Deploy CircleMinter
-        CircleMinter circleMinter = new CircleMinter();
+        // Deploy TokenMinter
+        TokenMinter tokenMinter = new TokenMinter();
 
-        // Add Local Bridge
-        circleMinter.addLocalCircleBridge(circleBridgeAddress);
+        // Add Local TokenMessenger
+        tokenMinter.addLocalTokenMessenger(tokenMessengerAddress);
 
         // Set setLocalTokenEnabledStatus
-        circleMinter.setLocalTokenEnabledStatus(usdcContractAddress, true);
+        tokenMinter.setLocalTokenEnabledStatus(usdcContractAddress, true);
 
         // Stop recording transations
         vm.stopBroadcast();
 
-        return circleMinter;
+        return tokenMinter;
     }
 
     /**
-     * @notice add local minter to the bridge
+     * @notice add local minter to the TokenMessenger
      */
-    function addMinterAddressToBridge(
-        CircleBridge circleBridge,
+    function addMinterAddressToTokenMessenger(
+        TokenMessenger tokenMessenger,
         uint256 privateKey,
         address minterAddress
     ) private {
         // Start recording transations
         vm.startBroadcast(privateKey);
 
-        circleBridge.addLocalMinter(minterAddress);
+        tokenMessenger.addLocalMinter(minterAddress);
 
         // Stop recording transations
         vm.stopBroadcast();
@@ -117,7 +117,7 @@ contract DeployScript is Script {
     /**
      * @notice link current chain and remote chain tokens
      */
-    function linkTokenPair(CircleMinter circleMinter, uint256 privateKey)
+    function linkTokenPair(TokenMinter tokenMinter, uint256 privateKey)
         private
     {
         // Start recording transations
@@ -126,7 +126,7 @@ contract DeployScript is Script {
         bytes32 remoteUsdcContractAddressInBytes32 = Message.addressToBytes32(
             usdcRemoteContractAddress
         );
-        circleMinter.linkTokenPair(
+        tokenMinter.linkTokenPair(
             usdcContractAddress,
             remoteDomain,
             remoteUsdcContractAddressInBytes32
@@ -137,19 +137,20 @@ contract DeployScript is Script {
     }
 
     /**
-     * @notice add address of bridge deployed on another chain
+     * @notice add address of TokenMessenger deployed on another chain
      */
-    function addRemoteBridge(CircleBridge circleBridge, uint256 privateKey)
-        private
-    {
+    function addRemoteTokenMessenger(
+        TokenMessenger tokenMessenger,
+        uint256 privateKey
+    ) private {
         // Start recording transations
         vm.startBroadcast(privateKey);
-        bytes32 remoteBridgeAddressInBytes32 = Message.addressToBytes32(
-            remoteBridgeAddress
+        bytes32 remoteTokenMessengerAddressInBytes32 = Message.addressToBytes32(
+            remoteTokenMessengerAddress
         );
-        circleBridge.addRemoteCircleBridge(
+        tokenMessenger.addRemoteTokenMessenger(
             remoteDomain,
-            remoteBridgeAddressInBytes32
+            remoteTokenMessengerAddressInBytes32
         );
 
         // Stop recording transations
@@ -163,12 +164,10 @@ contract DeployScript is Script {
         messageTransmitterDeployerPrivateKey = vm.envUint(
             "MESSAGE_TRANSMITTER_DEPLOYER_KEY"
         );
-        circleBridgeDeployerPrivateKey = vm.envUint(
-            "CIRCLE_BRIDGE_DEPLOYER_KEY"
+        tokenMessengerDeployerPrivateKey = vm.envUint(
+            "TOKEN_MESSENGER_DEPLOYER_KEY"
         );
-        circleMinterDeployerPrivateKey = vm.envUint(
-            "CIRCLE_MINTER_DEPLOYER_KEY"
-        );
+        tokenMinterDeployerPrivateKey = vm.envUint("TOKEN_MINTER_DEPLOYER_KEY");
 
         attesterAddress = vm.envAddress("ATTESTER_ADDRESS");
         usdcContractAddress = vm.envAddress("USDC_CONTRACT_ADDRESS");
@@ -178,7 +177,9 @@ contract DeployScript is Script {
             usdcRemoteContractAddress = vm.envAddress(
                 "REMOTE_USDC_CONTRACT_ADDRESS"
             );
-            remoteBridgeAddress = vm.envAddress("REMOTE_BRIDGE_ADDRESS");
+            remoteTokenMessengerAddress = vm.envAddress(
+                "REMOTE_TOKEN_MESSENGER_ADDRESS"
+            );
         }
     }
 
@@ -191,29 +192,32 @@ contract DeployScript is Script {
             messageTransmitterDeployerPrivateKey
         );
 
-        // Deploy CircleBridge
-        CircleBridge circleBridge = deployCircleBridge(
-            circleBridgeDeployerPrivateKey,
+        // Deploy TokenMessenger
+        TokenMessenger tokenMessenger = deployTokenMessenger(
+            tokenMessengerDeployerPrivateKey,
             address(messageTransmitter)
         );
 
-        // Deploy CircleMinter
-        CircleMinter circleMinter = deployCircleMinter(
-            circleMinterDeployerPrivateKey,
-            address(circleBridge)
+        // Deploy TokenMinter
+        TokenMinter tokenMinter = deployTokenMinter(
+            tokenMinterDeployerPrivateKey,
+            address(tokenMessenger)
         );
 
         // Add Local Minter
-        addMinterAddressToBridge(
-            circleBridge,
-            circleBridgeDeployerPrivateKey,
-            address(circleMinter)
+        addMinterAddressToTokenMessenger(
+            tokenMessenger,
+            tokenMessengerDeployerPrivateKey,
+            address(tokenMinter)
         );
 
-        // Link token pair and add remote bridge
+        // Link token pair and add remote token messenger
         if (remoteAvailable == true) {
-            linkTokenPair(circleMinter, circleMinterDeployerPrivateKey);
-            addRemoteBridge(circleBridge, circleBridgeDeployerPrivateKey);
+            linkTokenPair(tokenMinter, tokenMinterDeployerPrivateKey);
+            addRemoteTokenMessenger(
+                tokenMessenger,
+                tokenMessengerDeployerPrivateKey
+            );
         }
     }
 }

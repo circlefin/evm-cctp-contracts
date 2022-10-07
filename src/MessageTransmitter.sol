@@ -16,7 +16,7 @@ pragma solidity ^0.7.6;
 
 import "@memview-sol/contracts/TypedMemView.sol";
 import "./interfaces/IMessageTransmitter.sol";
-import "./interfaces/IMessageDestinationHandler.sol";
+import "./interfaces/IMessageHandler.sol";
 import "./messages/Message.sol";
 import "./roles/Pausable.sol";
 import "./roles/Rescuable.sol";
@@ -284,8 +284,11 @@ contract MessageTransmitter is
         bytes32 _sender = _m._sender();
         bytes memory _messageBody = _m._messageBody().clone();
         require(
-            IMessageDestinationHandler(_m._recipientAddress())
-                .handleReceiveMessage(_sourceDomain, _sender, _messageBody),
+            IMessageHandler(_m._recipientAddress()).handleReceiveMessage(
+                _sourceDomain,
+                _sender,
+                _messageBody
+            ),
             "handleReceiveMessage() failed"
         );
 

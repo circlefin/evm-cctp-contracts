@@ -12,29 +12,24 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
-import "../../src/interfaces/IMessageDestinationHandler.sol";
-
-contract MockCircleBridge is IMessageDestinationHandler {
-    // ============ Constructor ============
-    constructor() {}
-
+/**
+ * @title IMessageHandler
+ * @notice Handles messages on destination domain forwarded from
+ * an IReceiver
+ */
+interface IMessageHandler {
+    /**
+     * @notice handles an incoming message from a Receiver
+     * @param sourceDomain the source domain of the message
+     * @param sender the sender of the message
+     * @param messageBody The message raw bytes
+     * @return success bool, true if successful
+     */
     function handleReceiveMessage(
-        uint32 _sourceDomain,
-        bytes32 _sender,
-        bytes memory _messageBody
-    ) external override returns (bool) {
-        // revert if _messageBody is 'revert', otherwise do nothing
-        require(
-            keccak256(_messageBody) != keccak256(bytes("revert")),
-            "mock revert"
-        );
-
-        if (keccak256(_messageBody) == keccak256(bytes("return false"))) {
-            return false;
-        }
-
-        return true;
-    }
+        uint32 sourceDomain,
+        bytes32 sender,
+        bytes memory messageBody
+    ) external returns (bool);
 }

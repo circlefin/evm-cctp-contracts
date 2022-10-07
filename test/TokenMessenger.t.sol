@@ -15,38 +15,38 @@
 pragma solidity ^0.7.6;
 
 import "../lib/forge-std/src/Test.sol";
-import "../src/CircleBridge.sol";
+import "../src/TokenMessenger.sol";
 import "../src/messages/Message.sol";
 import "../src/messages/BurnMessage.sol";
 import "../src/MessageTransmitter.sol";
-import "../src/CircleMinter.sol";
+import "../src/TokenMinter.sol";
 import "./mocks/MockMintBurnToken.sol";
 import "./TestUtils.sol";
 
-contract CircleBridgeTest is Test, TestUtils {
+contract TokenMessengerTest is Test, TestUtils {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using BurnMessage for bytes29;
 
     // Events
     /**
-     * @notice Emitted when a remote CircleBridge is added
+     * @notice Emitted when a remote TokenMessenger is added
      * @param _domain remote domain
-     * @param _circleBridge CircleBridge on remote domain
+     * @param _tokenMessenger TokenMessenger on remote domain
      */
-    event RemoteCircleBridgeAdded(
+    event RemoteTokenMessengerAdded(
         uint32 indexed _domain,
-        bytes32 indexed _circleBridge
+        bytes32 indexed _tokenMessenger
     );
 
     /**
-     * @notice Emitted when a remote CircleBridge is removed
+     * @notice Emitted when a remote TokenMessenger is removed
      * @param _domain remote domain
-     * @param _circleBridge CircleBridge on remote domain
+     * @param _tokenMessenger TokenMessenger on remote domain
      */
-    event RemoteCircleBridgeRemoved(
+    event RemoteTokenMessengerRemoved(
         uint32 indexed _domain,
-        bytes32 indexed _circleBridge
+        bytes32 indexed _tokenMessenger
     );
 
     /**
@@ -77,7 +77,7 @@ contract CircleBridgeTest is Test, TestUtils {
      * @param depositor address where deposit is transferred from
      * @param mintRecipient address receiving minted tokens on destination domain as bytes32
      * @param destinationDomain destination domain
-     * @param destinationCircleBridge address of CircleBridge on destination domain as bytes32
+     * @param destinationTokenMessenger address of TokenMessenger on destination domain as bytes32
      * @param destinationCaller authorized caller as bytes32 of receiveMessage() on destination domain, if not equal to bytes32(0).
      * If equal to bytes32(0), any address can call receiveMessage().
      */
@@ -88,7 +88,7 @@ contract CircleBridgeTest is Test, TestUtils {
         address depositor,
         bytes32 mintRecipient,
         uint32 destinationDomain,
-        bytes32 destinationCircleBridge,
+        bytes32 destinationTokenMessenger,
         bytes32 destinationCaller
     );
 
@@ -107,14 +107,14 @@ contract CircleBridgeTest is Test, TestUtils {
     // Constants
     uint32 localDomain = 0;
     uint32 remoteDomain = 1;
-    bytes32 remoteCircleBridge;
+    bytes32 remoteTokenMessenger;
     address owner = vm.addr(1506);
     uint32 messageBodyVersion = 1;
     uint256 approveAmount = 10;
     uint256 mintAmount = 9;
 
-    CircleBridge localCircleBridge;
-    CircleBridge destCircleBridge;
+    TokenMessenger localTokenMessenger;
+    TokenMessenger destTokenMessenger;
     MessageTransmitter localMessageTransmitter =
         new MessageTransmitter(
             localDomain,
@@ -131,70 +131,70 @@ contract CircleBridgeTest is Test, TestUtils {
         );
     MockMintBurnToken localToken = new MockMintBurnToken();
     MockMintBurnToken destToken = new MockMintBurnToken();
-    CircleMinter localCircleMinter = new CircleMinter();
-    CircleMinter destCircleMinter = new CircleMinter();
+    TokenMinter localTokenMinter = new TokenMinter();
+    TokenMinter destTokenMinter = new TokenMinter();
 
     function setUp() public {
-        localCircleBridge = new CircleBridge(
+        localTokenMessenger = new TokenMessenger(
             address(localMessageTransmitter),
             messageBodyVersion
         );
 
         linkTokenPair(
-            localCircleMinter,
+            localTokenMinter,
             address(localToken),
             remoteDomain,
-            remoteCircleBridge
+            remoteTokenMessenger
         );
 
         linkTokenPair(
-            destCircleMinter,
+            destTokenMinter,
             address(destToken),
             localDomain,
             Message.addressToBytes32(address(localToken))
         );
 
-        localCircleBridge.addLocalMinter(address(localCircleMinter));
+        localTokenMessenger.addLocalMinter(address(localTokenMinter));
 
-        destCircleBridge = new CircleBridge(
+        destTokenMessenger = new TokenMessenger(
             address(remoteMessageTransmitter),
             messageBodyVersion
         );
 
-        remoteCircleBridge = Message.addressToBytes32(
-            address(destCircleBridge)
+        remoteTokenMessenger = Message.addressToBytes32(
+            address(destTokenMessenger)
         );
 
-        localCircleBridge.addRemoteCircleBridge(
+        localTokenMessenger.addRemoteTokenMessenger(
             remoteDomain,
-            remoteCircleBridge
+            remoteTokenMessenger
         );
 
-        destCircleBridge.addLocalMinter(address(destCircleMinter));
+        destTokenMessenger.addLocalMinter(address(destTokenMinter));
 
-        destCircleBridge.addRemoteCircleBridge(
+        destTokenMessenger.addRemoteTokenMessenger(
             localDomain,
-            Message.addressToBytes32(address(localCircleBridge))
+            Message.addressToBytes32(address(localTokenMessenger))
         );
 
-        localCircleMinter.addLocalCircleBridge(address(localCircleBridge));
-        destCircleMinter.addLocalCircleBridge(address(destCircleBridge));
+        localTokenMinter.addLocalTokenMessenger(address(localTokenMessenger));
+        destTokenMinter.addLocalTokenMessenger(address(destTokenMessenger));
     }
 
-    function testDepositForBurn_revertsIfNoRemoteCircleBridgeExistsForDomain(
+    function testDepositForBurn_revertsIfNoRemoteTokenMessengerExistsForDomain(
         address _relayerAddress,
         uint256 _amount
     ) public {
         vm.assume(_amount > 0);
         bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
 
-        CircleBridge _circleBridge = new CircleBridge(
+        TokenMessenger _tokenMessenger = new TokenMessenger(
             _relayerAddress,
             messageBodyVersion
         );
 
-        vm.expectRevert("No CircleBridge for domain");
-        _circleBridge.depositForBurn(
+        vm.expectRevert("No TokenMessenger for domain");
+        _tokenMessenger.depositForBurn(
             _amount,
             remoteDomain,
             _mintRecipient,
@@ -206,16 +206,19 @@ contract CircleBridgeTest is Test, TestUtils {
         uint256 _amount,
         bytes32 _mintRecipient
     ) public {
-        CircleBridge _circleBridge = new CircleBridge(
+        TokenMessenger _tokenMessenger = new TokenMessenger(
             address(localMessageTransmitter),
             messageBodyVersion
         );
 
-        _circleBridge.addRemoteCircleBridge(remoteDomain, remoteCircleBridge);
+        _tokenMessenger.addRemoteTokenMessenger(
+            remoteDomain,
+            remoteTokenMessenger
+        );
 
         vm.assume(_amount > 0);
         vm.expectRevert("Local minter is not set");
-        _circleBridge.depositForBurn(
+        _tokenMessenger.depositForBurn(
             _amount,
             remoteDomain,
             _mintRecipient,
@@ -227,10 +230,10 @@ contract CircleBridgeTest is Test, TestUtils {
         uint256 _amount = 0;
 
         vm.expectRevert("Amount must be nonzero");
-        localCircleBridge.depositForBurn(
+        localTokenMessenger.depositForBurn(
             _amount,
             remoteDomain,
-            remoteCircleBridge,
+            remoteTokenMessenger,
             address(localToken)
         );
     }
@@ -241,10 +244,10 @@ contract CircleBridgeTest is Test, TestUtils {
         vm.assume(_amount > 0);
         // Fails because approve() was never called, allowance is 0.
         vm.expectRevert("ERC20: transfer amount exceeds allowance");
-        localCircleBridge.depositForBurn(
+        localTokenMessenger.depositForBurn(
             _amount,
             remoteDomain,
-            remoteCircleBridge,
+            remoteTokenMessenger,
             address(localToken)
         );
     }
@@ -257,7 +260,7 @@ contract CircleBridgeTest is Test, TestUtils {
 
         vm.assume(_amount > _transferAmount);
         vm.assume(_amount <= _approveAmount);
-        address _spender = address(localCircleBridge);
+        address _spender = address(localTokenMessenger);
 
         localToken.mint(owner, _transferAmount);
 
@@ -266,10 +269,10 @@ contract CircleBridgeTest is Test, TestUtils {
 
         vm.prank(owner);
         vm.expectRevert("ERC20: transfer amount exceeds balance");
-        localCircleBridge.depositForBurn(
+        localTokenMessenger.depositForBurn(
             _amount,
             remoteDomain,
-            remoteCircleBridge,
+            remoteTokenMessenger,
             address(localToken)
         );
     }
@@ -285,10 +288,10 @@ contract CircleBridgeTest is Test, TestUtils {
         );
         vm.assume(_amount > 0);
         vm.expectRevert("Transfer operation failed");
-        localCircleBridge.depositForBurn(
+        localTokenMessenger.depositForBurn(
             _amount,
             remoteDomain,
-            remoteCircleBridge,
+            remoteTokenMessenger,
             address(localToken)
         );
     }
@@ -348,7 +351,7 @@ contract CircleBridgeTest is Test, TestUtils {
         address _tokenAddress
     ) public {
         vm.expectRevert("Invalid destination caller");
-        localCircleBridge.depositForBurnWithCaller(
+        localTokenMessenger.depositForBurnWithCaller(
             _amount,
             _domain,
             _mintRecipient,
@@ -393,8 +396,8 @@ contract CircleBridgeTest is Test, TestUtils {
             localDomain,
             remoteDomain,
             _nonce,
-            Message.addressToBytes32(address(localCircleBridge)),
-            remoteCircleBridge,
+            Message.addressToBytes32(address(localTokenMessenger)),
+            remoteTokenMessenger,
             emptyDestinationCaller,
             _messageBody
         );
@@ -410,7 +413,7 @@ contract CircleBridgeTest is Test, TestUtils {
 
         vm.prank(_newMintRecipientAddr);
         vm.expectRevert("Invalid sender for message");
-        localCircleBridge.replaceDepositForBurn(
+        localTokenMessenger.replaceDepositForBurn(
             _expectedMessage,
             _originalAttestation,
             _newDestinationCaller,
@@ -441,8 +444,8 @@ contract CircleBridgeTest is Test, TestUtils {
             localDomain,
             remoteDomain,
             _nonce,
-            Message.addressToBytes32(address(localCircleBridge)),
-            remoteCircleBridge,
+            Message.addressToBytes32(address(localTokenMessenger)),
+            remoteTokenMessenger,
             emptyDestinationCaller,
             _messageBody
         );
@@ -458,7 +461,7 @@ contract CircleBridgeTest is Test, TestUtils {
 
         vm.prank(owner);
         vm.expectRevert("Invalid attestation length");
-        localCircleBridge.replaceDepositForBurn(
+        localTokenMessenger.replaceDepositForBurn(
             _expectedMessage,
             _originalAttestation,
             _newDestinationCaller,
@@ -478,8 +481,8 @@ contract CircleBridgeTest is Test, TestUtils {
             localDomain,
             remoteDomain,
             _nonce,
-            Message.addressToBytes32(address(localCircleBridge)),
-            remoteCircleBridge,
+            Message.addressToBytes32(address(localTokenMessenger)),
+            remoteTokenMessenger,
             emptyDestinationCaller,
             BurnMessage._formatMessage(
                 messageBodyVersion,
@@ -513,12 +516,12 @@ contract CircleBridgeTest is Test, TestUtils {
             owner,
             _newMintRecipient,
             remoteDomain,
-            remoteCircleBridge,
+            remoteTokenMessenger,
             _newDestinationCaller
         );
 
         vm.prank(owner);
-        localCircleBridge.replaceDepositForBurn(
+        localTokenMessenger.replaceDepositForBurn(
             _expectedMessage,
             _signature,
             _newDestinationCaller,
@@ -545,7 +548,7 @@ contract CircleBridgeTest is Test, TestUtils {
 
         vm.prank(owner);
         vm.expectRevert();
-        localCircleBridge.replaceDepositForBurn(
+        localTokenMessenger.replaceDepositForBurn(
             _invalidMsg,
             _originalAttestation,
             _newDestinationCaller,
@@ -572,9 +575,9 @@ contract CircleBridgeTest is Test, TestUtils {
 
         vm.startPrank(address(remoteMessageTransmitter));
         assertTrue(
-            destCircleBridge.handleReceiveMessage(
+            destTokenMessenger.handleReceiveMessage(
                 localDomain,
-                Message.addressToBytes32(address(localCircleBridge)),
+                Message.addressToBytes32(address(localTokenMessenger)),
                 _messageBody
             )
         );
@@ -584,15 +587,15 @@ contract CircleBridgeTest is Test, TestUtils {
         assertEq(destToken.balanceOf(_mintRecipientAddr), _amount);
     }
 
-    function testHandleReceiveMessage_failsIfRecipientIsNotRemoteCircleBridge()
+    function testHandleReceiveMessage_failsIfRecipientIsNotRemoteTokenMessenger()
         public
     {
         bytes memory _messageBody = bytes("foo");
         bytes32 _address = Message.addressToBytes32(address(vm.addr(1)));
 
         vm.startPrank(address(remoteMessageTransmitter));
-        vm.expectRevert("Remote Circle Bridge unsupported");
-        destCircleBridge.handleReceiveMessage(
+        vm.expectRevert("Remote TokenMessenger unsupported");
+        destTokenMessenger.handleReceiveMessage(
             localDomain,
             _address,
             _messageBody
@@ -608,7 +611,7 @@ contract CircleBridgeTest is Test, TestUtils {
         bytes32 _address = Message.addressToBytes32(address(vm.addr(1)));
 
         vm.expectRevert("Invalid message transmitter");
-        localCircleBridge.handleReceiveMessage(
+        localTokenMessenger.handleReceiveMessage(
             localDomain,
             _address,
             _messageBody
@@ -627,15 +630,15 @@ contract CircleBridgeTest is Test, TestUtils {
             Message.addressToBytes32(address(remoteMessageTransmitter))
         );
 
-        destCircleBridge.removeLocalMinter();
-        bytes32 _localCircleBridge = Message.addressToBytes32(
-            address(localCircleBridge)
+        destTokenMessenger.removeLocalMinter();
+        bytes32 _localTokenMessenger = Message.addressToBytes32(
+            address(localTokenMessenger)
         );
         vm.startPrank(address(remoteMessageTransmitter));
         vm.expectRevert("Local minter is not set");
-        destCircleBridge.handleReceiveMessage(
+        destTokenMessenger.handleReceiveMessage(
             localDomain,
-            _localCircleBridge,
+            _localTokenMessenger,
             _messageBody
         );
         vm.stopPrank();
@@ -654,14 +657,14 @@ contract CircleBridgeTest is Test, TestUtils {
             Message.addressToBytes32(address(remoteMessageTransmitter))
         );
 
-        bytes32 _localCircleBridge = Message.addressToBytes32(
-            address(localCircleBridge)
+        bytes32 _localTokenMessenger = Message.addressToBytes32(
+            address(localTokenMessenger)
         );
         vm.startPrank(address(remoteMessageTransmitter));
         vm.expectRevert("Local token not enabled");
-        destCircleBridge.handleReceiveMessage(
+        destTokenMessenger.handleReceiveMessage(
             localDomain,
-            _localCircleBridge,
+            _localTokenMessenger,
             _messageBody
         );
         vm.stopPrank();
@@ -686,126 +689,131 @@ contract CircleBridgeTest is Test, TestUtils {
         );
 
         bytes32 _address = Message.addressToBytes32(address(vm.addr(1)));
-        bytes32 _localCircleBridge = Message.addressToBytes32(
-            address(localCircleBridge)
+        bytes32 _localTokenMessenger = Message.addressToBytes32(
+            address(localTokenMessenger)
         );
 
         vm.startPrank(address(remoteMessageTransmitter));
         vm.expectRevert("Invalid message");
-        destCircleBridge.handleReceiveMessage(
+        destTokenMessenger.handleReceiveMessage(
             localDomain,
-            _localCircleBridge,
+            _localTokenMessenger,
             _messageBody
         );
         vm.stopPrank();
     }
 
-    function testAddRemoteCircleBridge_succeeds(uint32 _domain) public {
-        CircleBridge _circleBridge = new CircleBridge(
+    function testAddRemoteTokenMessenger_succeeds(uint32 _domain) public {
+        TokenMessenger _tokenMessenger = new TokenMessenger(
             address(localMessageTransmitter),
             messageBodyVersion
         );
 
-        assertEq(_circleBridge.remoteCircleBridges(_domain), bytes32(0));
+        assertEq(_tokenMessenger.remoteTokenMessengers(_domain), bytes32(0));
 
         vm.expectEmit(true, true, true, true);
-        emit RemoteCircleBridgeAdded(_domain, remoteCircleBridge);
-        _circleBridge.addRemoteCircleBridge(_domain, remoteCircleBridge);
+        emit RemoteTokenMessengerAdded(_domain, remoteTokenMessenger);
+        _tokenMessenger.addRemoteTokenMessenger(_domain, remoteTokenMessenger);
 
         assertEq(
-            _circleBridge.remoteCircleBridges(_domain),
-            remoteCircleBridge
+            _tokenMessenger.remoteTokenMessengers(_domain),
+            remoteTokenMessenger
         );
     }
 
-    function testAddRemoteCircleBridge_revertsOnExistingRemoteCircleBridge()
+    function testAddRemoteTokenMessenger_revertsOnExistingRemoteTokenMessenger()
         public
     {
         assertEq(
-            localCircleBridge.remoteCircleBridges(remoteDomain),
-            remoteCircleBridge
+            localTokenMessenger.remoteTokenMessengers(remoteDomain),
+            remoteTokenMessenger
         );
 
-        vm.expectRevert("CircleBridge already set");
-        localCircleBridge.addRemoteCircleBridge(
+        vm.expectRevert("TokenMessenger already set");
+        localTokenMessenger.addRemoteTokenMessenger(
             remoteDomain,
-            remoteCircleBridge
+            remoteTokenMessenger
         );
 
         // original destination router is still registered
         assertEq(
-            localCircleBridge.remoteCircleBridges(remoteDomain),
-            remoteCircleBridge
+            localTokenMessenger.remoteTokenMessengers(remoteDomain),
+            remoteTokenMessenger
         );
     }
 
-    function testAddRemoteCircleBridge_revertsOnZeroAddress() public {
+    function testAddRemoteTokenMessenger_revertsOnZeroAddress() public {
         vm.expectRevert("bytes32(0) not allowed");
-        localCircleBridge.addRemoteCircleBridge(remoteDomain, bytes32(0));
+        localTokenMessenger.addRemoteTokenMessenger(remoteDomain, bytes32(0));
 
         // original destination router is still registered
         assertEq(
-            localCircleBridge.remoteCircleBridges(remoteDomain),
-            remoteCircleBridge
+            localTokenMessenger.remoteTokenMessengers(remoteDomain),
+            remoteTokenMessenger
         );
     }
 
-    function testAddRemoteCircleBridge_revertsOnNonOwner(
+    function testAddRemoteTokenMessenger_revertsOnNonOwner(
         uint32 _domain,
-        bytes32 _circleBridge
+        bytes32 _tokenMessenger
     ) public {
         expectRevertWithWrongOwner();
-        localCircleBridge.addRemoteCircleBridge(_domain, _circleBridge);
+        localTokenMessenger.addRemoteTokenMessenger(_domain, _tokenMessenger);
     }
 
-    function testRemoveRemoteCircleBridge_succeeds() public {
+    function testRemoveRemoteTokenMessenger_succeeds() public {
         uint32 _remoteDomain = 100;
-        bytes32 _remoteCircleBridge = Message.addressToBytes32(vm.addr(1));
+        bytes32 _remoteTokenMessenger = Message.addressToBytes32(vm.addr(1));
 
-        localCircleBridge.addRemoteCircleBridge(
+        localTokenMessenger.addRemoteTokenMessenger(
             _remoteDomain,
-            _remoteCircleBridge
+            _remoteTokenMessenger
         );
 
         vm.expectEmit(true, true, true, true);
-        emit RemoteCircleBridgeRemoved(_remoteDomain, _remoteCircleBridge);
-        localCircleBridge.removeRemoteCircleBridge(
+        emit RemoteTokenMessengerRemoved(_remoteDomain, _remoteTokenMessenger);
+        localTokenMessenger.removeRemoteTokenMessenger(
             _remoteDomain,
-            _remoteCircleBridge
+            _remoteTokenMessenger
         );
     }
 
-    function testRemoveRemoteCircleBridge_revertsOnNoCircleBridgeSet() public {
+    function testRemoveRemoteTokenMessenger_revertsOnNoTokenMessengerSet()
+        public
+    {
         uint32 _remoteDomain = 100;
-        bytes32 _remoteCircleBridge = Message.addressToBytes32(vm.addr(1));
+        bytes32 _remoteTokenMessenger = Message.addressToBytes32(vm.addr(1));
 
-        vm.expectRevert("No CircleBridge set");
-        localCircleBridge.removeRemoteCircleBridge(
+        vm.expectRevert("No TokenMessenger set");
+        localTokenMessenger.removeRemoteTokenMessenger(
             _remoteDomain,
-            _remoteCircleBridge
+            _remoteTokenMessenger
         );
     }
 
-    function testRemoveRemoteCircleBridge_revertsOnNonOwner(
+    function testRemoveRemoteTokenMessenger_revertsOnNonOwner(
         uint32 _domain,
-        bytes32 _circleBridge
+        bytes32 _tokenMessenger
     ) public {
         expectRevertWithWrongOwner();
-        localCircleBridge.removeRemoteCircleBridge(_domain, _circleBridge);
+        localTokenMessenger.removeRemoteTokenMessenger(
+            _domain,
+            _tokenMessenger
+        );
     }
 
     function testAddLocalMinter_succeeds(address _localMinter) public {
         vm.assume(_localMinter != address(0));
-        CircleBridge _circleBridge = new CircleBridge(
+        TokenMessenger _tokenMessenger = new TokenMessenger(
             address(localMessageTransmitter),
             messageBodyVersion
         );
-        _addLocalMinter(_localMinter, _circleBridge);
+        _addLocalMinter(_localMinter, _tokenMessenger);
     }
 
     function testAddLocalMinter_revertsIfZeroAddress() public {
         vm.expectRevert("Zero address not allowed");
-        localCircleBridge.addLocalMinter(address(0));
+        localTokenMessenger.addLocalMinter(address(0));
     }
 
     function testAddLocalMinter_revertsIfAlreadySet(address _localMinter)
@@ -813,40 +821,40 @@ contract CircleBridgeTest is Test, TestUtils {
     {
         vm.assume(_localMinter != address(0));
         vm.expectRevert("Local minter is already set.");
-        localCircleBridge.addLocalMinter(_localMinter);
+        localTokenMessenger.addLocalMinter(_localMinter);
     }
 
     function testAddLocalMinter_revertsOnNonOwner(address _localMinter) public {
         vm.assume(_localMinter != address(0));
         expectRevertWithWrongOwner();
-        localCircleBridge.addLocalMinter(_localMinter);
+        localTokenMessenger.addLocalMinter(_localMinter);
     }
 
     function testRemoveLocalMinter_succeeds() public {
         address _localMinter = vm.addr(1);
-        CircleBridge _circleBridge = new CircleBridge(
+        TokenMessenger _tokenMessenger = new TokenMessenger(
             address(localMessageTransmitter),
             messageBodyVersion
         );
-        _addLocalMinter(_localMinter, _circleBridge);
+        _addLocalMinter(_localMinter, _tokenMessenger);
 
         vm.expectEmit(true, true, true, true);
         emit LocalMinterRemoved(_localMinter);
-        _circleBridge.removeLocalMinter();
+        _tokenMessenger.removeLocalMinter();
     }
 
     function testRemoveLocalMinter_revertsIfNoLocalMinterSet() public {
-        CircleBridge _circleBridge = new CircleBridge(
+        TokenMessenger _tokenMessenger = new TokenMessenger(
             address(localMessageTransmitter),
             messageBodyVersion
         );
         vm.expectRevert("No local minter is set.");
-        _circleBridge.removeLocalMinter();
+        _tokenMessenger.removeLocalMinter();
     }
 
     function testRemoveLocalMinter_revertsOnNonOwner() public {
         expectRevertWithWrongOwner();
-        localCircleBridge.removeLocalMinter();
+        localTokenMessenger.removeLocalMinter();
     }
 
     function testRescuable(
@@ -855,7 +863,7 @@ contract CircleBridgeTest is Test, TestUtils {
         uint256 _amount
     ) public {
         assertContractIsRescuable(
-            address(localCircleBridge),
+            address(localTokenMessenger),
             _rescuer,
             _rescueRecipient,
             _amount
@@ -864,15 +872,16 @@ contract CircleBridgeTest is Test, TestUtils {
 
     function testTransferOwnership() public {
         address _newOwner = vm.addr(1509);
-        transferOwnership(address(localCircleBridge), _newOwner);
+        transferOwnership(address(localTokenMessenger), _newOwner);
     }
 
-    function _addLocalMinter(address _localMinter, CircleBridge _circleBridge)
-        internal
-    {
+    function _addLocalMinter(
+        address _localMinter,
+        TokenMessenger _tokenMessenger
+    ) internal {
         vm.expectEmit(true, true, true, true);
         emit LocalMinterAdded(_localMinter);
-        _circleBridge.addLocalMinter(_localMinter);
+        _tokenMessenger.addLocalMinter(_localMinter);
     }
 
     function _depositForBurn(
@@ -881,7 +890,7 @@ contract CircleBridgeTest is Test, TestUtils {
         uint256 _approveAmount,
         uint256 _mintAmount
     ) internal returns (bytes memory) {
-        address _spender = address(localCircleBridge);
+        address _spender = address(localTokenMessenger);
         bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
 
         localToken.mint(owner, _mintAmount);
@@ -908,8 +917,8 @@ contract CircleBridgeTest is Test, TestUtils {
             localDomain,
             remoteDomain,
             _nonce,
-            Message.addressToBytes32(address(localCircleBridge)),
-            remoteCircleBridge,
+            Message.addressToBytes32(address(localTokenMessenger)),
+            remoteTokenMessenger,
             emptyDestinationCaller,
             _messageBody
         );
@@ -925,12 +934,12 @@ contract CircleBridgeTest is Test, TestUtils {
             owner,
             _mintRecipient,
             remoteDomain,
-            remoteCircleBridge,
+            remoteTokenMessenger,
             emptyDestinationCaller
         );
 
         vm.prank(owner);
-        uint64 _nonceReserved = localCircleBridge.depositForBurn(
+        uint64 _nonceReserved = localTokenMessenger.depositForBurn(
             _amount,
             remoteDomain,
             _mintRecipient,
@@ -976,7 +985,7 @@ contract CircleBridgeTest is Test, TestUtils {
         localToken.mint(owner, _mintAmount);
 
         vm.prank(owner);
-        localToken.approve(address(localCircleBridge), _approveAmount);
+        localToken.approve(address(localTokenMessenger), _approveAmount);
 
         // Format message body
         bytes memory _messageBody = BurnMessage._formatMessage(
@@ -995,8 +1004,8 @@ contract CircleBridgeTest is Test, TestUtils {
             localDomain,
             remoteDomain,
             _nonce,
-            Message.addressToBytes32(address(localCircleBridge)),
-            remoteCircleBridge,
+            Message.addressToBytes32(address(localTokenMessenger)),
+            remoteTokenMessenger,
             _destinationCaller,
             _messageBody
         );
@@ -1012,12 +1021,12 @@ contract CircleBridgeTest is Test, TestUtils {
             owner,
             _mintRecipient,
             remoteDomain,
-            remoteCircleBridge,
+            remoteTokenMessenger,
             _destinationCaller
         );
 
         vm.prank(owner);
-        uint64 _nonceReserved = localCircleBridge.depositForBurnWithCaller(
+        uint64 _nonceReserved = localTokenMessenger.depositForBurnWithCaller(
             _amount,
             remoteDomain,
             _mintRecipient,

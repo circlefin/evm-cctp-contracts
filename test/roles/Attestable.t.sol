@@ -154,9 +154,7 @@ contract AttestableTest is Test, TestUtils {
         assertEq(_localMessageTransmitter.signatureThreshold(), 1);
 
         // fail to update signatureThreshold to 2
-        vm.expectRevert(
-            "New signature threshold too high"
-        );
+        vm.expectRevert("New signature threshold too high");
         _localMessageTransmitter.setSignatureThreshold(2);
 
         assertEq(_localMessageTransmitter.signatureThreshold(), 1);
@@ -167,9 +165,7 @@ contract AttestableTest is Test, TestUtils {
     {
         vm.startPrank(initialAttesterManager);
 
-        vm.expectRevert(
-            "Signature threshold already set"
-        );
+        vm.expectRevert("Signature threshold already set");
         attestable.setSignatureThreshold(1);
 
         vm.stopPrank();
