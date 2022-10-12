@@ -14,10 +14,11 @@
  */
 pragma solidity ^0.7.6;
 
-import "./interfaces/IMinter.sol";
+import "./interfaces/ITokenMinter.sol";
 import "./interfaces/IMintBurnToken.sol";
 import "./roles/Pausable.sol";
 import "./roles/Rescuable.sol";
+import "./roles/TokenController.sol";
 import "./TokenMessenger.sol";
 
 /**
@@ -28,7 +29,7 @@ import "./TokenMessenger.sol";
  * burned token on a remote domain, and vice versa.
  * It is assumed that local and remote tokens are fungible at a constant 1:1 exchange rate.
  */
-contract TokenMinter is IMinter, Pausable, Rescuable {
+contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
     /**
      * @notice Emitted when a local TokenMessenger is added
      * @param localTokenMessenger address of local TokenMessenger
@@ -43,14 +44,6 @@ contract TokenMinter is IMinter, Pausable, Rescuable {
      */
     event LocalTokenMessengerRemoved(address indexed localTokenMessenger);
 
-    // Supported mintable tokens on the local domain
-    // local token (address) => supported (bool)
-    mapping(address => bool) public localTokens;
-
-    // Supported mintable tokens on remote domains, mapped to their corresponding local token
-    // hash(remote domain & remote token bytes32 address) => local token (address)
-    mapping(bytes32 => address) public remoteTokensToLocalTokens;
-
     // Local TokenMessenger with permission to call mint and burn on this TokenMinter
     address public localTokenMessenger;
 
@@ -62,101 +55,62 @@ contract TokenMinter is IMinter, Pausable, Rescuable {
         _;
     }
 
+    /**a
+     * @param _tokenController Token controller address
+     */
+    constructor(address _tokenController) {
+        _setTokenController(_tokenController);
+    }
+
     /**
-     * @notice Mint tokens.
-     * @param mintToken Mintable token address.
-     * @param to Address to receive minted tokens.
+     * @notice Mints `amount` of local tokens corresponding to the
+     * given (`sourceDomain`, `burnToken`) pair, to `to` address.
+     * @dev reverts if the (`sourceDomain`, `burnToken`) pair does not
+     * map to a nonzero local token address. This mapping can be queried using
+     * getLocalToken().
+     * @param sourceDomain Source domain where `burnToken` was burned.
+     * @param burnToken Burned token address as bytes32.
+     * @param to Address to receive minted tokens, corresponding to `burnToken`,
+     * on this domain.
      * @param amount Amount of tokens to mint. Must be less than or equal
      * to the minterAllowance of this TokenMinter for given `_mintToken`.
+     * @return mintToken token minted.
      */
     function mint(
-        address mintToken,
+        uint32 sourceDomain,
+        bytes32 burnToken,
         address to,
         uint256 amount
-    ) external override whenNotPaused onlyLocalTokenMessenger {
-        require(localTokens[mintToken], "Mint token not supported");
+    )
+        external
+        override
+        whenNotPaused
+        onlyLocalTokenMessenger
+        returns (address mintToken)
+    {
+        address _mintToken = _getLocalToken(sourceDomain, burnToken);
+        require(_mintToken != address(0), "Mint token not supported");
+        IMintBurnToken _token = IMintBurnToken(_mintToken);
 
-        IMintBurnToken _token = IMintBurnToken(mintToken);
         require(_token.mint(to, amount), "Mint operation failed");
+        return _mintToken;
     }
 
     /**
      * @notice Burn tokens owned by this TokenMinter.
      * @param burnToken burnable token address.
-     * @param amount amount of tokens to burn. Must be less than or equal to this
-     * TokenMinter's balance of given `burnToken`.
+     * @param burnAmount amount of tokens to burn. Must be
+     * > 0, and <= maximum burn amount per transaction.
      */
-    function burn(address burnToken, uint256 amount)
+    function burn(address burnToken, uint256 burnAmount)
         external
         override
         whenNotPaused
         onlyLocalTokenMessenger
+        onlyWithinBurnLimit(burnToken, burnAmount)
     {
-        require(localTokens[burnToken], "Burn token not supported");
-
         IMintBurnToken _token = IMintBurnToken(burnToken);
-        _token.burn(amount);
-    }
-
-    /**
-     * @notice Links a pair of local and remote tokens to be supported by this TokenMinter.
-     * @dev Associates a (`remoteToken`, `localToken`) pair by updating remoteTokensToLocalTokens mapping.
-     * Reverts if the remote token (for the given `remoteDomain`) already maps to a nonzero local token.
-     * Note:
-     * - A remote token (on a certain remote domain) can only map to one local token, but many remote tokens
-     * can map to the same local token.
-     * - Setting a token pair does not enable the `localToken` (that requires calling setLocalTokenEnabledStatus.)
-     */
-    function linkTokenPair(
-        address localToken,
-        uint32 remoteDomain,
-        bytes32 remoteToken
-    ) external override onlyOwner {
-        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
-            remoteDomain,
-            remoteToken
-        );
-
-        // remote token must not be already linked to a local token
-        require(
-            remoteTokensToLocalTokens[_remoteTokensKey] == address(0),
-            "Unable to link token pair"
-        );
-
-        remoteTokensToLocalTokens[_remoteTokensKey] = localToken;
-
-        emit TokenPairLinked(localToken, remoteDomain, remoteToken);
-    }
-
-    /**
-     * @notice Unlinks a pair of local and remote tokens for this TokenMinter.
-     * @dev Removes link from `remoteToken`, to `localToken` for given `remoteDomain`
-     * by updating remoteTokensToLocalTokens mapping.
-     * Reverts if the remote token (for the given `remoteDomain`) already maps to the zero address.
-     * Note:
-     * - A remote token (on a certain remote domain) can only map to one local token, but many remote tokens
-     * can map to the same local token.
-     * - Unlinking a token pair does not disable the `localToken` (that requires calling setLocalTokenEnabledStatus.)
-     */
-    function unlinkTokenPair(
-        address localToken,
-        uint32 remoteDomain,
-        bytes32 remoteToken
-    ) external override onlyOwner {
-        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
-            remoteDomain,
-            remoteToken
-        );
-
-        // remote token must be linked to a local token before unlink
-        require(
-            remoteTokensToLocalTokens[_remoteTokensKey] != address(0),
-            "Unable to unlink token pair"
-        );
-
-        delete remoteTokensToLocalTokens[_remoteTokensKey];
-
-        emit TokenPairUnlinked(localToken, remoteDomain, remoteToken);
+        _token.burn(burnAmount);
     }
 
     /**
@@ -200,67 +154,33 @@ contract TokenMinter is IMinter, Pausable, Rescuable {
     }
 
     /**
-     * @notice Enable or disable a local token
-     * @dev Sets `enabledStatus` boolean for given `localToken`. (True to enable, false to disable.)
-     * @param localToken Local token to set enabled status of.
-     * @param enabledStatus Enabled/disabled status to set for `localToken`.
-     * (True to enable, false to disable.)
+     * @notice Set tokenController to `newTokenController`, and
+     * emit `SetTokenController` event.
+     * @dev newTokenController must be nonzero.
+     * @param newTokenController address of new token controller
      */
-    function setLocalTokenEnabledStatus(address localToken, bool enabledStatus)
+    function setTokenController(address newTokenController)
         external
         override
         onlyOwner
     {
-        localTokens[localToken] = enabledStatus;
-
-        emit LocalTokenEnabledStatusSet(localToken, enabledStatus);
+        _setTokenController(newTokenController);
     }
 
     /**
-     * @notice Get the enabled local token associated with the given remote domain and token.
-     * @dev Reverts if unable to find an enabled local token for the
-     * given (`remoteDomain`, `remoteToken`) pair.
+     * @notice Get the local token address associated with the given
+     * remote domain and token.
      * @param remoteDomain Remote domain
      * @param remoteToken Remote token
-     * @return Local token address
+     * @return local token address
      */
-    function getEnabledLocalToken(uint32 remoteDomain, bytes32 remoteToken)
+    function getLocalToken(uint32 remoteDomain, bytes32 remoteToken)
         external
         view
         override
         returns (address)
     {
-        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
-            remoteDomain,
-            remoteToken
-        );
-
-        address _associatedLocalToken = remoteTokensToLocalTokens[
-            _remoteTokensKey
-        ];
-
-        // an enabled local token must be associated with remote domain and token pair
-        require(
-            _associatedLocalToken != address(0) &&
-                localTokens[_associatedLocalToken],
-            "Local token not enabled"
-        );
-
-        return _associatedLocalToken;
-    }
-
-    /**
-     * @notice hashes packed `_remoteDomain` and `_remoteToken`.
-     * @param remoteDomain Domain where message originated from
-     * @param remoteToken Address of remote token as bytes32
-     * @return keccak hash of packed remote domain and token
-     */
-    function _hashRemoteDomainAndToken(uint32 remoteDomain, bytes32 remoteToken)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encodePacked(remoteDomain, remoteToken));
+        return _getLocalToken(remoteDomain, remoteToken);
     }
 
     /**

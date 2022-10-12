@@ -28,29 +28,38 @@ contract TokenMinterTest is Test, TestUtils {
      * @param remoteToken token on `remoteDomain` corresponding to `localToken`
      */
     event TokenPairLinked(
-        address localToken,
-        uint32 remoteDomain,
-        bytes32 remoteToken
+        address indexed localToken,
+        uint32 indexed remoteDomain,
+        bytes32 indexed remoteToken
     );
 
     /**
      * @notice Emitted when a token pair is unlinked
-     * @param localToken local token
+     * @param localToken local token address
      * @param remoteDomain remote domain
      * @param remoteToken token on `remoteDomain` unlinked from `localToken`
      */
     event TokenPairUnlinked(
-        address localToken,
-        uint32 remoteDomain,
-        bytes32 remoteToken
+        address indexed localToken,
+        uint32 indexed remoteDomain,
+        bytes32 indexed remoteToken
     );
 
     /**
-     * @notice Emitted when a local token's enabled status is set
-     * @param localToken Local token
-     * @param enabled Enabled status (true for enabled, false for disabled.)
+     * @notice Emitted when a burn limit per transaction is set for a particular token
+     * @param token local token address
+     * @param burnLimitPerTransaction burn limit per transaction for `token`
      */
-    event LocalTokenEnabledStatusSet(address localToken, bool enabled);
+    event SetBurnLimitPerTransaction(
+        address indexed token,
+        uint256 indexed burnLimitPerTransaction
+    );
+
+    /**
+     * @notice Emitted when token controller is set
+     * @param tokenController token controller address set
+     */
+    event SetTokenController(address indexed tokenController);
 
     uint32 remoteDomain = 0;
 
@@ -66,7 +75,7 @@ contract TokenMinterTest is Test, TestUtils {
     address pauser = vm.addr(1509);
 
     function setUp() public {
-        tokenMinter = new TokenMinter();
+        tokenMinter = new TokenMinter(tokenController);
         localToken = new MockMintBurnToken();
         localTokenAddress = address(localToken);
         remoteToken = new MockMintBurnToken();
@@ -75,14 +84,19 @@ contract TokenMinterTest is Test, TestUtils {
         tokenMinter.updatePauser(pauser);
     }
 
-    function testMint_succeeds(uint256 _amount) public {
+    function testMint_succeeds(uint256 _amount, address _localToken) public {
         _mint(_amount);
     }
 
     function testMint_revertsOnUnsupportedMintToken(uint256 _amount) public {
         vm.startPrank(localTokenMessenger);
         vm.expectRevert("Mint token not supported");
-        tokenMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
+        tokenMinter.mint(
+            sourceDomain,
+            remoteTokenBytes32,
+            mintRecipientAddress,
+            _amount
+        );
         vm.stopPrank();
     }
 
@@ -91,18 +105,24 @@ contract TokenMinterTest is Test, TestUtils {
     ) public {
         vm.prank(nonTokenMessenger);
         vm.expectRevert("Caller not local TokenMessenger");
-        tokenMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
+        tokenMinter.mint(
+            sourceDomain,
+            remoteTokenBytes32,
+            mintRecipientAddress,
+            _amount
+        );
     }
 
     function testMint_revertsWhenPaused(
         address _mintToken,
         address _to,
-        uint256 _amount
+        uint256 _amount,
+        bytes32 remoteToken
     ) public {
         vm.prank(pauser);
         tokenMinter.pause();
         vm.expectRevert("Pausable: paused");
-        tokenMinter.mint(_mintToken, _to, _amount);
+        tokenMinter.mint(sourceDomain, remoteToken, _to, _amount);
 
         // Mint works again after unpause
         vm.prank(pauser);
@@ -121,13 +141,25 @@ contract TokenMinterTest is Test, TestUtils {
         );
         vm.startPrank(localTokenMessenger);
         vm.expectRevert("Mint operation failed");
-        tokenMinter.mint(localTokenAddress, _to, _amount);
+        tokenMinter.mint(sourceDomain, remoteTokenBytes32, _to, _amount);
         vm.stopPrank();
     }
 
-    function testBurn_succeeds(uint256 _amount) public {
+    function testBurn_succeeds(
+        uint256 _amount,
+        address _localToken,
+        uint256 _allowedBurnAmount
+    ) public {
         vm.assume(_amount > 0);
-        _mintAndBurn(_amount);
+        vm.assume(_allowedBurnAmount > 0 && _allowedBurnAmount >= _amount);
+
+        vm.prank(tokenController);
+        tokenMinter.setMaxBurnAmountPerTransaction(
+            localTokenAddress,
+            _allowedBurnAmount
+        );
+
+        _mintAndBurn(_amount, _localToken);
     }
 
     function testBurn_revertsOnUnsupportedBurnToken(uint256 _amount) public {
@@ -146,20 +178,52 @@ contract TokenMinterTest is Test, TestUtils {
         tokenMinter.burn(_remoteToken, _amount);
     }
 
-    function testBurn_revertsWhenPaused(address _remoteToken, uint256 _amount)
-        public
-    {
-        vm.assume(_amount > 0);
+    function testBurn_revertsWhenPaused() public {
+        uint256 _allowedBurnAmount = 100;
+        uint256 _burnAmount = 1;
+
+        vm.prank(tokenController);
+        tokenMinter.setMaxBurnAmountPerTransaction(
+            localTokenAddress,
+            _allowedBurnAmount
+        );
 
         vm.prank(pauser);
         tokenMinter.pause();
         vm.expectRevert("Pausable: paused");
-        tokenMinter.burn(_remoteToken, _amount);
+        tokenMinter.burn(localTokenAddress, _burnAmount);
 
         // Mint works again after unpause
         vm.prank(pauser);
         tokenMinter.unpause();
-        _mintAndBurn(_amount);
+        _mintAndBurn(_burnAmount, localTokenAddress);
+    }
+
+    function testBurn_revertsWhenAmountExceedsNonZeroBurnLimit(
+        uint256 _allowedBurnAmount,
+        uint256 _amount
+    ) public {
+        vm.assume(_allowedBurnAmount > 0);
+        vm.assume(_amount > _allowedBurnAmount);
+
+        vm.prank(tokenController);
+        tokenMinter.setMaxBurnAmountPerTransaction(
+            localTokenAddress,
+            _allowedBurnAmount
+        );
+
+        vm.expectRevert("Burn amount exceeds per tx limit");
+        vm.startPrank(localTokenMessenger);
+        tokenMinter.burn(localTokenAddress, _amount);
+        vm.stopPrank();
+    }
+
+    function testBurn_revertsWhenBurnTokenNotSupported(uint256 _amount) public {
+        vm.assume(_amount > 0);
+        vm.expectRevert("Burn token not supported");
+        vm.startPrank(localTokenMessenger);
+        tokenMinter.burn(localTokenAddress, _amount);
+        vm.stopPrank();
     }
 
     function testLinkTokenPair_succeeds() public {
@@ -169,6 +233,7 @@ contract TokenMinterTest is Test, TestUtils {
     function testLinkTokenPair_revertsOnAlreadyLinkedToken() public {
         _linkTokenPair(localTokenAddress);
         vm.expectRevert("Unable to link token pair");
+        vm.prank(tokenController);
         tokenMinter.linkTokenPair(
             address(localToken),
             remoteDomain,
@@ -177,7 +242,7 @@ contract TokenMinterTest is Test, TestUtils {
     }
 
     function testLinkTokenPair_revertsWhenCalledByNonOwner() public {
-        expectRevertWithWrongOwner();
+        expectRevertWithWrongTokenController();
         tokenMinter.linkTokenPair(
             address(localToken),
             remoteDomain,
@@ -197,22 +262,22 @@ contract TokenMinterTest is Test, TestUtils {
             localTokenAddress
         );
 
+        vm.prank(tokenController);
         tokenMinter.unlinkTokenPair(
             address(localToken),
             remoteDomain,
             remoteTokenBytes32
         );
 
-        // reverts because there is no enabled local token for the given _remoteDomain, _remoteToken pair
-        vm.expectRevert("Local token not enabled");
-        tokenMinter.getEnabledLocalToken(remoteDomain, remoteTokenBytes32);
-        assertEq(
-            tokenMinter.remoteTokensToLocalTokens(remoteTokensKey),
-            address(0)
+        address localTokenResultAfterUnlink = tokenMinter.getLocalToken(
+            remoteDomain,
+            remoteTokenBytes32
         );
+        assertEq(localTokenResultAfterUnlink, address(0));
     }
 
     function testUnlinkTokenPair_revertsOnAlreadyUnlinkedToken() public {
+        vm.prank(tokenController);
         vm.expectRevert("Unable to unlink token pair");
         tokenMinter.unlinkTokenPair(
             address(localToken),
@@ -221,8 +286,10 @@ contract TokenMinterTest is Test, TestUtils {
         );
     }
 
-    function testUnlinkTokenPair_revertsWhenCalledByNonOwner() public {
-        expectRevertWithWrongOwner();
+    function testUnlinkTokenPair_revertsWhenCalledByNonTokenController()
+        public
+    {
+        expectRevertWithWrongTokenController();
         tokenMinter.unlinkTokenPair(
             address(localToken),
             remoteDomain,
@@ -234,34 +301,66 @@ contract TokenMinterTest is Test, TestUtils {
         _linkTokenPair(localTokenAddress);
     }
 
-    function testGetEnabledLocalToken_revertsOnNotFoundMintToken() public {
-        vm.expectRevert("Local token not enabled");
-        tokenMinter.getEnabledLocalToken(remoteDomain, remoteTokenBytes32);
+    function testGetLocalToken_findsNoLocalToken() public {
+        address _result = tokenMinter.getLocalToken(
+            remoteDomain,
+            remoteTokenBytes32
+        );
+        assertEq(_result, address(0));
     }
 
-    function testSetLocalTokenEnabledStatus(address _localToken) public {
-        assertFalse(tokenMinter.localTokens(_localToken));
+    function testSetMaxBurnAmountPerTransaction_succeeds(
+        address _localToken,
+        uint256 _burnLimitPerTransaction
+    ) public {
+        vm.prank(tokenController);
 
         vm.expectEmit(true, true, true, true);
-        emit LocalTokenEnabledStatusSet(_localToken, true);
-        tokenMinter.setLocalTokenEnabledStatus(_localToken, true);
-        assertTrue(tokenMinter.localTokens(_localToken));
+        emit SetBurnLimitPerTransaction(_localToken, _burnLimitPerTransaction);
 
-        vm.expectEmit(true, true, true, true);
-        emit LocalTokenEnabledStatusSet(_localToken, false);
-        tokenMinter.setLocalTokenEnabledStatus(_localToken, false);
-        assertFalse(tokenMinter.localTokens(_localToken));
+        tokenMinter.setMaxBurnAmountPerTransaction(
+            _localToken,
+            _burnLimitPerTransaction
+        );
     }
 
-    function testSetLocalTokenEnabledStatus_revertsWhenCalledByNonOwner()
+    function testSetMaxBurnAmountPerTransaction_revertsWhenCalledByNonController(
+        address _localToken,
+        uint256 _burnLimitPerTransaction
+    ) public {
+        expectRevertWithWrongTokenController();
+        tokenMinter.setMaxBurnAmountPerTransaction(
+            _localToken,
+            _burnLimitPerTransaction
+        );
+    }
+
+    function testSetTokenController_succeeds(address newTokenController)
         public
     {
+        vm.assume(newTokenController != address(0));
+        assertEq(tokenMinter.tokenController(), tokenController);
+
+        vm.expectEmit(true, true, true, true);
+        emit SetTokenController(newTokenController);
+        tokenMinter.setTokenController(newTokenController);
+        assertEq(tokenMinter.tokenController(), newTokenController);
+    }
+
+    function testSetTokenController_revertsWhenCalledByNonOwner(
+        address _newTokenController
+    ) public {
         expectRevertWithWrongOwner();
-        tokenMinter.setLocalTokenEnabledStatus(address(localToken), false);
+        tokenMinter.setTokenController(_newTokenController);
+    }
+
+    function testSetTokenController_revertsWhenCalledWithAddressZero() public {
+        vm.expectRevert("Invalid token controller address");
+        tokenMinter.setTokenController(address(0));
     }
 
     function testAddLocalTokenMessenger_succeeds() public {
-        TokenMinter _tokenMinter = new TokenMinter();
+        TokenMinter _tokenMinter = new TokenMinter(tokenController);
         addLocalTokenMessenger(_tokenMinter, localTokenMessenger);
     }
 
@@ -288,7 +387,7 @@ contract TokenMinterTest is Test, TestUtils {
     }
 
     function testRemoveLocalTokenMessenger_succeeds() public {
-        TokenMinter _tokenMinter = new TokenMinter();
+        TokenMinter _tokenMinter = new TokenMinter(tokenController);
         addLocalTokenMessenger(_tokenMinter, localTokenMessenger);
         removeLocalTokenMessenger(_tokenMinter);
     }
@@ -296,7 +395,7 @@ contract TokenMinterTest is Test, TestUtils {
     function testRemoveLocalTokenMessenger_revertsWhenNoLocalTokenMessengerSet()
         public
     {
-        TokenMinter _tokenMinter = new TokenMinter();
+        TokenMinter _tokenMinter = new TokenMinter(tokenController);
         vm.expectRevert("No local TokenMessenger is set");
         _tokenMinter.removeLocalTokenMessenger();
     }
@@ -343,7 +442,13 @@ contract TokenMinterTest is Test, TestUtils {
         assertEq(localToken.totalSupply(), 0);
 
         vm.startPrank(localTokenMessenger);
-        tokenMinter.mint(localTokenAddress, mintRecipientAddress, _amount);
+
+        tokenMinter.mint(
+            remoteDomain,
+            remoteTokenBytes32,
+            mintRecipientAddress,
+            _amount
+        );
         vm.stopPrank();
 
         // Assert balance of recipient and total supply is incremented by mint amount
@@ -351,7 +456,7 @@ contract TokenMinterTest is Test, TestUtils {
         assertEq(localToken.totalSupply(), _amount);
     }
 
-    function _mintAndBurn(uint256 _amount) internal {
+    function _mintAndBurn(uint256 _amount, address _localToken) internal {
         _mint(_amount);
 
         address mockTokenMessenger = vm.addr(1507);

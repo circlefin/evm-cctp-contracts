@@ -57,6 +57,12 @@ contract TestUtils is Test {
     bytes32 destinationCaller = Message.addressToBytes32(destinationCallerAddr);
     bytes32 emptyDestinationCaller = bytes32(0);
     bytes messageBody = bytes("test message");
+    uint256 maxTransactionAmount = 1000000;
+    address tokenController = vm.addr(1900);
+    address newTokenController = vm.addr(1900);
+    address owner = vm.addr(1902);
+    address arbitraryAddress = vm.addr(1903);
+
     // 8 KiB
     uint32 maxMessageBodySize = 8 * 2**10;
     // zero signature
@@ -69,15 +75,14 @@ contract TestUtils is Test {
         uint32 _remoteDomain,
         bytes32 _remoteTokenBytes32
     ) public {
-        tokenMinter.setLocalTokenEnabledStatus(_localToken, true);
-
+        vm.prank(tokenController);
         tokenMinter.linkTokenPair(
             address(_localToken),
             _remoteDomain,
             _remoteTokenBytes32
         );
 
-        address _actualLocalToken = tokenMinter.getEnabledLocalToken(
+        address _actualLocalToken = tokenMinter.getLocalToken(
             _remoteDomain,
             _remoteTokenBytes32
         );
@@ -110,9 +115,13 @@ contract TestUtils is Test {
     }
 
     function expectRevertWithWrongOwner() public {
-        address nonOwner = vm.addr(1510);
-        vm.prank(nonOwner);
+        vm.prank(arbitraryAddress);
         vm.expectRevert("Ownable: caller is not the owner");
+    }
+
+    function expectRevertWithWrongTokenController() public {
+        vm.prank(arbitraryAddress);
+        vm.expectRevert("Caller is not tokenController");
     }
 
     function assertContractIsRescuable(

@@ -15,7 +15,7 @@
 pragma solidity ^0.7.6;
 
 import "./interfaces/IMessageHandler.sol";
-import "./interfaces/IMinter.sol";
+import "./interfaces/ITokenMinter.sol";
 import "./interfaces/IMintBurnToken.sol";
 import "./interfaces/IMessageTransmitter.sol";
 import "./messages/BurnMessage.sol";
@@ -41,7 +41,7 @@ contract TokenMessenger is IMessageHandler, Rescuable {
     uint32 public immutable messageBodyVersion;
 
     // Minter responsible for minting and burning tokens on the local domain
-    IMinter public localMinter;
+    ITokenMinter public localMinter;
 
     // Valid TokenMessengers on remote domains
     mapping(uint32 => bytes32) public remoteTokenMessengers;
@@ -321,17 +321,14 @@ contract TokenMessenger is IMessageHandler, Rescuable {
         bytes32 _burnToken = _msg._getBurnToken();
         uint256 _amount = _msg._getAmount();
 
-        IMinter _localMinter = _getLocalMinter();
-        address _mintToken = _localMinter.getEnabledLocalToken(
-            remoteDomain,
-            _burnToken
-        );
+        ITokenMinter _localMinter = _getLocalMinter();
 
         _mintAndWithdraw(
             address(_localMinter),
+            remoteDomain,
+            _burnToken,
             Message.bytes32ToAddress(_mintRecipient),
-            _amount,
-            _mintToken
+            _amount
         );
 
         return true;
@@ -391,7 +388,7 @@ contract TokenMessenger is IMessageHandler, Rescuable {
             "Local minter is already set."
         );
 
-        localMinter = IMinter(newLocalMinter);
+        localMinter = ITokenMinter(newLocalMinter);
 
         emit LocalMinterAdded(newLocalMinter);
     }
@@ -426,12 +423,13 @@ contract TokenMessenger is IMessageHandler, Rescuable {
         bytes32 _destinationCaller
     ) internal returns (uint64 nonce) {
         require(_amount > 0, "Amount must be nonzero");
+        require(_mintRecipient != bytes32(0), "Mint recipient must be nonzero");
 
         bytes32 _destinationTokenMessenger = _getRemoteTokenMessenger(
             _destinationDomain
         );
 
-        IMinter _localMinter = _getLocalMinter();
+        ITokenMinter _localMinter = _getLocalMinter();
         IMintBurnToken _mintBurnToken = IMintBurnToken(_burnToken);
         require(
             _mintBurnToken.transferFrom(
@@ -511,18 +509,25 @@ contract TokenMessenger is IMessageHandler, Rescuable {
     /**
      * @notice Mints tokens to a recipient
      * @param _tokenMinter address of TokenMinter contract
+     * @param _remoteDomain domain where burned tokens originate from
+     * @param _burnToken address of token burned
      * @param _mintRecipient recipient address of minted tokens
      * @param _amount amount of minted tokens
-     * @param _mintToken contract address of minted token
      */
     function _mintAndWithdraw(
         address _tokenMinter,
+        uint32 _remoteDomain,
+        bytes32 _burnToken,
         address _mintRecipient,
-        uint256 _amount,
-        address _mintToken
+        uint256 _amount
     ) internal {
-        IMinter _minter = IMinter(_tokenMinter);
-        _minter.mint(_mintToken, _mintRecipient, _amount);
+        ITokenMinter _minter = ITokenMinter(_tokenMinter);
+        address _mintToken = _minter.mint(
+            _remoteDomain,
+            _burnToken,
+            _mintRecipient,
+            _amount
+        );
 
         emit MintAndWithdraw(_mintRecipient, _amount, _mintToken);
     }
@@ -544,9 +549,9 @@ contract TokenMessenger is IMessageHandler, Rescuable {
 
     /**
      * @notice return the local minter address if it is set, else revert.
-     * @return local minter as IMinter.
+     * @return local minter as ITokenMinter.
      */
-    function _getLocalMinter() internal view returns (IMinter) {
+    function _getLocalMinter() internal view returns (ITokenMinter) {
         require(address(localMinter) != address(0), "Local minter is not set");
         return localMinter;
     }

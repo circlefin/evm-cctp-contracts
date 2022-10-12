@@ -11,6 +11,7 @@ contract DeployScript is Script {
     address private usdcContractAddress;
     address private usdcRemoteContractAddress;
     address private remoteTokenMessengerAddress;
+    address private tokenController;
 
     bool private remoteAvailable = false;
 
@@ -19,10 +20,12 @@ contract DeployScript is Script {
     uint32 private domain = 0;
     uint32 private remoteDomain = 1;
     uint32 private maxMessageBodySize = 8192;
+    uint256 private burnLimitPerTransaction;
 
     uint256 private messageTransmitterDeployerPrivateKey;
     uint256 private tokenMessengerDeployerPrivateKey;
     uint256 private tokenMinterDeployerPrivateKey;
+    uint256 private tokenControllerPrivateKey;
 
     /**
      * @notice deploys Message Transmitter
@@ -83,13 +86,10 @@ contract DeployScript is Script {
         vm.startBroadcast(privateKey);
 
         // Deploy TokenMinter
-        TokenMinter tokenMinter = new TokenMinter();
+        TokenMinter tokenMinter = new TokenMinter(tokenController);
 
         // Add Local TokenMessenger
         tokenMinter.addLocalTokenMessenger(tokenMessengerAddress);
-
-        // Set setLocalTokenEnabledStatus
-        tokenMinter.setLocalTokenEnabledStatus(usdcContractAddress, true);
 
         // Stop recording transations
         vm.stopBroadcast();
@@ -126,6 +126,12 @@ contract DeployScript is Script {
         bytes32 remoteUsdcContractAddressInBytes32 = Message.addressToBytes32(
             usdcRemoteContractAddress
         );
+
+        tokenMinter.setMaxBurnAmountPerTransaction(
+            usdcContractAddress,
+            burnLimitPerTransaction
+        );
+
         tokenMinter.linkTokenPair(
             usdcContractAddress,
             remoteDomain,
@@ -168,9 +174,12 @@ contract DeployScript is Script {
             "TOKEN_MESSENGER_DEPLOYER_KEY"
         );
         tokenMinterDeployerPrivateKey = vm.envUint("TOKEN_MINTER_DEPLOYER_KEY");
+        tokenControllerPrivateKey = vm.envUint("TOKEN_CONTROLLER_DEPLOYER_KEY");
 
         attesterAddress = vm.envAddress("ATTESTER_ADDRESS");
         usdcContractAddress = vm.envAddress("USDC_CONTRACT_ADDRESS");
+        tokenController = vm.envAddress("TOKEN_CONTROLLER");
+        burnLimitPerTransaction = vm.envUint("BURN_LIMIT_PER_TRANSACTION");
 
         remoteAvailable = vm.envBool("REMOTE_AVAILABLE");
         if (remoteAvailable == true) {
@@ -213,7 +222,7 @@ contract DeployScript is Script {
 
         // Link token pair and add remote token messenger
         if (remoteAvailable == true) {
-            linkTokenPair(tokenMinter, tokenMinterDeployerPrivateKey);
+            linkTokenPair(tokenMinter, tokenControllerPrivateKey);
             addRemoteTokenMessenger(
                 tokenMessenger,
                 tokenMessengerDeployerPrivateKey
