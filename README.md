@@ -52,19 +52,27 @@ Use Docker to run Foundry commands. Run `make build` to build Foundry docker ima
 - Some machines (including those with M1 chips) may be unable to build the docker image locally. This is a known issue.
 
 ## Deployment
-The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tutorials/solidity-scripting). The script is located in [script/deploy.s.sol](/scripts/deploy.s.sol). Follow the below steps to deploy the contracts:
+The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tutorials/solidity-scripting). The script is located in [scripts/deploy.s.sol](/scripts/deploy.s.sol). Follow the below steps to deploy the contracts:
 1. Add the below environment variables to your [env](.env) file
     - `MESSAGE_TRANSMITTER_DEPLOYER_KEY`
     - `TOKEN_MESSENGER_DEPLOYER_KEY`
     - `TOKEN_MINTER_DEPLOYER_KEY`
+    - `TOKEN_CONTROLLER_DEPLOYER_KEY`
     - `ATTESTER_ADDRESS`
     - `USDC_CONTRACT_ADDRESS`
-    
-    We use these keys to deploy corresponding contracts
-    If you also want to link remote token and bridge then add the below env variables:
     - `REMOTE_USDC_CONTRACT_ADDRESS`
-    - `REMOTE_TOKEN_MESSENGER_ADDRESS`
-    - `REMOTE_AVAILABLE=true`
+    - `MESSAGE_TRANSMITTER_PAUSER_ADDRESS`
+    - `TOKEN_MINTER_PAUSER_ADDRESS`
+    - `MESSAGE_TRANSMITTER_RESCUER_ADDRESS`
+    - `TOKEN_MESSENGER_RESCUER_ADDRESS`
+    - `TOKEN_MINTER_RESCUER_ADDRESS`
+    - `DOMAIN`
+    - `REMOTE_DOMAIN`
+    - `BURN_LIMIT_PER_TRANSACTION`
+
+    In addition, to link the remote bridge, one of two steps needs to be followed:
+    - Add the `REMOTE_TOKEN_MESSENGER_DEPLOYER` address to your [env](.env) file and run [scripts/precomputeRemoteMessengerAddress.py](/scripts/precomputeRemoteMessengerAddress.py) to automatically add the `REMOTE_TOKEN_MESSENGER_ADDRESS` to the .env file
+    - Manually add the `REMOTE_TOKEN_MESSENGER_ADDRESS` to your .env file.
 
 2. Run `make simulate RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run. *Note: Use address from one of the private keys (used for deploying) above as `sender`. It is used to deploy the shared libraries that contracts use*
 3. Run `make deploy RPC_URL=<RPC_URL> SENDER=<SENDER>` to deploy the contracts

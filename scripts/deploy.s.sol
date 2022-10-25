@@ -11,14 +11,17 @@ contract DeployScript is Script {
     address private usdcContractAddress;
     address private usdcRemoteContractAddress;
     address private remoteTokenMessengerAddress;
-    address private tokenController;
-
-    bool private remoteAvailable = false;
+    address private tokenControllerAddress;
+    address private messageTransmitterPauserAddress;
+    address private tokenMinterPauserAddress;
+    address private messageTransmitterRescuerAddress;
+    address private tokenMessengerRescuerAddress;
+    address private tokenMinterRescuerAddress;
 
     uint32 private messageBodyVersion = 0;
     uint32 private version = 0;
-    uint32 private domain = 0;
-    uint32 private remoteDomain = 1;
+    uint32 private domain;
+    uint32 private remoteDomain;
     uint32 private maxMessageBodySize = 8192;
     uint256 private burnLimitPerTransaction;
 
@@ -29,27 +32,38 @@ contract DeployScript is Script {
 
     /**
      * @notice deploys Message Transmitter
-     * @param privateKey Private Key for siginig the transactions
+     * @param privateKey Private Key for signing the transactions
      * @return MessageTransmitter instance
      */
     function deployMessageTransmitter(uint256 privateKey)
         private
         returns (MessageTransmitter)
     {
+        // Start recording transactions
         vm.startBroadcast(privateKey);
+
+        // Deploy MessageTransmitter
         MessageTransmitter messageTransmitter = new MessageTransmitter(
             domain,
             attesterAddress,
             maxMessageBodySize,
             version
         );
+
+        // Add Pauser
+        messageTransmitter.updatePauser(messageTransmitterPauserAddress);
+
+        // Add Rescuer
+        messageTransmitter.updateRescuer(messageTransmitterRescuerAddress);
+
+        // Stop recording transactions
         vm.stopBroadcast();
         return messageTransmitter;
     }
 
     /**
      * @notice deploys TokenMessenger
-     * @param privateKey Private Key for siginig the transactions
+     * @param privateKey Private Key for signing the transactions
      * @param messageTransmitterAddress Message Transmitter Contract address
      * @return TokenMessenger instance
      */
@@ -66,6 +80,9 @@ contract DeployScript is Script {
             messageBodyVersion
         );
 
+        // Add Rescuer
+        tokenMessenger.updateRescuer(tokenMessengerRescuerAddress);
+
         // Stop recording transations
         vm.stopBroadcast();
 
@@ -74,7 +91,7 @@ contract DeployScript is Script {
 
     /**
      * @notice deploys TokenMinter
-     * @param privateKey Private Key for siginig the transactions
+     * @param privateKey Private Key for signing the transactions
      * @param tokenMessengerAddress TokenMessenger Contract address
      * @return TokenMinter instance
      */
@@ -86,10 +103,16 @@ contract DeployScript is Script {
         vm.startBroadcast(privateKey);
 
         // Deploy TokenMinter
-        TokenMinter tokenMinter = new TokenMinter(tokenController);
+        TokenMinter tokenMinter = new TokenMinter(tokenControllerAddress);
 
         // Add Local TokenMessenger
         tokenMinter.addLocalTokenMessenger(tokenMessengerAddress);
+
+        // Add Pauser
+        tokenMinter.updatePauser(tokenMinterPauserAddress);
+
+        // Add Rescuer
+        tokenMinter.updateRescuer(tokenMinterRescuerAddress);
 
         // Stop recording transations
         vm.stopBroadcast();
@@ -164,7 +187,7 @@ contract DeployScript is Script {
     }
 
     /**
-     * @notice initilize variables from environment
+     * @notice initialize variables from environment
      */
     function setUp() public {
         messageTransmitterDeployerPrivateKey = vm.envUint(
@@ -178,18 +201,34 @@ contract DeployScript is Script {
 
         attesterAddress = vm.envAddress("ATTESTER_ADDRESS");
         usdcContractAddress = vm.envAddress("USDC_CONTRACT_ADDRESS");
-        tokenController = vm.envAddress("TOKEN_CONTROLLER");
+        tokenControllerAddress = vm.envAddress("TOKEN_CONTROLLER");
         burnLimitPerTransaction = vm.envUint("BURN_LIMIT_PER_TRANSACTION");
 
-        remoteAvailable = vm.envBool("REMOTE_AVAILABLE");
-        if (remoteAvailable == true) {
-            usdcRemoteContractAddress = vm.envAddress(
-                "REMOTE_USDC_CONTRACT_ADDRESS"
-            );
-            remoteTokenMessengerAddress = vm.envAddress(
-                "REMOTE_TOKEN_MESSENGER_ADDRESS"
-            );
-        }
+        usdcRemoteContractAddress = vm.envAddress(
+            "REMOTE_USDC_CONTRACT_ADDRESS"
+        );
+
+        remoteTokenMessengerAddress = vm.envAddress(
+            "REMOTE_TOKEN_MESSENGER_ADDRESS"
+        );
+
+        domain = uint32(vm.envUint("DOMAIN"));
+        remoteDomain = uint32(vm.envUint("REMOTE_DOMAIN"));
+
+        messageTransmitterPauserAddress = vm.envAddress(
+            "MESSAGE_TRANSMITTER_PAUSER_ADDRESS"
+        );
+        tokenMinterPauserAddress = vm.envAddress("TOKEN_MINTER_PAUSER_ADDRESS");
+
+        messageTransmitterRescuerAddress = vm.envAddress(
+            "MESSAGE_TRANSMITTER_RESCUER_ADDRESS"
+        );
+        tokenMessengerRescuerAddress = vm.envAddress(
+            "TOKEN_MESSENGER_RESCUER_ADDRESS"
+        );
+        tokenMinterRescuerAddress = vm.envAddress(
+            "TOKEN_MINTER_RESCUER_ADDRESS"
+        );
     }
 
     /**
@@ -221,12 +260,10 @@ contract DeployScript is Script {
         );
 
         // Link token pair and add remote token messenger
-        if (remoteAvailable == true) {
-            linkTokenPair(tokenMinter, tokenControllerPrivateKey);
-            addRemoteTokenMessenger(
-                tokenMessenger,
-                tokenMessengerDeployerPrivateKey
-            );
-        }
+        linkTokenPair(tokenMinter, tokenControllerPrivateKey);
+        addRemoteTokenMessenger(
+            tokenMessenger,
+            tokenMessengerDeployerPrivateKey
+        );
     }
 }
