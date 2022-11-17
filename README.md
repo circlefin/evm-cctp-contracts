@@ -71,7 +71,7 @@ The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tuto
     - `BURN_LIMIT_PER_TRANSACTION`
 
     In addition, to link the remote bridge, one of two steps needs to be followed:
-    - Add the `REMOTE_TOKEN_MESSENGER_DEPLOYER` address to your [env](.env) file and run [scripts/precomputeRemoteMessengerAddress.py](/scripts/precomputeRemoteMessengerAddress.py) to automatically add the `REMOTE_TOKEN_MESSENGER_ADDRESS` to the .env file
+    - Add the `REMOTE_TOKEN_MESSENGER_DEPLOYER` address to your [env](.env) file and run [scripts/precomputeRemoteMessengerAddress.py](/scripts/precomputeRemoteMessengerAddress.py) with argument `--REMOTE_RPC_URL` for the remote chain, which will automatically add the `REMOTE_TOKEN_MESSENGER_ADDRESS` to the .env file
     - Manually add the `REMOTE_TOKEN_MESSENGER_ADDRESS` to your .env file.
 
 2. Run `make simulate RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run. *Note: Use address from one of the private keys (used for deploying) above as `sender`. It is used to deploy the shared libraries that contracts use*
