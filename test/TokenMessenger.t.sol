@@ -548,12 +548,59 @@ contract TokenMessengerTest is Test, TestUtils {
         );
     }
 
+    function testReplaceDepositForBurn_revertsForZeroMintRecipientAddr(
+        address _mintRecipientAddr,
+        uint256 _amount,
+        address _newDestinationCallerAddr
+    ) public {
+        address _newMintRecipientAddr = vm.addr(1802);
+        bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
+        bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
+            address(localToken)
+        );
+        bytes memory _messageBody = BurnMessage._formatMessage(
+            messageBodyVersion,
+            localTokenAddressBytes32,
+            _mintRecipient,
+            _amount,
+            Message.addressToBytes32(address(owner))
+        );
+        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
+        bytes memory _expectedMessage = Message._formatMessage(
+            version,
+            localDomain,
+            remoteDomain,
+            _nonce,
+            Message.addressToBytes32(address(localTokenMessenger)),
+            remoteTokenMessenger,
+            emptyDestinationCaller,
+            _messageBody
+        );
+
+        // attempt to replace message from wrong sender
+        bytes32 _newDestinationCaller = Message.addressToBytes32(
+            _newDestinationCallerAddr
+        );
+        bytes32 _newMintRecipient = bytes32(0);
+        bytes memory _originalAttestation = bytes("mockAttestation");
+
+        vm.prank(owner);
+        vm.expectRevert("Mint recipient must be nonzero");
+        localTokenMessenger.replaceDepositForBurn(
+            _expectedMessage,
+            _originalAttestation,
+            _newDestinationCaller,
+            _newMintRecipient
+        );
+    }
+
     function testReplaceDepositForBurn_revertsInvalidAttestation(
         address _mintRecipientAddr,
         uint256 _amount,
         address _newDestinationCallerAddr,
         address _newMintRecipientAddr
     ) public {
+        vm.assume(_newMintRecipientAddr != address(0));
         bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
         bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
             address(localToken)
@@ -878,10 +925,7 @@ contract TokenMessengerTest is Test, TestUtils {
 
         vm.expectEmit(true, true, true, true);
         emit RemoteTokenMessengerRemoved(_remoteDomain, _remoteTokenMessenger);
-        localTokenMessenger.removeRemoteTokenMessenger(
-            _remoteDomain,
-            _remoteTokenMessenger
-        );
+        localTokenMessenger.removeRemoteTokenMessenger(_remoteDomain);
     }
 
     function testRemoveRemoteTokenMessenger_revertsOnNoTokenMessengerSet()
@@ -891,10 +935,7 @@ contract TokenMessengerTest is Test, TestUtils {
         bytes32 _remoteTokenMessenger = Message.addressToBytes32(vm.addr(1));
 
         vm.expectRevert("No TokenMessenger set");
-        localTokenMessenger.removeRemoteTokenMessenger(
-            _remoteDomain,
-            _remoteTokenMessenger
-        );
+        localTokenMessenger.removeRemoteTokenMessenger(_remoteDomain);
     }
 
     function testRemoveRemoteTokenMessenger_revertsOnNonOwner(
@@ -902,10 +943,7 @@ contract TokenMessengerTest is Test, TestUtils {
         bytes32 _tokenMessenger
     ) public {
         expectRevertWithWrongOwner();
-        localTokenMessenger.removeRemoteTokenMessenger(
-            _domain,
-            _tokenMessenger
-        );
+        localTokenMessenger.removeRemoteTokenMessenger(_domain);
     }
 
     function testAddLocalMinter_succeeds(address _localMinter) public {
@@ -976,9 +1014,23 @@ contract TokenMessengerTest is Test, TestUtils {
         );
     }
 
-    function testTransferOwnership() public {
+    function testTransferOwnershipAndAcceptOwnership() public {
         address _newOwner = vm.addr(1509);
-        transferOwnership(address(localTokenMessenger), _newOwner);
+        transferOwnershipAndAcceptOwnership(
+            address(localTokenMessenger),
+            _newOwner
+        );
+    }
+
+    function testTransferOwnershipWithoutAcceptingThenTransferToNewOwner(
+        address _newOwner,
+        address _secondNewOwner
+    ) public {
+        transferOwnershipWithoutAcceptingThenTransferToNewOwner(
+            address(localTokenMessenger),
+            _newOwner,
+            _secondNewOwner
+        );
     }
 
     function _addLocalMinter(

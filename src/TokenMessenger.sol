@@ -258,6 +258,10 @@ contract TokenMessenger is IMessageHandler, Rescuable {
             msg.sender == Message.bytes32ToAddress(_originalMsgSender),
             "Invalid sender for message"
         );
+        require(
+            newMintRecipient != bytes32(0),
+            "Mint recipient must be nonzero"
+        );
 
         bytes32 _burnToken = _originalMsgBody._getBurnToken();
         uint256 _amount = _originalMsgBody._getAmount();
@@ -359,20 +363,17 @@ contract TokenMessenger is IMessageHandler, Rescuable {
      * @notice Remove the TokenMessenger for a remote domain.
      * @dev Reverts if there is no TokenMessenger set for `domain`.
      * @param domain Domain of remote TokenMessenger
-     * @param tokenMessenger Address of remote TokenMessenger as bytes32
      */
-    function removeRemoteTokenMessenger(uint32 domain, bytes32 tokenMessenger)
-        external
-        onlyOwner
-    {
+    function removeRemoteTokenMessenger(uint32 domain) external onlyOwner {
         // No TokenMessenger set for given remote domain.
         require(
             remoteTokenMessengers[domain] != bytes32(0),
             "No TokenMessenger set"
         );
 
+        bytes32 _removedTokenMessenger = remoteTokenMessengers[domain];
         delete remoteTokenMessengers[domain];
-        emit RemoteTokenMessengerRemoved(domain, tokenMessenger);
+        emit RemoteTokenMessengerRemoved(domain, _removedTokenMessenger);
     }
 
     /**

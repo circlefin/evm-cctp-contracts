@@ -16,8 +16,9 @@ pragma solidity ^0.7.6;
 
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import "./Ownable2Step.sol";
 
-contract Attestable {
+contract Attestable is Ownable2Step {
     /**
      * @notice Emitted when an attester is enabled
      * @param attester newly enabled attester
@@ -117,14 +118,14 @@ contract Attestable {
      */
     function updateAttesterManager(address newAttesterManager)
         external
-        onlyAttesterManager
+        onlyOwner
     {
         require(
             newAttesterManager != address(0),
             "Invalid attester manager address"
         );
         _setAttesterManager(newAttesterManager);
-        emit AttesterManagerUpdated(newAttesterManager, newAttesterManager);
+        emit AttesterManagerUpdated(msg.sender, newAttesterManager);
     }
 
     /**
@@ -230,7 +231,7 @@ contract Attestable {
         // (Attesters cannot be address(0))
         address _latestAttesterAddress = address(0);
         // Address recovered from signatures must be in increasing order, to prevent duplicates
-        for (uint256 i = 0; i < signatureThreshold; i++) {
+        for (uint256 i; i < signatureThreshold; ++i) {
             bytes memory _signature = _attestation[i * signatureLength:i *
                 signatureLength +
                 signatureLength];

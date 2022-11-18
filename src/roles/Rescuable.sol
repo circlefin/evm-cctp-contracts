@@ -24,7 +24,7 @@
 
 pragma solidity 0.7.6;
 
-import {Ownable} from "./Ownable.sol";
+import "./Ownable2Step.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
@@ -34,7 +34,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  * Modifications:
  * 1. Update Solidity version from 0.6.12 to 0.7.6 (8/23/2022)
  */
-contract Rescuable is Ownable {
+contract Rescuable is Ownable2Step {
     using SafeERC20 for IERC20;
 
     address private _rescuer;

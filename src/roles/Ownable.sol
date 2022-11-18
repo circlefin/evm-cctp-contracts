@@ -1,87 +1,96 @@
-/**
- * SPDX-License-Identifier: MIT
+/* SPDX-License-Identifier: UNLICENSED
  *
- * Copyright (c) 2018 zOS Global Limited.
- * Copyright (c) 2018-2020 CENTRE SECZ
+ * Copyright (c) 2022, Circle Internet Financial Trading Company Limited.
+ * All rights reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
+ * Circle Internet Financial Trading Company Limited CONFIDENTIAL
  *
- * The above copyright notice and this permission notice shall be included in
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * This file includes unpublished proprietary source code of Circle Internet
+ * Financial Trading Company Limited, Inc. The copyright notice above does not
+ * evidence any actual or intended publication of such source code. Disclosure
+ * of this source code or any related proprietary information is strictly
+ * prohibited without the express written permission of Circle Internet Financial
+ * Trading Company Limited.
  */
 pragma solidity 0.7.6;
 
+import "@openzeppelin/contracts/utils/Context.sol";
+
 /**
- * @notice The Ownable contract has an owner address, and provides basic
- * authorization control functions
- * @dev Forked from https://github.com/centrehq/centre-tokens/blob/0d3cab14ebd133a83fc834dbd48d0468bdf0b391/contracts/v1/Ownable.sol
+ * @dev forked from https://github.com/OpenZeppelin/openzeppelin-contracts/blob/7c5f6bc2c8743d83443fa46395d75f2f3f99054a/contracts/access/Ownable.sol
  * Modifications:
- * 1. Update Solidity version from 0.6.12 to 0.7.6 (8/23/2022)
+ * 1. Update Solidity version from 0.8.0 to 0.7.6 (11/9/2022). (v8 was used
+ * as base because it includes internal _transferOwnership method.)
+ * 2. Remove renounceOwnership function
+ *
+ * Description
+ * Contract module which provides a basic access control mechanism, where
+ * there is an account (an owner) that can be granted exclusive access to
+ * specific functions.
+ *
+ * By default, the owner account will be the one that deploys the contract. This
+ * can later be changed with {transferOwnership}.
+ *
+ * This module is used through inheritance. It will make available the modifier
+ * `onlyOwner`, which can be applied to your functions to restrict their use to
+ * the owner.
  */
-contract Ownable {
-    // Owner of the contract
+abstract contract Ownable is Context {
     address private _owner;
 
-    /**
-     * @dev Event to show ownership has been transferred
-     * @param previousOwner representing the address of the previous owner
-     * @param newOwner representing the address of the new owner
-     */
-    event OwnershipTransferred(address previousOwner, address newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
 
     /**
-     * @dev The constructor sets the original owner of the contract to the sender account.
+     * @dev Initializes the contract setting the deployer as the initial owner.
      */
-    constructor() public {
-        setOwner(msg.sender);
-    }
-
-    /**
-     * @dev Tells the address of the owner
-     * @return the address of the owner
-     */
-    function owner() external view returns (address) {
-        return _owner;
-    }
-
-    /**
-     * @dev Sets a new owner address
-     */
-    function setOwner(address newOwner) internal {
-        _owner = newOwner;
+    constructor() {
+        _transferOwnership(_msgSender());
     }
 
     /**
      * @dev Throws if called by any account other than the owner.
      */
     modifier onlyOwner() {
-        require(msg.sender == _owner, "Ownable: caller is not the owner");
+        _checkOwner();
         _;
     }
 
     /**
-     * @dev Allows the current owner to transfer control of the contract to a newOwner.
-     * @param newOwner The address to transfer ownership to.
+     * @dev Returns the address of the current owner.
      */
-    function transferOwnership(address newOwner) external onlyOwner {
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
+
+    /**
+     * @dev Throws if the sender is not the owner.
+     */
+    function _checkOwner() internal view virtual {
+        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Can only be called by the current owner.
+     */
+    function transferOwnership(address newOwner) public virtual onlyOwner {
         require(
             newOwner != address(0),
             "Ownable: new owner is the zero address"
         );
-        emit OwnershipTransferred(_owner, newOwner);
-        setOwner(newOwner);
+        _transferOwnership(newOwner);
+    }
+
+    /**
+     * @dev Transfers ownership of the contract to a new account (`newOwner`).
+     * Internal function without access restriction.
+     */
+    function _transferOwnership(address newOwner) internal virtual {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
     }
 }

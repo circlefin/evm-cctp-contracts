@@ -420,9 +420,20 @@ contract TokenMinterTest is Test, TestUtils {
         );
     }
 
-    function testTransferOwnership() public {
+    function testTransferOwnershipAndAcceptOwnership() public {
         address _newOwner = vm.addr(1509);
-        transferOwnership(address(tokenMinter), _newOwner);
+        transferOwnershipAndAcceptOwnership(address(tokenMinter), _newOwner);
+    }
+
+    function testTransferOwnershipWithoutAcceptingThenTransferToNewOwner(
+        address _newOwner,
+        address _secondNewOwner
+    ) public {
+        transferOwnershipWithoutAcceptingThenTransferToNewOwner(
+            address(tokenMinter),
+            _newOwner,
+            _secondNewOwner
+        );
     }
 
     function _linkTokenPair(address _localToken) internal {

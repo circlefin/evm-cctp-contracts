@@ -895,9 +895,23 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
     }
 
-    function testTransferOwnership() public {
+    function testTransferOwnershipAndAcceptOwnership() public {
         address _newOwner = vm.addr(1509);
-        transferOwnership(address(srcMessageTransmitter), _newOwner);
+        transferOwnershipAndAcceptOwnership(
+            address(srcMessageTransmitter),
+            _newOwner
+        );
+    }
+
+    function testTransferOwnershipWithoutAcceptingThenTransferToNewOwner(
+        address _newOwner,
+        address _secondNewOwner
+    ) public {
+        transferOwnershipWithoutAcceptingThenTransferToNewOwner(
+            address(srcMessageTransmitter),
+            _newOwner,
+            _secondNewOwner
+        );
     }
 
     /**

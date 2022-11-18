@@ -66,13 +66,11 @@ contract AttestableTest is Test, TestUtils {
         assertEq(_attester.attesterManager(), initialAttesterManager);
     }
 
-    function testUpdateAttesterManager_revertsWhenCalledByWrongAttesterManager()
-        public
-    {
+    function testUpdateAttesterManager_revertsWhenCalledByNonOwner() public {
         assertEq(attestable.attesterManager(), initialAttesterManager);
         address _newAttesterManager = vm.addr(1506);
 
-        vm.expectRevert("Caller not attester manager");
+        vm.expectRevert("Ownable: caller is not the owner");
         attestable.updateAttesterManager(_newAttesterManager);
 
         assertEq(attestable.attesterManager(), initialAttesterManager);
@@ -96,7 +94,10 @@ contract AttestableTest is Test, TestUtils {
         address _newAttesterManager = vm.addr(1506);
 
         vm.expectEmit(true, true, true, true);
-        emit AttesterManagerUpdated(_newAttesterManager, _newAttesterManager);
+        emit AttesterManagerUpdated(
+            initialAttesterManager,
+            _newAttesterManager
+        );
         attestable.updateAttesterManager(_newAttesterManager);
 
         assertEq(attestable.attesterManager(), _newAttesterManager);

@@ -33,6 +33,16 @@ contract TestUtils is Test {
      */
     event LocalTokenMessengerRemoved(address indexed localTokenMessenger);
 
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+
+    event OwnershipTransferStarted(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
+
     // test keys
     uint256 attesterPK = 1;
     uint256 fakeAttesterPK = 2;
@@ -165,15 +175,75 @@ contract TestUtils is Test {
         assertEq(_mockMintBurnToken.balanceOf(_rescueRecipient), _amount);
     }
 
-    function transferOwnership(
+    function transferOwnershipAndAcceptOwnership(
         address _ownableContractAddress,
         address _newOwner
     ) public {
-        Ownable _ownableContract = Ownable(_ownableContractAddress);
+        Ownable2Step _ownableContract = Ownable2Step(_ownableContractAddress);
         address initialOwner = _ownableContract.owner();
+        // assert that the owner is still unchanged
+        assertEq(_ownableContract.owner(), initialOwner);
+
+        // set pending owner
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferStarted(initialOwner, _newOwner);
         _ownableContract.transferOwnership(_newOwner);
+        // assert that the owner is still unchanged, but pending owner is changed
+        assertEq(_ownableContract.owner(), initialOwner);
+        assertEq(_ownableContract.pendingOwner(), _newOwner);
+
+        // accept ownership
+        vm.prank(_newOwner);
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(initialOwner, _newOwner);
+        _ownableContract.acceptOwnership();
+
+        // assert that the owner is now _newOwner
         assertEq(_ownableContract.owner(), _newOwner);
+
+        // sanity check owner changed
         assertFalse(_newOwner == initialOwner);
+    }
+
+    function transferOwnershipWithoutAcceptingThenTransferToNewOwner(
+        address _ownableContractAddress,
+        address _newOwner,
+        address _secondNewOwner
+    ) public {
+        vm.assume(_newOwner != address(0));
+        vm.assume(
+            _secondNewOwner != _newOwner &&
+                _secondNewOwner != address(0) &&
+                _secondNewOwner != _ownableContractAddress
+        );
+        Ownable2Step _ownableContract = Ownable2Step(_ownableContractAddress);
+        address initialOwner = _ownableContract.owner();
+        assertEq(_ownableContract.owner(), initialOwner);
+
+        // set pending owner
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferStarted(initialOwner, _newOwner);
+        _ownableContract.transferOwnership(_newOwner);
+        // assert that the owner is still unchanged, but pending owner is changed
+        assertEq(_ownableContract.owner(), initialOwner);
+        assertEq(_ownableContract.pendingOwner(), _newOwner);
+
+        // change the owner again, because we realize _newOwner cannot accept ownership
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferStarted(initialOwner, _secondNewOwner);
+        _ownableContract.transferOwnership(_secondNewOwner);
+
+        // accept ownership
+        vm.prank(_secondNewOwner);
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(initialOwner, _secondNewOwner);
+        _ownableContract.acceptOwnership();
+
+        // assert that the owner is now _secondNewOwner
+        assertEq(_ownableContract.owner(), _secondNewOwner);
+
+        // sanity check owner changed
+        assertFalse(_secondNewOwner == initialOwner);
     }
 
     function _signMessageWithAttesterPK(bytes memory _message)

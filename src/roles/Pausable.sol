@@ -25,7 +25,7 @@
 
 pragma solidity 0.7.6;
 
-import {Ownable} from "./Ownable.sol";
+import "./Ownable2Step.sol";
 
 /**
  * @notice Base contract which allows children to implement an emergency stop
@@ -34,7 +34,7 @@ import {Ownable} from "./Ownable.sol";
  * Modifications:
  * 1. Update Solidity version from 0.6.12 to 0.7.6 (8/23/2022)
  */
-contract Pausable is Ownable {
+contract Pausable is Ownable2Step {
     event Pause();
     event Unpause();
     event PauserChanged(address indexed newAddress);
