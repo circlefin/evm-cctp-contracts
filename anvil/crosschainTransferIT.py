@@ -46,7 +46,7 @@ version = 0
 message_body_version = 0
 minter_allowance = 1000
 mint_amount = 100
-max_transaction_amount = 1000000
+max_burn_message_amount = 1000000
 
 def compile_source_file(file_path: str, contract_name: str, version: str = '0.7.6') -> Dict:
     """
@@ -230,9 +230,9 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
         self.send_transaction(self.eth_token_minter.functions.addLocalTokenMessenger(self.eth_token_messenger.address), "eth_token_minter_deployer")
         self.send_transaction(self.avax_token_minter.functions.addLocalTokenMessenger(self.avax_token_messenger.address), "avax_token_minter_deployer")
 
-        # setMaxBurnAmountPerTransaction to token messenger contracts
-        self.send_transaction(self.eth_token_minter.functions.setMaxBurnAmountPerTransaction(self.eth_usdc.address, max_transaction_amount), "eth_token_controller")
-        self.send_transaction(self.avax_token_minter.functions.setMaxBurnAmountPerTransaction(self.avax_usdc.address, max_transaction_amount), "avax_token_controller")
+        # setMaxBurnAmountPerMessage to token messenger contracts
+        self.send_transaction(self.eth_token_minter.functions.setMaxBurnAmountPerMessage(self.eth_usdc.address, max_burn_message_amount), "eth_token_controller")
+        self.send_transaction(self.avax_token_minter.functions.setMaxBurnAmountPerMessage(self.avax_usdc.address, max_burn_message_amount), "avax_token_controller")
 
         # linkTokenPair
         self.send_transaction(self.eth_token_minter.functions.linkTokenPair(self.eth_usdc.address, avax_domain, self.to_32byte_hex(self.avax_usdc.address)), "eth_token_controller")

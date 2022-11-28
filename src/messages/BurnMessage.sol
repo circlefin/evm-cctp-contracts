@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "@memview-sol/contracts/TypedMemView.sol";
 
@@ -21,7 +21,7 @@ import "@memview-sol/contracts/TypedMemView.sol";
  * @notice Library for formatted BurnMessages used by TokenMessenger.
  * @dev BurnMessage format:
  * Field                 Bytes      Type       Index
- * version               4          uint8      0
+ * version               4          uint32      0
  * burnToken             32         bytes32    4
  * mintRecipient         32         bytes32    36
  * amount                32         uint256    68

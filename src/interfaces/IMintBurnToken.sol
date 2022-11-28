@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "../../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 

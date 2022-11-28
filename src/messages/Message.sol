@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "@memview-sol/contracts/TypedMemView.sol";
 
@@ -138,15 +138,6 @@ library Message {
             );
     }
 
-    // @notice Returns _message's recipient field as an address
-    function _recipientAddress(bytes29 _message)
-        internal
-        pure
-        returns (address)
-    {
-        return bytes32ToAddress(_recipient(_message));
-    }
-
     /**
      * @notice converts address to bytes32 (alignment preserving cast.)
      * @param addr the address to convert to bytes32
@@ -157,6 +148,8 @@ library Message {
 
     /**
      * @notice converts bytes32 to address (alignment preserving cast.)
+     * @dev Warning: it is possible to have different input values _buf map to the same address.
+     * For use cases where this is not acceptable, validate that the first 12 bytes of _buf are zero-padding.
      * @param _buf the bytes32 to convert to address
      */
     function bytes32ToAddress(bytes32 _buf) public pure returns (address) {

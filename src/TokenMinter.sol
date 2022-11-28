@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "./interfaces/ITokenMinter.sol";
 import "./interfaces/IMintBurnToken.sol";
@@ -35,14 +35,14 @@ contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
      * @param localTokenMessenger address of local TokenMessenger
      * @notice Emitted when a local TokenMessenger is added
      */
-    event LocalTokenMessengerAdded(address indexed localTokenMessenger);
+    event LocalTokenMessengerAdded(address localTokenMessenger);
 
     /**
      * @notice Emitted when a local TokenMessenger is removed
      * @param localTokenMessenger address of local TokenMessenger
      * @notice Emitted when a local TokenMessenger is removed
      */
-    event LocalTokenMessengerRemoved(address indexed localTokenMessenger);
+    event LocalTokenMessengerRemoved(address localTokenMessenger);
 
     // Local TokenMessenger with permission to call mint and burn on this TokenMinter
     address public localTokenMessenger;
@@ -100,7 +100,7 @@ contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
      * @notice Burn tokens owned by this TokenMinter.
      * @param burnToken burnable token address.
      * @param burnAmount amount of tokens to burn. Must be
-     * > 0, and <= maximum burn amount per transaction.
+     * > 0, and <= maximum burn amount per message.
      */
     function burn(address burnToken, uint256 burnAmount)
         external

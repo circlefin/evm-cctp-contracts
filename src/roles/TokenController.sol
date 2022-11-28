@@ -12,13 +12,13 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 /**
  * @title TokenController
  * @notice Base contract which allows children to control tokens, including mapping
  * address of local tokens to addresses of corresponding tokens on remote domains,
- * and limiting the amount of each token that can be burned per transaction.
+ * and limiting the amount of each token that can be burned per message.
  */
 abstract contract TokenController {
     /**
@@ -28,9 +28,9 @@ abstract contract TokenController {
      * @param remoteToken token on `remoteDomain` corresponding to `localToken`
      */
     event TokenPairLinked(
-        address indexed localToken,
-        uint32 indexed remoteDomain,
-        bytes32 indexed remoteToken
+        address localToken,
+        uint32 remoteDomain,
+        bytes32 remoteToken
     );
 
     /**
@@ -40,36 +40,36 @@ abstract contract TokenController {
      * @param remoteToken token on `remoteDomain` unlinked from `localToken`
      */
     event TokenPairUnlinked(
-        address indexed localToken,
-        uint32 indexed remoteDomain,
-        bytes32 indexed remoteToken
+        address localToken,
+        uint32 remoteDomain,
+        bytes32 remoteToken
     );
 
     /**
-     * @notice Emitted when a burn limit per transaction is set for a particular token
+     * @notice Emitted when a burn limit per message is set for a particular token
      * @param token local token address
-     * @param burnLimitPerTransaction burn limit per transaction for `token`
+     * @param burnLimitPerMessage burn limit per message for `token`
      */
-    event SetBurnLimitPerTransaction(
+    event SetBurnLimitPerMessage(
         address indexed token,
-        uint256 indexed burnLimitPerTransaction
+        uint256 burnLimitPerMessage
     );
 
     /**
      * @notice Emitted when token controller is set
      * @param tokenController token controller address set
      */
-    event SetTokenController(address indexed tokenController);
+    event SetTokenController(address tokenController);
 
     // Supported burnable tokens on the local domain
-    // local token (address) => maximum burn amounts per transaction
-    mapping(address => uint256) public burnLimitsPerTransaction;
+    // local token (address) => maximum burn amounts per message
+    mapping(address => uint256) public burnLimitsPerMessage;
 
     // Supported mintable tokens on remote domains, mapped to their corresponding local token
     // hash(remote domain & remote token bytes32 address) => local token (address)
     mapping(bytes32 => address) public remoteTokensToLocalTokens;
 
-    // Role with permission to manage token address mapping across domains, and per-transaction burn limits
+    // Role with permission to manage token address mapping across domains, and per-message burn limits
     address private _tokenController;
 
     /**
@@ -85,14 +85,14 @@ abstract contract TokenController {
 
     /**
      * @notice ensures that attempted burn does not exceed
-     * burn limit per-transaction for given `burnToken`.
+     * burn limit per-message for given `burnToken`.
      * @dev reverts if allowed burn amount is 0, or burnAmount exceeds
      * allowed burn amount.
      * @param token address of token to burn
      * @param amount amount of `token` to burn
      */
     modifier onlyWithinBurnLimit(address token, uint256 amount) {
-        uint256 _allowedBurnAmount = burnLimitsPerTransaction[token];
+        uint256 _allowedBurnAmount = burnLimitsPerMessage[token];
         require(_allowedBurnAmount > 0, "Burn token not supported");
         require(
             amount <= _allowedBurnAmount,
@@ -126,8 +126,6 @@ abstract contract TokenController {
 
     /**
      * @notice Get the enabled local token associated with the given remote domain and token.
-     * @dev Reverts if unable to find an enabled local token for the
-     * given (`remoteDomain`, `remoteToken`) pair.
      * @param remoteDomain Remote domain
      * @param remoteToken Remote token
      * @return Local token address
@@ -183,7 +181,7 @@ abstract contract TokenController {
      * Note:
      * - A remote token (on a certain remote domain) can only map to one local token, but many remote tokens
      * can map to the same local token.
-     * - Unlinking a token pair does not disable burning the `localToken` (that requires calling setMaxBurnAmountPerTransaction.)
+     * - Unlinking a token pair does not disable burning the `localToken` (that requires calling setMaxBurnAmountPerMessage.)
      */
     function unlinkTokenPair(
         address localToken,
@@ -207,20 +205,20 @@ abstract contract TokenController {
     }
 
     /**
-     * @notice Sets the maximum burn amount per transaction for a given `localToken`.
-     * @dev Burns with amounts exceeding `burnLimitPerTransaction` will revert. Mints do not
+     * @notice Sets the maximum burn amount per message for a given `localToken`.
+     * @dev Burns with amounts exceeding `burnLimitPerMessage` will revert. Mints do not
      * respect this value, so if this limit is reduced, previously burned tokens will still
      * be mintable.
-     * @param localToken Local token to set the maximum burn amount per transaction of.
-     * @param burnLimitPerTransaction Maximum burn amount per transaction to set.
+     * @param localToken Local token to set the maximum burn amount per message of.
+     * @param burnLimitPerMessage Maximum burn amount per message to set.
      */
-    function setMaxBurnAmountPerTransaction(
+    function setMaxBurnAmountPerMessage(
         address localToken,
-        uint256 burnLimitPerTransaction
+        uint256 burnLimitPerMessage
     ) external onlyTokenController {
-        burnLimitsPerTransaction[localToken] = burnLimitPerTransaction;
+        burnLimitsPerMessage[localToken] = burnLimitPerMessage;
 
-        emit SetBurnLimitPerTransaction(localToken, burnLimitPerTransaction);
+        emit SetBurnLimitPerMessage(localToken, burnLimitPerMessage);
     }
 
     /**

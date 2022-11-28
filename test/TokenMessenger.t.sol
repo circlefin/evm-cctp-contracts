@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "../lib/forge-std/src/Test.sol";
 import "../src/TokenMessenger.sol";
@@ -31,37 +31,31 @@ contract TokenMessengerTest is Test, TestUtils {
     // Events
     /**
      * @notice Emitted when a remote TokenMessenger is added
-     * @param _domain remote domain
-     * @param _tokenMessenger TokenMessenger on remote domain
+     * @param domain remote domain
+     * @param tokenMessenger TokenMessenger on remote domain
      */
-    event RemoteTokenMessengerAdded(
-        uint32 indexed _domain,
-        bytes32 indexed _tokenMessenger
-    );
+    event RemoteTokenMessengerAdded(uint32 domain, bytes32 tokenMessenger);
 
     /**
      * @notice Emitted when a remote TokenMessenger is removed
-     * @param _domain remote domain
-     * @param _tokenMessenger TokenMessenger on remote domain
+     * @param domain remote domain
+     * @param tokenMessenger TokenMessenger on remote domain
      */
-    event RemoteTokenMessengerRemoved(
-        uint32 indexed _domain,
-        bytes32 indexed _tokenMessenger
-    );
+    event RemoteTokenMessengerRemoved(uint32 domain, bytes32 tokenMessenger);
 
     /**
-     * @notice Emitted when a local minter is added
-     * @param _localMinter address of local minter
-     * @notice Emitted when a local minter is added
+     * @notice Emitted when the local minter is added
+     * @param localMinter address of local minter
+     * @notice Emitted when the local minter is added
      */
-    event LocalMinterAdded(address indexed _localMinter);
+    event LocalMinterAdded(address localMinter);
 
     /**
      * @notice Emitted when the local minter is removed
      * @param localMinter address of local minter
      * @notice Emitted when the local minter is removed
      */
-    event LocalMinterRemoved(address indexed localMinter);
+    event LocalMinterRemoved(address localMinter);
 
     /**
      * @notice Emitted when a new message is dispatched
@@ -84,8 +78,8 @@ contract TokenMessengerTest is Test, TestUtils {
     event DepositForBurn(
         uint64 indexed nonce,
         address indexed burnToken,
-        uint256 indexed amount,
-        address depositor,
+        uint256 amount,
+        address indexed depositor,
         bytes32 mintRecipient,
         uint32 destinationDomain,
         bytes32 destinationTokenMessenger,
@@ -94,14 +88,14 @@ contract TokenMessengerTest is Test, TestUtils {
 
     /**
      * @notice Emitted when tokens are minted
-     * @param _mintRecipient recipient address of minted tokens
-     * @param _amount amount of minted tokens
-     * @param _mintToken contract address of minted token
+     * @param mintRecipient recipient address of minted tokens
+     * @param amount amount of minted tokens
+     * @param mintToken contract address of minted token
      */
     event MintAndWithdraw(
-        address indexed _mintRecipient,
-        uint256 indexed _amount,
-        address indexed _mintToken
+        address indexed mintRecipient,
+        uint256 amount,
+        address indexed mintToken
     );
 
     // Constants
@@ -111,6 +105,7 @@ contract TokenMessengerTest is Test, TestUtils {
     uint32 messageBodyVersion = 1;
     uint256 approveAmount = 10;
     uint256 mintAmount = 9;
+    uint256 allowedBurnAmount = 8;
 
     TokenMessenger localTokenMessenger;
     TokenMessenger destTokenMessenger;
@@ -180,11 +175,22 @@ contract TokenMessengerTest is Test, TestUtils {
         destTokenMinter.addLocalTokenMessenger(address(destTokenMessenger));
     }
 
+    function testConstructor_rejectsZeroAddressLocalMessageTransmitter()
+        public
+    {
+        vm.expectRevert("MessageTransmitter not set");
+        localTokenMessenger = new TokenMessenger(
+            address(0),
+            messageBodyVersion
+        );
+    }
+
     function testDepositForBurn_revertsIfNoRemoteTokenMessengerExistsForDomain(
         address _relayerAddress,
         uint256 _amount
     ) public {
-        vm.assume(_amount > 0 && _amount <= maxTransactionAmount);
+        vm.assume(_relayerAddress != address(0));
+        vm.assume(_amount > 0 && _amount <= maxBurnAmountPerMessage);
         bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
 
         TokenMessenger _tokenMessenger = new TokenMessenger(
@@ -216,7 +222,7 @@ contract TokenMessengerTest is Test, TestUtils {
             remoteTokenMessenger
         );
 
-        vm.assume(_amount > 0 && _amount <= maxTransactionAmount);
+        vm.assume(_amount > 0 && _amount <= maxBurnAmountPerMessage);
         vm.expectRevert("Local minter is not set");
         _tokenMessenger.depositForBurn(
             _amount,
@@ -254,15 +260,13 @@ contract TokenMessengerTest is Test, TestUtils {
         );
     }
 
-    function testDepositForBurn_revertsIfTransferAmountExceedsMaxTransactionLimit(
+    function testDepositForBurn_revertsIfTransferAmountExceedsMaxBurnAmountPerMessage(
         uint256 _amount,
         address _mintRecipientAddr,
-        bytes32 _destinationCaller,
-        uint256 _allowedBurnAmount
+        bytes32 _destinationCaller
     ) public {
-        vm.assume(_amount > 0 && _amount <= mintAmount);
-        vm.assume(_amount > _allowedBurnAmount);
-        vm.assume(_allowedBurnAmount > 0);
+        vm.assume(_mintRecipientAddr != address(0));
+        _amount = bound(_amount, allowedBurnAmount + 1, mintAmount);
 
         bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
         uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
@@ -272,7 +276,7 @@ contract TokenMessengerTest is Test, TestUtils {
             _amount,
             approveAmount,
             mintAmount,
-            _allowedBurnAmount
+            allowedBurnAmount
         );
 
         vm.prank(owner);
@@ -289,7 +293,7 @@ contract TokenMessengerTest is Test, TestUtils {
         uint256 _amount,
         bytes32 _mintRecipient
     ) public {
-        vm.assume(_amount > 0 && _amount <= maxTransactionAmount);
+        vm.assume(_amount > 0 && _amount <= maxBurnAmountPerMessage);
         vm.assume(_mintRecipient != bytes32(0));
         // Fails because approve() was never called, allowance is 0.
         vm.expectRevert("ERC20: transfer amount exceeds allowance");
@@ -308,13 +312,11 @@ contract TokenMessengerTest is Test, TestUtils {
         uint256 _approveAmount = 10;
         uint256 _transferAmount = 1;
 
-        vm.assume(_amount > _transferAmount);
-        vm.assume(_amount <= _approveAmount);
         vm.assume(_mintRecipient != bytes32(0));
-
-        address _spender = address(localTokenMessenger);
+        _amount = bound(_amount, _transferAmount + 1, _approveAmount);
 
         localToken.mint(owner, _transferAmount);
+        address _spender = address(localTokenMessenger);
 
         vm.prank(owner);
         localToken.approve(_spender, _approveAmount);
@@ -338,7 +340,7 @@ contract TokenMessengerTest is Test, TestUtils {
             abi.encodeWithSelector(MockMintBurnToken.transferFrom.selector),
             abi.encode(false)
         );
-        vm.assume(_amount > 0 && _amount <= maxTransactionAmount);
+        vm.assume(_amount > 0 && _amount <= maxBurnAmountPerMessage);
         vm.expectRevert("Transfer operation failed");
         localTokenMessenger.depositForBurn(
             _amount,
@@ -350,23 +352,21 @@ contract TokenMessengerTest is Test, TestUtils {
 
     function testDepositForBurn_succeeds(
         uint256 _amount,
-        uint256 _allowedBurnAmount
+        address _mintRecipientAddr
     ) public {
-        vm.assume(_amount > 0);
-        vm.assume(_amount <= mintAmount);
-        vm.assume(_allowedBurnAmount >= mintAmount);
-        address _mintRecipientAddr = vm.addr(1505);
+        vm.assume(_mintRecipientAddr != address(0));
 
-        _depositForBurn(_mintRecipientAddr, _amount, _allowedBurnAmount);
+        _amount = bound(_amount, 1, allowedBurnAmount);
+
+        _depositForBurn(_mintRecipientAddr, _amount, allowedBurnAmount);
     }
 
     function testDepositForBurn_returnsNonzeroNonce(
         address _mintRecipientAddr,
-        uint256 _amount,
-        uint256 _allowedBurnAmount
+        uint256 _amount
     ) public {
-        vm.assume(_amount > 0 && _amount < mintAmount);
-        vm.assume(_allowedBurnAmount >= _amount);
+        vm.assume(_mintRecipientAddr != address(0));
+        _amount = bound(_amount, 1, allowedBurnAmount);
 
         uint64 _nonce0 = localMessageTransmitter.sendMessage(
             remoteDomain,
@@ -382,16 +382,15 @@ contract TokenMessengerTest is Test, TestUtils {
         );
         assertEq(uint256(_nonce1), 1);
 
-        _depositForBurn(_mintRecipientAddr, _amount, _allowedBurnAmount);
+        _depositForBurn(_mintRecipientAddr, _amount, allowedBurnAmount);
     }
 
     function testDepositForBurnWithCaller_returnsNonzeroNonce(
         address _mintRecipientAddr,
-        uint256 _amount,
-        uint256 _allowedBurnAmount
+        uint256 _amount
     ) public {
-        vm.assume(_amount > 0 && _amount < mintAmount);
-        vm.assume(_allowedBurnAmount >= _amount);
+        vm.assume(_mintRecipientAddr != address(0));
+        _amount = bound(_amount, 1, allowedBurnAmount);
 
         uint64 _nonce0 = localMessageTransmitter.sendMessage(
             remoteDomain,
@@ -411,7 +410,7 @@ contract TokenMessengerTest is Test, TestUtils {
             _mintRecipientAddr,
             _amount,
             destinationCaller,
-            _allowedBurnAmount
+            allowedBurnAmount
         );
     }
 
@@ -422,7 +421,7 @@ contract TokenMessengerTest is Test, TestUtils {
         address _tokenAddress,
         address _mintRecipientAddr
     ) public {
-        vm.assume(_amount <= maxTransactionAmount);
+        vm.assume(_amount <= maxBurnAmountPerMessage);
         vm.expectRevert("Invalid destination caller");
         localTokenMessenger.depositForBurnWithCaller(
             _amount,
@@ -435,34 +434,34 @@ contract TokenMessengerTest is Test, TestUtils {
 
     function testDepositForBurnWithCaller_succeeds(
         uint256 _amount,
-        address _mintRecipientAddr,
-        uint256 _allowedBurnAmount
+        address _mintRecipientAddr
     ) public {
-        vm.assume(_amount > 0 && _amount <= mintAmount);
-        vm.assume(_allowedBurnAmount >= _amount);
+        vm.assume(_mintRecipientAddr != address(0));
+        _amount = bound(_amount, 1, allowedBurnAmount);
 
         _depositForBurnWithCaller(
             _mintRecipientAddr,
             _amount,
             destinationCaller,
-            _allowedBurnAmount
+            allowedBurnAmount
         );
     }
 
-    function testDepositForBurnWithCaller_revertsIfTransferAmountExceedsMaxTransactionLimit(
+    function testDepositForBurnWithCaller_revertsIfTransferAmountExceedsMaxBurnAmountPerMessage(
         uint256 _amount,
         address _mintRecipientAddr,
         bytes32 _destinationCaller,
         uint256 _allowedBurnAmount
     ) public {
-        vm.assume(_amount > 0 && _amount <= mintAmount);
-        vm.assume(_amount > _allowedBurnAmount);
+        uint256 _allowedBurnAmount = 1;
+
+        _amount = bound(_amount, _allowedBurnAmount + 1, mintAmount);
+
+        vm.assume(_mintRecipientAddr != address(0));
         vm.assume(_allowedBurnAmount > 0);
         vm.assume(_destinationCaller != bytes32(0));
 
         bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
-        // assert that a MessageSent event was logged with expected message bytes
-        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
 
         _setupDepositForBurn(
             _mintRecipient,
@@ -732,17 +731,15 @@ contract TokenMessengerTest is Test, TestUtils {
 
     function testHandleReceiveMessage_succeedsForMint(
         uint256 _amount,
-        uint256 _allowedBurnAmount
+        address _mintRecipientAddr
     ) public {
-        address _mintRecipientAddr = vm.addr(1505);
-        vm.assume(_amount > 0);
-        vm.assume(_amount <= mintAmount);
-        vm.assume(_allowedBurnAmount >= mintAmount);
+        vm.assume(_mintRecipientAddr != address(0));
+        _amount = bound(_amount, 1, allowedBurnAmount);
 
         bytes memory _messageBody = _depositForBurn(
             _mintRecipientAddr,
             _amount,
-            _allowedBurnAmount
+            allowedBurnAmount
         );
 
         // assert balance of recipient is initially 0
@@ -1026,6 +1023,7 @@ contract TokenMessengerTest is Test, TestUtils {
         address _newOwner,
         address _secondNewOwner
     ) public {
+        vm.assume(address(localTokenMessenger) != address(0));
         transferOwnershipWithoutAcceptingThenTransferToNewOwner(
             address(localTokenMessenger),
             _newOwner,
@@ -1230,7 +1228,7 @@ contract TokenMessengerTest is Test, TestUtils {
         localToken.approve(address(localTokenMessenger), _approveAmount);
 
         vm.prank(tokenController);
-        localTokenMinter.setMaxBurnAmountPerTransaction(
+        localTokenMinter.setMaxBurnAmountPerMessage(
             address(localToken),
             _allowedBurnAmount
         );

@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "../../src/interfaces/IMintBurnToken.sol";
 import "../../lib/memview-sol/contracts/SafeMath.sol";

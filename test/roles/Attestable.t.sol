@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "../../src/roles/Attestable.sol";
 import "../../lib/forge-std/src/Test.sol";
@@ -48,8 +48,8 @@ contract AttestableTest is Test, TestUtils {
      * @param newSignatureThreshold new signature threshold
      */
     event SignatureThresholdUpdated(
-        uint256 indexed oldSignatureThreshold,
-        uint256 indexed newSignatureThreshold
+        uint256 oldSignatureThreshold,
+        uint256 newSignatureThreshold
     );
 
     address initialAttesterManager = vm.addr(1505);

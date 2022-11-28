@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "./interfaces/IMessageHandler.sol";
 import "./interfaces/ITokenMinter.sol";
@@ -61,8 +61,8 @@ contract TokenMessenger is IMessageHandler, Rescuable {
     event DepositForBurn(
         uint64 indexed nonce,
         address indexed burnToken,
-        uint256 indexed amount,
-        address depositor,
+        uint256 amount,
+        address indexed depositor,
         bytes32 mintRecipient,
         uint32 destinationDomain,
         bytes32 destinationTokenMessenger,
@@ -77,7 +77,7 @@ contract TokenMessenger is IMessageHandler, Rescuable {
      */
     event MintAndWithdraw(
         address indexed mintRecipient,
-        uint256 indexed amount,
+        uint256 amount,
         address indexed mintToken
     );
 
@@ -86,34 +86,28 @@ contract TokenMessenger is IMessageHandler, Rescuable {
      * @param domain remote domain
      * @param tokenMessenger TokenMessenger on remote domain
      */
-    event RemoteTokenMessengerAdded(
-        uint32 indexed domain,
-        bytes32 indexed tokenMessenger
-    );
+    event RemoteTokenMessengerAdded(uint32 domain, bytes32 tokenMessenger);
 
     /**
      * @notice Emitted when a remote TokenMessenger is removed
      * @param domain remote domain
      * @param tokenMessenger TokenMessenger on remote domain
      */
-    event RemoteTokenMessengerRemoved(
-        uint32 indexed domain,
-        bytes32 indexed tokenMessenger
-    );
+    event RemoteTokenMessengerRemoved(uint32 domain, bytes32 tokenMessenger);
 
     /**
      * @notice Emitted when the local minter is added
      * @param localMinter address of local minter
      * @notice Emitted when the local minter is added
      */
-    event LocalMinterAdded(address indexed localMinter);
+    event LocalMinterAdded(address localMinter);
 
     /**
      * @notice Emitted when the local minter is removed
      * @param localMinter address of local minter
      * @notice Emitted when the local minter is removed
      */
-    event LocalMinterRemoved(address indexed localMinter);
+    event LocalMinterRemoved(address localMinter);
 
     /**
      * @notice Only accept messages from a registered TokenMessenger contract on given remote domain
@@ -143,6 +137,10 @@ contract TokenMessenger is IMessageHandler, Rescuable {
      * @param _messageBodyVersion Message body version
      */
     constructor(address _messageTransmitter, uint32 _messageBodyVersion) {
+        require(
+            _messageTransmitter != address(0),
+            "MessageTransmitter not set"
+        );
         localMessageTransmitter = IMessageTransmitter(_messageTransmitter);
         messageBodyVersion = _messageBodyVersion;
     }

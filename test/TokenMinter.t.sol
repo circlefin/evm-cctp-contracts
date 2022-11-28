@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "../src/messages/Message.sol";
 import "../src/TokenMinter.sol";
@@ -28,9 +28,9 @@ contract TokenMinterTest is Test, TestUtils {
      * @param remoteToken token on `remoteDomain` corresponding to `localToken`
      */
     event TokenPairLinked(
-        address indexed localToken,
-        uint32 indexed remoteDomain,
-        bytes32 indexed remoteToken
+        address localToken,
+        uint32 remoteDomain,
+        bytes32 remoteToken
     );
 
     /**
@@ -40,26 +40,26 @@ contract TokenMinterTest is Test, TestUtils {
      * @param remoteToken token on `remoteDomain` unlinked from `localToken`
      */
     event TokenPairUnlinked(
-        address indexed localToken,
-        uint32 indexed remoteDomain,
-        bytes32 indexed remoteToken
+        address localToken,
+        uint32 remoteDomain,
+        bytes32 remoteToken
     );
 
     /**
-     * @notice Emitted when a burn limit per transaction is set for a particular token
+     * @notice Emitted when a burn limit per message is set for a particular token
      * @param token local token address
-     * @param burnLimitPerTransaction burn limit per transaction for `token`
+     * @param burnLimitPerMessage burn limit per message for `token`
      */
-    event SetBurnLimitPerTransaction(
+    event SetBurnLimitPerMessage(
         address indexed token,
-        uint256 indexed burnLimitPerTransaction
+        uint256 burnLimitPerMessage
     );
 
     /**
      * @notice Emitted when token controller is set
      * @param tokenController token controller address set
      */
-    event SetTokenController(address indexed tokenController);
+    event SetTokenController(address tokenController);
 
     uint32 remoteDomain = 0;
 
@@ -154,7 +154,7 @@ contract TokenMinterTest is Test, TestUtils {
         vm.assume(_allowedBurnAmount > 0 && _allowedBurnAmount >= _amount);
 
         vm.prank(tokenController);
-        tokenMinter.setMaxBurnAmountPerTransaction(
+        tokenMinter.setMaxBurnAmountPerMessage(
             localTokenAddress,
             _allowedBurnAmount
         );
@@ -183,7 +183,7 @@ contract TokenMinterTest is Test, TestUtils {
         uint256 _burnAmount = 1;
 
         vm.prank(tokenController);
-        tokenMinter.setMaxBurnAmountPerTransaction(
+        tokenMinter.setMaxBurnAmountPerMessage(
             localTokenAddress,
             _allowedBurnAmount
         );
@@ -207,7 +207,7 @@ contract TokenMinterTest is Test, TestUtils {
         vm.assume(_amount > _allowedBurnAmount);
 
         vm.prank(tokenController);
-        tokenMinter.setMaxBurnAmountPerTransaction(
+        tokenMinter.setMaxBurnAmountPerMessage(
             localTokenAddress,
             _allowedBurnAmount
         );
@@ -309,29 +309,29 @@ contract TokenMinterTest is Test, TestUtils {
         assertEq(_result, address(0));
     }
 
-    function testSetMaxBurnAmountPerTransaction_succeeds(
+    function testSetMaxBurnAmountPerMessage_succeeds(
         address _localToken,
-        uint256 _burnLimitPerTransaction
+        uint256 _burnLimitPerMessage
     ) public {
         vm.prank(tokenController);
 
         vm.expectEmit(true, true, true, true);
-        emit SetBurnLimitPerTransaction(_localToken, _burnLimitPerTransaction);
+        emit SetBurnLimitPerMessage(_localToken, _burnLimitPerMessage);
 
-        tokenMinter.setMaxBurnAmountPerTransaction(
+        tokenMinter.setMaxBurnAmountPerMessage(
             _localToken,
-            _burnLimitPerTransaction
+            _burnLimitPerMessage
         );
     }
 
-    function testSetMaxBurnAmountPerTransaction_revertsWhenCalledByNonController(
+    function testSetMaxBurnAmountPerMessage_revertsWhenCalledByNonController(
         address _localToken,
-        uint256 _burnLimitPerTransaction
+        uint256 _burnLimitPerMessage
     ) public {
         expectRevertWithWrongTokenController();
-        tokenMinter.setMaxBurnAmountPerTransaction(
+        tokenMinter.setMaxBurnAmountPerMessage(
             _localToken,
-            _burnLimitPerTransaction
+            _burnLimitPerMessage
         );
     }
 
@@ -417,6 +417,15 @@ contract TokenMinterTest is Test, TestUtils {
             _rescuer,
             _rescueRecipient,
             _amount
+        );
+    }
+
+    function testPausable(address _newPauser) public {
+        assertContractIsPausable(
+            address(tokenMinter),
+            pauser,
+            _newPauser,
+            tokenMinter.owner()
         );
     }
 

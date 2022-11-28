@@ -33,13 +33,14 @@ import "./Ownable2Step.sol";
  * @dev Forked from https://github.com/centrehq/centre-tokens/blob/0d3cab14ebd133a83fc834dbd48d0468bdf0b391/contracts/v1/Pausable.sol
  * Modifications:
  * 1. Update Solidity version from 0.6.12 to 0.7.6 (8/23/2022)
+ * 2. Change pauser visibility to private, declare external getter (11/19/22)
  */
 contract Pausable is Ownable2Step {
     event Pause();
     event Unpause();
     event PauserChanged(address indexed newAddress);
 
-    address public pauser;
+    address private _pauser;
     bool public paused = false;
 
     /**
@@ -54,8 +55,16 @@ contract Pausable is Ownable2Step {
      * @dev throws if called by any account other than the pauser
      */
     modifier onlyPauser() {
-        require(msg.sender == pauser, "Pausable: caller is not the pauser");
+        require(msg.sender == _pauser, "Pausable: caller is not the pauser");
         _;
+    }
+
+    /**
+     * @notice Returns current pauser
+     * @return Pauser's address
+     */
+    function pauser() external view returns (address) {
+        return _pauser;
     }
 
     /**
@@ -82,7 +91,7 @@ contract Pausable is Ownable2Step {
             _newPauser != address(0),
             "Pausable: new pauser is the zero address"
         );
-        pauser = _newPauser;
-        emit PauserChanged(pauser);
+        _pauser = _newPauser;
+        emit PauserChanged(_pauser);
     }
 }

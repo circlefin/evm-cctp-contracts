@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "@memview-sol/contracts/TypedMemView.sol";
 import "./interfaces/IMessageTransmitter.sol";
@@ -49,7 +49,7 @@ contract MessageTransmitter is
      */
     event MessageReceived(
         address indexed caller,
-        uint32 indexed sourceDomain,
+        uint32 sourceDomain,
         uint64 indexed nonce,
         bytes32 sender,
         bytes messageBody
@@ -59,7 +59,7 @@ contract MessageTransmitter is
      * @notice Emitted when max message body size is updated
      * @param newMaxMessageBodySize new maximum message body size, in bytes
      */
-    event MaxMessageBodySizeUpdated(uint256 indexed newMaxMessageBodySize);
+    event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
 
     // ============ Libraries ============
     using TypedMemView for bytes;
@@ -284,11 +284,8 @@ contract MessageTransmitter is
         bytes32 _sender = _m._sender();
         bytes memory _messageBody = _m._messageBody().clone();
         require(
-            IMessageHandler(_m._recipientAddress()).handleReceiveMessage(
-                _sourceDomain,
-                _sender,
-                _messageBody
-            ),
+            IMessageHandler(Message.bytes32ToAddress(_m._recipient()))
+                .handleReceiveMessage(_sourceDomain, _sender, _messageBody),
             "handleReceiveMessage() failed"
         );
 
@@ -306,7 +303,7 @@ contract MessageTransmitter is
     /**
      * @notice Send the message to the destination domain and recipient. If `_destinationCaller` is not equal to bytes32(0),
      * the message can only be received on the destination chain when called by `_destinationCaller`.
-     * @dev Increment nonce, format the message, and emit `MessageSent` event with message information.
+     * @dev Format the message and emit `MessageSent` event with message information.
      * @param _destinationDomain Domain of destination chain
      * @param _recipient Address of message recipient on destination domain as bytes32
      * @param _destinationCaller caller on the destination domain, as bytes32
@@ -368,7 +365,7 @@ contract MessageTransmitter is
               destination
      * @return hash of source and nonce
      */
-    function _hashSourceAndNonce(uint32 _source, uint256 _nonce)
+    function _hashSourceAndNonce(uint32 _source, uint64 _nonce)
         internal
         pure
         returns (bytes32)

@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
@@ -37,8 +37,8 @@ contract Attestable is Ownable2Step {
      * @param newSignatureThreshold new signature threshold
      */
     event SignatureThresholdUpdated(
-        uint256 indexed oldSignatureThreshold,
-        uint256 indexed newSignatureThreshold
+        uint256 oldSignatureThreshold,
+        uint256 newSignatureThreshold
     );
 
     /**
@@ -78,7 +78,7 @@ contract Attestable is Ownable2Step {
      * @dev The constructor sets the original attester manager of the contract to the sender account.
      * @param attester attester to initialize
      */
-    constructor(address attester) public {
+    constructor(address attester) {
         _setAttesterManager(msg.sender);
         // Initially 1 signature is required. Threshold can be increased by attesterManager.
         signatureThreshold = 1;
@@ -262,7 +262,7 @@ contract Attestable is Ownable2Step {
     function _recoverAttesterSignature(
         bytes memory _message,
         bytes memory _signature
-    ) internal view returns (address) {
+    ) internal pure returns (address) {
         bytes32 _digest = keccak256(_message);
         return (ECDSA.recover(_digest, _signature));
     }

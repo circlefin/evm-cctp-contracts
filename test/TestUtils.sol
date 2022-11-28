@@ -24,14 +24,14 @@ contract TestUtils is Test {
      * @param localTokenMessenger address of local TokenMessenger
      * @notice Emitted when a local TokenMessenger is added
      */
-    event LocalTokenMessengerAdded(address indexed localTokenMessenger);
+    event LocalTokenMessengerAdded(address localTokenMessenger);
 
     /**
      * @notice Emitted when a local TokenMessenger is removed
      * @param localTokenMessenger address of local TokenMessenger
      * @notice Emitted when a local TokenMessenger is removed
      */
-    event LocalTokenMessengerRemoved(address indexed localTokenMessenger);
+    event LocalTokenMessengerRemoved(address localTokenMessenger);
 
     event OwnershipTransferred(
         address indexed previousOwner,
@@ -42,6 +42,12 @@ contract TestUtils is Test {
         address indexed previousOwner,
         address indexed newOwner
     );
+
+    event Pause();
+
+    event Unpause();
+
+    event PauserChanged(address indexed newAddress);
 
     // test keys
     uint256 attesterPK = 1;
@@ -67,7 +73,7 @@ contract TestUtils is Test {
     bytes32 destinationCaller = Message.addressToBytes32(destinationCallerAddr);
     bytes32 emptyDestinationCaller = bytes32(0);
     bytes messageBody = bytes("test message");
-    uint256 maxTransactionAmount = 1000000;
+    uint256 maxBurnAmountPerMessage = 1000000;
     address tokenController = vm.addr(1900);
     address newTokenController = vm.addr(1900);
     address owner = vm.addr(1902);
@@ -175,6 +181,39 @@ contract TestUtils is Test {
         assertEq(_mockMintBurnToken.balanceOf(_rescueRecipient), _amount);
     }
 
+    function assertContractIsPausable(
+        address _pausableContractAddress,
+        address _currentPauser,
+        address _newPauser,
+        address _owner
+    ) public {
+        vm.assume(_newPauser != address(0));
+        Pausable _pausableContract = Pausable(_pausableContractAddress);
+        assertEq(_pausableContract.pauser(), _currentPauser);
+        assertFalse(_pausableContract.paused());
+
+        vm.startPrank(_currentPauser);
+
+        vm.expectEmit(true, true, true, true);
+        emit Pause();
+        _pausableContract.pause();
+        assertTrue(_pausableContract.paused());
+
+        vm.expectEmit(true, true, true, true);
+        emit Unpause();
+        _pausableContract.unpause();
+        assertFalse(_pausableContract.paused());
+
+        vm.stopPrank();
+
+        vm.expectEmit(true, true, true, true);
+        emit PauserChanged(_newPauser);
+        vm.prank(_owner);
+        _pausableContract.updatePauser(_newPauser);
+
+        assertEq(_pausableContract.pauser(), _newPauser);
+    }
+
     function transferOwnershipAndAcceptOwnership(
         address _ownableContractAddress,
         address _newOwner
@@ -210,14 +249,15 @@ contract TestUtils is Test {
         address _newOwner,
         address _secondNewOwner
     ) public {
+        Ownable2Step _ownableContract = Ownable2Step(_ownableContractAddress);
+        address initialOwner = _ownableContract.owner();
         vm.assume(_newOwner != address(0));
         vm.assume(
             _secondNewOwner != _newOwner &&
                 _secondNewOwner != address(0) &&
-                _secondNewOwner != _ownableContractAddress
+                _secondNewOwner != _ownableContractAddress &&
+                _secondNewOwner != initialOwner
         );
-        Ownable2Step _ownableContract = Ownable2Step(_ownableContractAddress);
-        address initialOwner = _ownableContract.owner();
         assertEq(_ownableContract.owner(), initialOwner);
 
         // set pending owner
@@ -241,9 +281,6 @@ contract TestUtils is Test {
 
         // assert that the owner is now _secondNewOwner
         assertEq(_ownableContract.owner(), _secondNewOwner);
-
-        // sanity check owner changed
-        assertFalse(_secondNewOwner == initialOwner);
     }
 
     function _signMessageWithAttesterPK(bytes memory _message)

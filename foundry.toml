@@ -2,3 +2,5 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
+[fuzz]
+runs = 10000

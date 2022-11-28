@@ -12,7 +12,7 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "../../lib/forge-std/src/Test.sol";
 import "../../src/roles/Ownable2Step.sol";

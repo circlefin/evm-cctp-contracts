@@ -150,7 +150,7 @@ contract DeployScript is Script {
             usdcRemoteContractAddress
         );
 
-        tokenMinter.setMaxBurnAmountPerTransaction(
+        tokenMinter.setMaxBurnAmountPerMessage(
             usdcContractAddress,
             burnLimitPerTransaction
         );

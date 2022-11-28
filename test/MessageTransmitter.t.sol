@@ -12,13 +12,12 @@
  * prohibited without the express written permission of Circle Internet Financial
  * Trading Company Limited.
  */
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 import "./mocks/MockTokenMessenger.sol";
 import "./mocks/MockReentrantCaller.sol";
-import "./mocks/MockRepeatCaller.sol";
 import "../src/interfaces/IReceiver.sol";
 import "../src/MessageTransmitter.sol";
 import "../lib/forge-std/src/Test.sol";
@@ -50,7 +49,7 @@ contract MessageTransmitterTest is Test, TestUtils {
      */
     event MessageReceived(
         address indexed caller,
-        uint32 indexed sourceDomain,
+        uint32 sourceDomain,
         uint64 indexed nonce,
         bytes32 sender,
         bytes messageBody
@@ -60,7 +59,7 @@ contract MessageTransmitterTest is Test, TestUtils {
      * @notice Emitted when max message body size is updated
      * @param newMaxMessageBodySize new maximum message body size, in bytes
      */
-    event MaxMessageBodySizeUpdated(uint256 indexed newMaxMessageBodySize);
+    event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
 
     // ============ Libraries ============
     using TypedMemView for bytes;
@@ -690,7 +689,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.receiveMessage(_message, _attestation);
     }
 
-    function testReceiveMessage_rejectsReusedNonceInSeparateTransaction(
+    function testReceiveMessage_rejectsReusedNonceInSeparateMessage(
         address _caller
     ) public {
         // successfully receiveMessage
@@ -709,35 +708,6 @@ contract MessageTransmitterTest is Test, TestUtils {
         // fail to call receiveMessage again with same nonce
         vm.expectRevert("Nonce already used");
         destMessageTransmitter.receiveMessage(_message, _signature);
-    }
-
-    function testReceiveMessage_rejectsReusedNonceInSingleTransactionFromExternalCaller()
-        public
-    {
-        bytes memory _message = Message._formatMessage(
-            version,
-            sourceDomain,
-            destinationDomain,
-            nonce,
-            sender,
-            recipient,
-            emptyDestinationCaller,
-            messageBody
-        );
-
-        uint256[] memory attesterPrivateKeys = new uint256[](1);
-        attesterPrivateKeys[0] = attesterPK;
-        bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
-
-        MockRepeatCaller _mockRepeatCaller = new MockRepeatCaller();
-
-        // fail to call receiveMessage twice in same transaction
-        vm.expectRevert("Nonce already used");
-        _mockRepeatCaller.callReceiveMessageTwice(
-            address(destMessageTransmitter),
-            _message,
-            _signature
-        );
     }
 
     function testReceiveMessage_rejectsReusedNonceFromReentrantCaller() public {
@@ -895,6 +865,15 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
     }
 
+    function testPausable(address _newPauser) public {
+        assertContractIsPausable(
+            address(srcMessageTransmitter),
+            pauser,
+            _newPauser,
+            srcMessageTransmitter.owner()
+        );
+    }
+
     function testTransferOwnershipAndAcceptOwnership() public {
         address _newOwner = vm.addr(1509);
         transferOwnershipAndAcceptOwnership(
@@ -921,7 +900,7 @@ contract MessageTransmitterTest is Test, TestUtils {
               destination
      * @return Returns hash of source and nonce
      */
-    function _hashSourceAndNonce(uint32 _source, uint256 _nonce)
+    function _hashSourceAndNonce(uint32 _source, uint64 _nonce)
         internal
         pure
         returns (bytes32)
