@@ -755,10 +755,11 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.receiveMessage(_message, _signature);
 
         // check that the nonce is not used
-        assertFalse(
+        assertEq(
             destMessageTransmitter.usedNonces(
                 _hashSourceAndNonce(sourceDomain, _nonce)
-            )
+            ),
+            0
         );
     }
 
@@ -797,9 +798,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         // receiveMessage works again after unpause
         vm.prank(pauser);
         srcMessageTransmitter.unpause();
-        uint64 _nonce = srcMessageTransmitter.availableNonces(
-            destinationDomain
-        );
+        uint64 _nonce = srcMessageTransmitter.nextAvailableNonce();
         _receiveMessage(
             _caller,
             version,
@@ -916,9 +915,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         bytes32 _recipient,
         bytes memory _messageBody
     ) internal returns (uint64 msgNonce) {
-        uint64 _nonce = srcMessageTransmitter.availableNonces(
-            _destinationDomain
-        );
+        uint64 _nonce = srcMessageTransmitter.nextAvailableNonce();
 
         bytes memory _expectedMessage = Message._formatMessage(
             _version,
@@ -944,10 +941,8 @@ contract MessageTransmitterTest is Test, TestUtils {
 
         assertEq(uint256(_nonceReserved), uint256(_nonce));
 
-        // assert availableNonces was updated
-        uint256 _incrementedNonce = srcMessageTransmitter.availableNonces(
-            _destinationDomain
-        );
+        // assert nextAvailableNonce was updated
+        uint256 _incrementedNonce = srcMessageTransmitter.nextAvailableNonce();
 
         assertEq(_incrementedNonce, uint256(_nonce + 1));
 
@@ -963,9 +958,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         bytes32 _destinationCaller,
         bytes memory _messageBody
     ) internal returns (uint64 msgNonce) {
-        uint64 _nonce = srcMessageTransmitter.availableNonces(
-            _destinationDomain
-        );
+        uint64 _nonce = srcMessageTransmitter.nextAvailableNonce();
 
         bytes memory _expectedMessage = Message._formatMessage(
             _version,
@@ -992,10 +985,8 @@ contract MessageTransmitterTest is Test, TestUtils {
 
         assertEq(uint256(_nonceReserved), uint256(_nonce));
 
-        // assert availableNonces was updated
-        uint256 _incrementedNonce = srcMessageTransmitter.availableNonces(
-            _destinationDomain
-        );
+        // assert nextAvailableNonce was updated
+        uint256 _incrementedNonce = srcMessageTransmitter.nextAvailableNonce();
 
         assertEq(_incrementedNonce, uint256(_nonce + 1));
 
@@ -1044,10 +1035,11 @@ contract MessageTransmitterTest is Test, TestUtils {
         assertTrue(success);
 
         // check that the nonce is used
-        assertTrue(
+        assertEq(
             destMessageTransmitter.usedNonces(
                 _hashSourceAndNonce(_sourceDomain, _nonce)
-            )
+            ),
+            1
         );
 
         return (_message, _signature);
@@ -1118,10 +1110,11 @@ contract MessageTransmitterTest is Test, TestUtils {
         assertTrue(success);
 
         // check that the nonce is used
-        assertTrue(
+        assertEq(
             destMessageTransmitter.usedNonces(
                 _hashSourceAndNonce(sourceDomain, _msgNonce)
-            )
+            ),
+            1
         );
     }
 

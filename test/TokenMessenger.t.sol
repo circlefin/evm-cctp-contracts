@@ -269,7 +269,7 @@ contract TokenMessengerTest is Test, TestUtils {
         _amount = bound(_amount, allowedBurnAmount + 1, mintAmount);
 
         bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
-        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
+        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
 
         _setupDepositForBurn(
             _mintRecipient,
@@ -516,7 +516,7 @@ contract TokenMessengerTest is Test, TestUtils {
             _amount,
             Message.addressToBytes32(address(owner))
         );
-        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
+        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
         bytes memory _expectedMessage = Message._formatMessage(
             version,
             localDomain,
@@ -564,7 +564,7 @@ contract TokenMessengerTest is Test, TestUtils {
             _amount,
             Message.addressToBytes32(address(owner))
         );
-        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
+        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
         bytes memory _expectedMessage = Message._formatMessage(
             version,
             localDomain,
@@ -611,7 +611,7 @@ contract TokenMessengerTest is Test, TestUtils {
             _amount,
             Message.addressToBytes32(address(owner))
         );
-        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
+        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
         bytes memory _expectedMessage = Message._formatMessage(
             version,
             localDomain,
@@ -1060,7 +1060,7 @@ contract TokenMessengerTest is Test, TestUtils {
             _allowedBurnAmount
         );
 
-        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
+        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
 
         bytes memory _expectedMessage = Message._formatMessage(
             version,
@@ -1120,7 +1120,7 @@ contract TokenMessengerTest is Test, TestUtils {
     ) internal returns (bytes memory) {
         bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
         // assert that a MessageSent event was logged with expected message bytes
-        uint64 _nonce = localMessageTransmitter.availableNonces(remoteDomain);
+        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
 
         bytes memory _messageBody = _setupDepositForBurn(
             _mintRecipient,

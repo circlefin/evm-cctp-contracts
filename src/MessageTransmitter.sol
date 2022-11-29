@@ -77,12 +77,11 @@ contract MessageTransmitter is
     // This value is set by owner.
     uint256 public maxMessageBodySize;
 
-    // Maps domain -> next available sequential nonce
-    mapping(uint32 => uint64) public availableNonces;
+    // Next available nonce from this source domain
+    uint64 public nextAvailableNonce;
 
-    // Maps a hash of (sourceDomain, nonce) -> boolean
-    // boolean value is true if nonce is used
-    mapping(bytes32 => bool) public usedNonces;
+    // Maps a bytes32 hash of (sourceDomain, nonce) -> uint256 (0 if unused, 1 if used)
+    mapping(bytes32 => uint256) public usedNonces;
 
     // ============ Constructor ============
     constructor(
@@ -103,15 +102,15 @@ contract MessageTransmitter is
      * @param destinationDomain Domain of destination chain
      * @param recipient Address of message recipient on destination chain as bytes32
      * @param messageBody Raw bytes content of message
-     * @return _nonce unique nonce reserved by message
+     * @return nonce reserved by message
      */
     function sendMessage(
         uint32 destinationDomain,
         bytes32 recipient,
-        bytes memory messageBody
-    ) external override whenNotPaused returns (uint64 _nonce) {
+        bytes calldata messageBody
+    ) external override whenNotPaused returns (uint64) {
         bytes32 _emptyDestinationCaller = bytes32(0);
-        uint64 _nonceReserved = _reserveAndIncrementNonce(destinationDomain);
+        uint64 _nonce = _reserveAndIncrementNonce();
         bytes32 _messageSender = Message.addressToBytes32(msg.sender);
 
         _sendMessage(
@@ -119,11 +118,11 @@ contract MessageTransmitter is
             recipient,
             _emptyDestinationCaller,
             _messageSender,
-            _nonceReserved,
+            _nonce,
             messageBody
         );
 
-        return _nonceReserved;
+        return _nonce;
     }
 
     /**
@@ -139,9 +138,9 @@ contract MessageTransmitter is
      * destination caller (bytes32(0), indicating that any destination caller is valid.)
      */
     function replaceMessage(
-        bytes memory originalMessage,
+        bytes calldata originalMessage,
         bytes calldata originalAttestation,
-        bytes memory newMessageBody,
+        bytes calldata newMessageBody,
         bytes32 newDestinationCaller
     ) external override whenNotPaused {
         // Validate each signature in the attestation
@@ -188,20 +187,20 @@ contract MessageTransmitter is
      * @param recipient Address of message recipient on destination domain as bytes32
      * @param destinationCaller caller on the destination domain, as bytes32
      * @param messageBody Raw bytes content of message
-     * @return _nonce unique nonce reserved by message
+     * @return nonce reserved by message
      */
     function sendMessageWithCaller(
         uint32 destinationDomain,
         bytes32 recipient,
         bytes32 destinationCaller,
-        bytes memory messageBody
-    ) external override whenNotPaused returns (uint64 _nonce) {
+        bytes calldata messageBody
+    ) external override whenNotPaused returns (uint64) {
         require(
             destinationCaller != bytes32(0),
             "Destination caller must be nonzero"
         );
 
-        uint64 _nonceReserved = _reserveAndIncrementNonce(destinationDomain);
+        uint64 _nonce = _reserveAndIncrementNonce();
         bytes32 _messageSender = Message.addressToBytes32(msg.sender);
 
         _sendMessage(
@@ -209,11 +208,11 @@ contract MessageTransmitter is
             recipient,
             destinationCaller,
             _messageSender,
-            _nonceReserved,
+            _nonce,
             messageBody
         );
 
-        return _nonceReserved;
+        return _nonce;
     }
 
     /**
@@ -244,7 +243,7 @@ contract MessageTransmitter is
      * of the attester address recovered from signatures.
      * @return success bool, true if successful
      */
-    function receiveMessage(bytes memory message, bytes calldata attestation)
+    function receiveMessage(bytes calldata message, bytes calldata attestation)
         external
         override
         whenNotPaused
@@ -276,9 +275,9 @@ contract MessageTransmitter is
         uint32 _sourceDomain = _m._sourceDomain();
         uint64 _nonce = _m._nonce();
         bytes32 _sourceAndNonce = _hashSourceAndNonce(_sourceDomain, _nonce);
-        require(!usedNonces[_sourceAndNonce], "Nonce already used");
+        require(usedNonces[_sourceAndNonce] == 0, "Nonce already used");
         // Mark nonce used
-        usedNonces[_sourceAndNonce] = true;
+        usedNonces[_sourceAndNonce] = 1;
 
         // Handle receive message
         bytes32 _sender = _m._sender();
@@ -317,7 +316,7 @@ contract MessageTransmitter is
         bytes32 _destinationCaller,
         bytes32 _sender,
         uint64 _nonce,
-        bytes memory _messageBody
+        bytes calldata _messageBody
     ) internal {
         // Validate message body length
         require(
@@ -374,14 +373,12 @@ contract MessageTransmitter is
     }
 
     /**
-     * Reserve and increment next available nonce for given `_destinationDomain`
+     * Reserve and increment next available nonce
+     * @return nonce reserved
      */
-    function _reserveAndIncrementNonce(uint32 _destinationDomain)
-        internal
-        returns (uint64 nonce)
-    {
-        uint64 _nonceReserved = availableNonces[_destinationDomain];
-        availableNonces[_destinationDomain] = _nonceReserved + 1;
+    function _reserveAndIncrementNonce() internal returns (uint64) {
+        uint64 _nonceReserved = nextAvailableNonce;
+        nextAvailableNonce = nextAvailableNonce + 1;
         return _nonceReserved;
     }
 }

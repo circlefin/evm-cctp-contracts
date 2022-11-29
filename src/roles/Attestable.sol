@@ -137,11 +137,13 @@ contract Attestable is Ownable2Step {
      */
     function disableAttester(address attester) external onlyAttesterManager {
         // Disallow disabling attester if there is only 1 active attester
-        require(getNumEnabledAttesters() > 1, "Too few enabled attesters");
+        uint256 _numEnabledAttesters = getNumEnabledAttesters();
+
+        require(_numEnabledAttesters > 1, "Too few enabled attesters");
 
         // Disallow disabling an attester if it would cause the n in m/n multisig to fall below m (threshold # of signers).
         require(
-            getNumEnabledAttesters() > signatureThreshold,
+            _numEnabledAttesters > signatureThreshold,
             "Signature threshold is too low"
         );
 
@@ -220,7 +222,7 @@ contract Attestable is Ownable2Step {
      * (https://github.com/christianlundkvist/simple-multisig/tree/560c463c8651e0a4da331bd8f245ccd2a48ab63d)
      */
     function _verifyAttestationSignatures(
-        bytes memory _message,
+        bytes calldata _message,
         bytes calldata _attestation
     ) internal view {
         require(
@@ -231,12 +233,16 @@ contract Attestable is Ownable2Step {
         // (Attesters cannot be address(0))
         address _latestAttesterAddress = address(0);
         // Address recovered from signatures must be in increasing order, to prevent duplicates
+
+        bytes32 _digest = keccak256(_message);
+
         for (uint256 i; i < signatureThreshold; ++i) {
             bytes memory _signature = _attestation[i * signatureLength:i *
                 signatureLength +
                 signatureLength];
+
             address _recoveredAttester = _recoverAttesterSignature(
-                _message,
+                _digest,
                 _signature
             );
 
@@ -255,15 +261,15 @@ contract Attestable is Ownable2Step {
 
     /**
      * @notice Checks that signature was signed by attester
-     * @param _message unsigned message bytes
+     * @param _digest message hash
      * @param _signature message signature
      * @return address of recovered signer
      **/
-    function _recoverAttesterSignature(
-        bytes memory _message,
-        bytes memory _signature
-    ) internal pure returns (address) {
-        bytes32 _digest = keccak256(_message);
+    function _recoverAttesterSignature(bytes32 _digest, bytes memory _signature)
+        internal
+        pure
+        returns (address)
+    {
         return (ECDSA.recover(_digest, _signature));
     }
 }

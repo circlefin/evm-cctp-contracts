@@ -243,7 +243,7 @@ contract TokenMessenger is IMessageHandler, Rescuable {
      * original mint recipient, or different.
      */
     function replaceDepositForBurn(
-        bytes memory originalMessage,
+        bytes calldata originalMessage,
         bytes calldata originalAttestation,
         bytes32 newDestinationCaller,
         bytes32 newMintRecipient
@@ -305,7 +305,7 @@ contract TokenMessenger is IMessageHandler, Rescuable {
     function handleReceiveMessage(
         uint32 remoteDomain,
         bytes32 sender,
-        bytes memory messageBody
+        bytes calldata messageBody
     )
         external
         override
