@@ -26,7 +26,7 @@ interface IReceiver {
      * @param signature The message signature
      * @return success bool, true if successful
      */
-    function receiveMessage(bytes memory message, bytes memory signature)
+    function receiveMessage(bytes calldata message, bytes calldata signature)
         external
         returns (bool success);
 }

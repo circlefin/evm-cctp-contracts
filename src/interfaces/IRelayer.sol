@@ -25,13 +25,13 @@ interface IRelayer {
      * @param destinationDomain Domain of destination chain
      * @param recipient Address of message recipient on destination domain as bytes32
      * @param messageBody Raw bytes content of message
-     * @return _nonce unique nonce reserved by message
+     * @return nonce reserved by message
      */
     function sendMessage(
         uint32 destinationDomain,
         bytes32 recipient,
-        bytes memory messageBody
-    ) external returns (uint64 _nonce);
+        bytes calldata messageBody
+    ) external returns (uint64);
 
     /**
      * @notice Sends an outgoing message from the source domain, with a specified caller on the
@@ -44,14 +44,14 @@ interface IRelayer {
      * @param recipient Address of message recipient on destination domain as bytes32
      * @param destinationCaller caller on the destination domain, as bytes32
      * @param messageBody Raw bytes content of message
-     * @return _nonce unique nonce reserved by message
+     * @return nonce reserved by message
      */
     function sendMessageWithCaller(
         uint32 destinationDomain,
         bytes32 recipient,
         bytes32 destinationCaller,
-        bytes memory messageBody
-    ) external returns (uint64 _nonce);
+        bytes calldata messageBody
+    ) external returns (uint64);
 
     /**
      * @notice Replace a message with a new message body and/or destination caller.
@@ -62,9 +62,9 @@ interface IRelayer {
      * @param newDestinationCaller the new destination caller
      */
     function replaceMessage(
-        bytes memory originalMessage,
+        bytes calldata originalMessage,
         bytes calldata originalAttestation,
-        bytes memory newMessageBody,
+        bytes calldata newMessageBody,
         bytes32 newDestinationCaller
     ) external;
 }

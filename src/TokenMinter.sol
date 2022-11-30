@@ -30,6 +30,7 @@ import "./TokenMessenger.sol";
  * It is assumed that local and remote tokens are fungible at a constant 1:1 exchange rate.
  */
 contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
+    // ============ Events ============
     /**
      * @notice Emitted when a local TokenMessenger is added
      * @param localTokenMessenger address of local TokenMessenger
@@ -44,9 +45,11 @@ contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
      */
     event LocalTokenMessengerRemoved(address localTokenMessenger);
 
+    // ============ State Variables ============
     // Local TokenMessenger with permission to call mint and burn on this TokenMinter
     address public localTokenMessenger;
 
+    // ============ Modifiers ============
     /**
      * @notice Only accept messages from the registered message transmitter on local domain
      */
@@ -55,13 +58,15 @@ contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
         _;
     }
 
-    /**a
+    // ============ Constructor ============
+    /**
      * @param _tokenController Token controller address
      */
     constructor(address _tokenController) {
         _setTokenController(_tokenController);
     }
 
+    // ============ External Functions  ============
     /**
      * @notice Mints `amount` of local tokens corresponding to the
      * given (`sourceDomain`, `burnToken`) pair, to `to` address.
@@ -183,6 +188,7 @@ contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
         return _getLocalToken(remoteDomain, remoteToken);
     }
 
+    // ============ Internal Utils ============
     /**
      * @notice Returns true if the message sender is the registered local TokenMessenger
      * @return True if the message sender is the registered local TokenMessenger

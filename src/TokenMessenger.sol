@@ -28,24 +28,7 @@ import "./roles/Rescuable.sol";
  * and to/from TokenMinters
  */
 contract TokenMessenger is IMessageHandler, Rescuable {
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-    using BurnMessage for bytes29;
-    using Message for bytes29;
-
-    // ============ Public Variables ============
-    // Local Message Transmitter responsible for sending and receiving messages to/from remote domains
-    IMessageTransmitter public immutable localMessageTransmitter;
-
-    // Version of message body format
-    uint32 public immutable messageBodyVersion;
-
-    // Minter responsible for minting and burning tokens on the local domain
-    ITokenMinter public localMinter;
-
-    // Valid TokenMessengers on remote domains
-    mapping(uint32 => bytes32) public remoteTokenMessengers;
-
+    // ============ Events ============
     /**
      * @notice Emitted when a DepositForBurn message is sent
      * @param nonce unique nonce reserved by message
@@ -109,6 +92,26 @@ contract TokenMessenger is IMessageHandler, Rescuable {
      */
     event LocalMinterRemoved(address localMinter);
 
+    // ============ Libraries ============
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+    using BurnMessage for bytes29;
+    using Message for bytes29;
+
+    // ============ State Variables ============
+    // Local Message Transmitter responsible for sending and receiving messages to/from remote domains
+    IMessageTransmitter public immutable localMessageTransmitter;
+
+    // Version of message body format
+    uint32 public immutable messageBodyVersion;
+
+    // Minter responsible for minting and burning tokens on the local domain
+    ITokenMinter public localMinter;
+
+    // Valid TokenMessengers on remote domains
+    mapping(uint32 => bytes32) public remoteTokenMessengers;
+
+    // ============ Modifiers ============
     /**
      * @notice Only accept messages from a registered TokenMessenger contract on given remote domain
      * @param domain The remote domain
@@ -145,6 +148,7 @@ contract TokenMessenger is IMessageHandler, Rescuable {
         messageBodyVersion = _messageBodyVersion;
     }
 
+    // ============ External Functions  ============
     /**
      * @notice Deposits and burns tokens from sender to be minted on destination domain.
      * Emits a `DepositForBurn` event.
@@ -404,6 +408,7 @@ contract TokenMessenger is IMessageHandler, Rescuable {
         emit LocalMinterRemoved(_localMinterAddress);
     }
 
+    // ============ Internal Utils ============
     /**
      * @notice Deposits and burns tokens from sender to be minted on destination domain.
      * Emits a `DepositForBurn` event.

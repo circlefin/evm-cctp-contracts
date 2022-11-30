@@ -21,6 +21,7 @@ pragma solidity 0.7.6;
  * and limiting the amount of each token that can be burned per message.
  */
 abstract contract TokenController {
+    // ============ Events ============
     /**
      * @notice Emitted when a token pair is linked
      * @param localToken local token to support
@@ -61,6 +62,7 @@ abstract contract TokenController {
      */
     event SetTokenController(address tokenController);
 
+    // ============ State Variables ============
     // Supported burnable tokens on the local domain
     // local token (address) => maximum burn amounts per message
     mapping(address => uint256) public burnLimitsPerMessage;
@@ -72,6 +74,7 @@ abstract contract TokenController {
     // Role with permission to manage token address mapping across domains, and per-message burn limits
     address private _tokenController;
 
+    // ============ Modifiers ============
     /**
      * @dev Throws if called by any account other than the tokenController.
      */
@@ -101,46 +104,13 @@ abstract contract TokenController {
         _;
     }
 
+    // ============ Public/External Functions  ============
     /**
      * @dev Returns the address of the tokenController
      * @return address of the tokenController
      */
     function tokenController() external view returns (address) {
         return _tokenController;
-    }
-
-    /**
-     * @notice Set tokenController to `newTokenController`, and
-     * emit `SetTokenController` event.
-     * @dev newTokenController must be nonzero.
-     * @param newTokenController address of new token controller
-     */
-    function _setTokenController(address newTokenController) internal {
-        require(
-            newTokenController != address(0),
-            "Invalid token controller address"
-        );
-        _tokenController = newTokenController;
-        emit SetTokenController(newTokenController);
-    }
-
-    /**
-     * @notice Get the enabled local token associated with the given remote domain and token.
-     * @param remoteDomain Remote domain
-     * @param remoteToken Remote token
-     * @return Local token address
-     */
-    function _getLocalToken(uint32 remoteDomain, bytes32 remoteToken)
-        internal
-        view
-        returns (address)
-    {
-        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
-            remoteDomain,
-            remoteToken
-        );
-
-        return remoteTokensToLocalTokens[_remoteTokensKey];
     }
 
     /**
@@ -219,6 +189,41 @@ abstract contract TokenController {
         burnLimitsPerMessage[localToken] = burnLimitPerMessage;
 
         emit SetBurnLimitPerMessage(localToken, burnLimitPerMessage);
+    }
+
+    // ============ Internal Utils ============
+    /**
+     * @notice Set tokenController to `newTokenController`, and
+     * emit `SetTokenController` event.
+     * @dev newTokenController must be nonzero.
+     * @param newTokenController address of new token controller
+     */
+    function _setTokenController(address newTokenController) internal {
+        require(
+            newTokenController != address(0),
+            "Invalid token controller address"
+        );
+        _tokenController = newTokenController;
+        emit SetTokenController(newTokenController);
+    }
+
+    /**
+     * @notice Get the enabled local token associated with the given remote domain and token.
+     * @param remoteDomain Remote domain
+     * @param remoteToken Remote token
+     * @return Local token address
+     */
+    function _getLocalToken(uint32 remoteDomain, bytes32 remoteToken)
+        internal
+        view
+        returns (address)
+    {
+        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
+            remoteDomain,
+            remoteToken
+        );
+
+        return remoteTokensToLocalTokens[_remoteTokensKey];
     }
 
     /**

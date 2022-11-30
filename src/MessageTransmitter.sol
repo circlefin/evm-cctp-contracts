@@ -300,6 +300,21 @@ contract MessageTransmitter is
     }
 
     /**
+     * @notice Sets the max message body size
+     * @dev This value should not be reduced without good reason,
+     * to avoid impacting users who rely on large messages.
+     * @param newMaxMessageBodySize new max message body size, in bytes
+     */
+    function setMaxMessageBodySize(uint256 newMaxMessageBodySize)
+        external
+        onlyOwner
+    {
+        maxMessageBodySize = newMaxMessageBodySize;
+        emit MaxMessageBodySizeUpdated(maxMessageBodySize);
+    }
+
+    // ============ Internal Utils ============
+    /**
      * @notice Send the message to the destination domain and recipient. If `_destinationCaller` is not equal to bytes32(0),
      * the message can only be received on the destination chain when called by `_destinationCaller`.
      * @dev Format the message and emit `MessageSent` event with message information.
@@ -342,21 +357,6 @@ contract MessageTransmitter is
         emit MessageSent(_message);
     }
 
-    /**
-     * @notice Sets the max message body size
-     * @dev This value should not be reduced without good reason,
-     * to avoid impacting users who rely on large messages.
-     * @param newMaxMessageBodySize new max message body size, in bytes
-     */
-    function setMaxMessageBodySize(uint256 newMaxMessageBodySize)
-        external
-        onlyOwner
-    {
-        maxMessageBodySize = newMaxMessageBodySize;
-        emit MaxMessageBodySizeUpdated(maxMessageBodySize);
-    }
-
-    // ============ Internal Utils ============
     /**
      * @notice hashes `_source` and `_nonce`.
      * @param _source Domain of chain where the transfer originated

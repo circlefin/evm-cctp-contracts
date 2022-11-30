@@ -19,6 +19,7 @@ import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import "./Ownable2Step.sol";
 
 contract Attestable is Ownable2Step {
+    // ============ Events ============
     /**
      * @notice Emitted when an attester is enabled
      * @param attester newly enabled attester
@@ -51,13 +52,15 @@ contract Attestable is Ownable2Step {
         address indexed newAttesterManager
     );
 
+    // ============ Libraries ============
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    // ============ State Variables ============
     // number of signatures from distinct attesters required for a message to be received (m in m/n multisig)
     uint256 public signatureThreshold;
 
     // 65-byte ECDSA signature: v (32) + r (32) + s (1)
-    uint256 internal immutable signatureLength = 65;
+    uint256 internal constant signatureLength = 65;
 
     // enabled attesters (message signers)
     // (length of enabledAttesters is n in m/n multisig of message signers)
@@ -66,6 +69,7 @@ contract Attestable is Ownable2Step {
     // Attester Manager of the contract
     address private _attesterManager;
 
+    // ============ Modifiers ============
     /**
      * @dev Throws if called by any account other than the attester manager.
      */
@@ -74,6 +78,7 @@ contract Attestable is Ownable2Step {
         _;
     }
 
+    // ============ Constructor ============
     /**
      * @dev The constructor sets the original attester manager of the contract to the sender account.
      * @param attester attester to initialize
@@ -85,6 +90,7 @@ contract Attestable is Ownable2Step {
         enableAttester(attester);
     }
 
+    // ============ Public/External Functions  ============
     /**
      * @notice Enables an attester
      * @dev Only callable by attesterManager. New attester must be nonzero, and currently disabled.
@@ -98,6 +104,7 @@ contract Attestable is Ownable2Step {
 
     /**
      * @notice returns true if given `attester` is enabled, else false
+     * @param attester attester to check enabled status of
      * @return true if given `attester` is enabled, else false
      */
     function isEnabledAttester(address attester) public view returns (bool) {
@@ -200,8 +207,10 @@ contract Attestable is Ownable2Step {
         return enabledAttesters.at(index);
     }
 
+    // ============ Internal Utils ============
     /**
      * @dev Sets a new attester manager address
+     * @param _newAttesterManager attester manager address to set
      */
     function _setAttesterManager(address _newAttesterManager) internal {
         _attesterManager = _newAttesterManager;
@@ -209,7 +218,6 @@ contract Attestable is Ownable2Step {
 
     /**
      * @notice reverts if the attestation, which is comprised of one or more concatenated 65-byte signatures, is invalid.
-     *
      * @dev Rules for valid attestation:
      * 1. length of `_attestation` == 65 (signature length) * signatureThreshold
      * 2. addresses recovered from attestation must be in increasing order.
@@ -220,6 +228,8 @@ contract Attestable is Ownable2Step {
      *
      * Based on Christian Lundkvist's Simple Multisig
      * (https://github.com/christianlundkvist/simple-multisig/tree/560c463c8651e0a4da331bd8f245ccd2a48ab63d)
+     * @param _message message to verify attestation of
+     * @param _attestation attestation of `_message`
      */
     function _verifyAttestationSignatures(
         bytes calldata _message,
