@@ -234,6 +234,17 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.receiveMessage(_message, _signature);
     }
 
+    function testReceiveMessage_rejectInvalidMessage() public {
+        bytes memory _message = "foo";
+
+        uint256[] memory attesterPrivateKeys = new uint256[](1);
+        attesterPrivateKeys[0] = attesterPK;
+        bytes memory _signature = _signMessage(_message, attesterPrivateKeys);
+
+        vm.expectRevert("Invalid message: too short");
+        destMessageTransmitter.receiveMessage(_message, _signature);
+    }
+
     function testReceiveMessage_rejectsNotEnabledSigner() public {
         bytes memory _message = Message._formatMessage(
             version,
@@ -258,7 +269,6 @@ contract MessageTransmitterTest is Test, TestUtils {
     }
 
     function testReceiveMessage_rejectsMessageIfNonzeroDestinationCallerDoesNotMatchSender(
-        uint32 _version,
         uint32 _sourceDomain,
         uint64 _nonce,
         bytes32 _sender,
@@ -266,7 +276,7 @@ contract MessageTransmitterTest is Test, TestUtils {
         bytes memory _messageBody
     ) public {
         bytes memory _message = Message._formatMessage(
-            _version,
+            version,
             _sourceDomain,
             destinationDomain,
             _nonce,
@@ -344,6 +354,25 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.replaceMessage(
             _originalMessage,
             _originalAttestation,
+            messageBody,
+            emptyDestinationCaller
+        );
+    }
+
+    function testReplaceMessage_revertsOnInvalidMessage() public {
+        bytes memory _originalMessage = "foo";
+
+        _setup2of3Multisig();
+
+        // sign replaced message
+        bytes memory _replacingMessageSignature = _sign2OfNMultisigMessage(
+            _originalMessage
+        );
+
+        vm.expectRevert("Invalid message: too short");
+        destMessageTransmitter.replaceMessage(
+            _originalMessage,
+            _replacingMessageSignature,
             messageBody,
             emptyDestinationCaller
         );

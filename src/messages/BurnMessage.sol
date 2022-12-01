@@ -21,7 +21,7 @@ import "@memview-sol/contracts/TypedMemView.sol";
  * @notice Library for formatted BurnMessages used by TokenMessenger.
  * @dev BurnMessage format:
  * Field                 Bytes      Type       Index
- * version               4          uint32      0
+ * version               4          uint32     0
  * burnToken             32         bytes32    4
  * mintRecipient         32         bytes32    36
  * amount                32         uint256    68
@@ -124,17 +124,11 @@ library BurnMessage {
     }
 
     /**
-     * @notice Checks that view is a valid message length
-     * @param _message The bytes string
-     * @param _version The message version
-     * @return true if message is correct length and version for a burn message
+     * @notice Reverts if burn message is malformed or invalid length
+     * @param _message The burn message as bytes29
      */
-    function _isValidBurnMessage(bytes29 _message, uint32 _version)
-        internal
-        pure
-        returns (bool)
-    {
-        uint256 _len = _message.len();
-        return _len == BURN_MESSAGE_LEN && _version == _getVersion(_message);
+    function _validateBurnMessageFormat(bytes29 _message) internal pure {
+        require(_message.isValid(), "Malformed message");
+        require(_message.len() == BURN_MESSAGE_LEN, "Invalid message length");
     }
 }

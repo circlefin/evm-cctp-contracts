@@ -91,4 +91,18 @@ contract MessageTest is Test {
         address _addrFromBytes32 = Message.bytes32ToAddress(_bytes32FromAddr);
         assertEq(_addrFromBytes32, _addr);
     }
+
+    function testIsValidMessage_revertsForMalformedMessage() public {
+        bytes29 _m = TypedMemView.nullView();
+        vm.expectRevert("Malformed message");
+        Message._validateMessageFormat(_m);
+    }
+
+    function testIsValidMessage_revertsForTooShortMessage() public {
+        bytes memory _message = "foo";
+        bytes29 _m = _message.ref(0);
+
+        vm.expectRevert("Invalid message: too short");
+        Message._validateMessageFormat(_m);
+    }
 }

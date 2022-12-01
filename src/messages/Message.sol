@@ -41,14 +41,14 @@ library Message {
     using TypedMemView for bytes29;
 
     // Indices of each field in message
-    uint8 internal constant VERSION_INDEX = 0;
-    uint8 internal constant SOURCE_DOMAIN_INDEX = 4;
-    uint8 internal constant DESTINATION_DOMAIN_INDEX = 8;
-    uint8 internal constant NONCE_INDEX = 12;
-    uint8 internal constant SENDER_INDEX = 20;
-    uint8 internal constant RECIPIENT_INDEX = 52;
-    uint8 internal constant DESTINATION_CALLER_INDEX = 84;
-    uint8 internal constant MESSAGE_BODY_INDEX = 116;
+    uint8 private constant VERSION_INDEX = 0;
+    uint8 private constant SOURCE_DOMAIN_INDEX = 4;
+    uint8 private constant DESTINATION_DOMAIN_INDEX = 8;
+    uint8 private constant NONCE_INDEX = 12;
+    uint8 private constant SENDER_INDEX = 20;
+    uint8 private constant RECIPIENT_INDEX = 52;
+    uint8 private constant DESTINATION_CALLER_INDEX = 84;
+    uint8 private constant MESSAGE_BODY_INDEX = 116;
 
     /**
      * @notice Returns formatted (packed) message with provided fields
@@ -154,5 +154,17 @@ library Message {
      */
     function bytes32ToAddress(bytes32 _buf) public pure returns (address) {
         return address(uint160(uint256(_buf)));
+    }
+
+    /**
+     * @notice Reverts if message is malformed or incorrect length
+     * @param _message The message as bytes29
+     */
+    function _validateMessageFormat(bytes29 _message) internal pure {
+        require(_message.isValid(), "Malformed message");
+        require(
+            _message.len() >= MESSAGE_BODY_INDEX,
+            "Invalid message: too short"
+        );
     }
 }

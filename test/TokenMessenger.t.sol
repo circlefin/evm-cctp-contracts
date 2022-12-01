@@ -702,13 +702,12 @@ contract TokenMessengerTest is Test, TestUtils {
         );
     }
 
-    function testReplaceDepositForBurn_invalidMessage_revertsWithoutData(
+    function testReplaceDepositForBurn_revertsWhenMessageInvalid(
         address _mintRecipientAddr,
         uint256 _amount,
         address _newDestinationCallerAddr,
         address _newMintRecipientAddr
     ) public {
-        // attempt to replace message from wrong sender
         bytes32 _newDestinationCaller = Message.addressToBytes32(
             _newDestinationCallerAddr
         );
@@ -720,9 +719,39 @@ contract TokenMessengerTest is Test, TestUtils {
         bytes memory _invalidMsg = "foo";
 
         vm.prank(owner);
-        vm.expectRevert();
+        vm.expectRevert("Invalid message: too short");
         localTokenMessenger.replaceDepositForBurn(
             _invalidMsg,
+            _originalAttestation,
+            _newDestinationCaller,
+            _newMintRecipient
+        );
+    }
+
+    function testReplaceDepositForBurn_revertsWhenBurnMessageInvalid(
+        address _mintRecipientAddr,
+        uint256 _amount,
+        bytes32 _newDestinationCaller,
+        bytes32 _newMintRecipient,
+        uint64 _nonce
+    ) public {
+        bytes memory _invalidBurnMessage = "foo";
+        bytes memory _originalAttestation = bytes("mockAttestation");
+
+        bytes memory _expectedMessage = Message._formatMessage(
+            version,
+            localDomain,
+            remoteDomain,
+            _nonce,
+            Message.addressToBytes32(address(localTokenMessenger)),
+            remoteTokenMessenger,
+            emptyDestinationCaller,
+            _invalidBurnMessage
+        );
+
+        vm.expectRevert("Invalid message length");
+        localTokenMessenger.replaceDepositForBurn(
+            _expectedMessage,
             _originalAttestation,
             _newDestinationCaller,
             _newMintRecipient
@@ -844,10 +873,36 @@ contract TokenMessengerTest is Test, TestUtils {
         );
 
         vm.startPrank(address(remoteMessageTransmitter));
-        vm.expectRevert("Invalid message");
+        vm.expectRevert("Invalid message length");
         destTokenMessenger.handleReceiveMessage(
             localDomain,
             _localTokenMessenger,
+            _messageBody
+        );
+        vm.stopPrank();
+    }
+
+    function testHandleReceiveMessage_revertsOnInvalidMessageBodyVersion(
+        uint256 _amount,
+        bytes32 _mintRecipient
+    ) public {
+        bytes memory _messageBody = BurnMessage._formatMessage(
+            10,
+            Message.addressToBytes32(address(localToken)),
+            _mintRecipient,
+            _amount,
+            Message.addressToBytes32(address(owner))
+        );
+
+        bytes32 localTokenMessengerBytes32 = Message.addressToBytes32(
+            address(localTokenMessenger)
+        );
+
+        vm.startPrank(address(remoteMessageTransmitter));
+        vm.expectRevert("Invalid message body version");
+        destTokenMessenger.handleReceiveMessage(
+            localDomain,
+            localTokenMessengerBytes32,
             _messageBody
         );
         vm.stopPrank();

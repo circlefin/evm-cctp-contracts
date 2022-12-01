@@ -54,12 +54,12 @@ contract BurnMessageTest is Test {
         assertEq(_m._getAmount(), _amount);
         assertEq(uint256(_m._getVersion()), uint256(version));
         assertEq(_m._getMessageSender(), Message.addressToBytes32(msgSender));
-        assertTrue(_m._isValidBurnMessage(version));
+        _m._validateBurnMessageFormat();
 
         assertEq(_expectedMessageBody.ref(0).keccak(), _m.keccak());
     }
 
-    function testIsValidBurnMessage_returnsFalseForWrongVersion(
+    function testIsValidBurnMessage_returnsFalseForTooShortMessage(
         bytes32 _burnToken,
         bytes32 _mintRecipient,
         uint256 _amount
@@ -73,14 +73,13 @@ contract BurnMessageTest is Test {
         );
 
         bytes29 _m = _messageBody.ref(0);
-        assertEq(_m._getMintRecipient(), _mintRecipient);
-        assertEq(_m._getBurnToken(), _burnToken);
-        assertEq(_m._getAmount(), _amount);
-        assertEq(_m._getMessageSender(), Message.addressToBytes32(msg.sender));
-        assertFalse(_m._isValidBurnMessage(2));
+        _m = _m.slice(0, _m.len() - 1, 0);
+
+        vm.expectRevert("Invalid message length");
+        _m._validateBurnMessageFormat();
     }
 
-    function testIsValidBurnMessage_returnsFalseForWrongLength(
+    function testIsValidBurnMessage_revertsForTooLongMessage(
         bytes32 _burnToken,
         bytes32 _mintRecipient,
         uint256 _amount,
@@ -99,6 +98,13 @@ contract BurnMessageTest is Test {
         assertEq(_m._getMintRecipient(), _mintRecipient);
         assertEq(_m._getBurnToken(), _burnToken);
         assertEq(_m._getAmount(), _amount);
-        assertFalse(_m._isValidBurnMessage(2));
+        vm.expectRevert("Invalid message length");
+        _m._validateBurnMessageFormat();
+    }
+
+    function testIsValidBurnMessage_revertsForMalformedMessage() public {
+        bytes29 _m = TypedMemView.nullView();
+        vm.expectRevert("Malformed message");
+        BurnMessage._validateBurnMessageFormat(_m);
     }
 }

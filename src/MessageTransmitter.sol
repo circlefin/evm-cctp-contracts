@@ -148,6 +148,9 @@ contract MessageTransmitter is
 
         bytes29 _originalMsg = originalMessage.ref(0);
 
+        // Validate message format
+        _originalMsg._validateMessageFormat();
+
         // Validate message sender
         bytes32 _sender = _originalMsg._sender();
         require(
@@ -252,38 +255,42 @@ contract MessageTransmitter is
         // Validate each signature in the attestation
         _verifyAttestationSignatures(message, attestation);
 
-        bytes29 _m = message.ref(0);
+        bytes29 _msg = message.ref(0);
+
+        // Validate message format
+        _msg._validateMessageFormat();
 
         // Validate domain
         require(
-            _m._destinationDomain() == localDomain,
+            _msg._destinationDomain() == localDomain,
             "Invalid destination domain"
         );
 
         // Validate destination caller
-        if (_m._destinationCaller() != bytes32(0)) {
+        if (_msg._destinationCaller() != bytes32(0)) {
             require(
-                _m._destinationCaller() == Message.addressToBytes32(msg.sender),
+                _msg._destinationCaller() ==
+                    Message.addressToBytes32(msg.sender),
                 "Invalid caller for message"
             );
         }
 
         // Validate version
-        require(_m._version() == version, "Invalid message version");
+        require(_msg._version() == version, "Invalid message version");
 
         // Validate nonce is available
-        uint32 _sourceDomain = _m._sourceDomain();
-        uint64 _nonce = _m._nonce();
+        uint32 _sourceDomain = _msg._sourceDomain();
+        uint64 _nonce = _msg._nonce();
         bytes32 _sourceAndNonce = _hashSourceAndNonce(_sourceDomain, _nonce);
         require(usedNonces[_sourceAndNonce] == 0, "Nonce already used");
         // Mark nonce used
         usedNonces[_sourceAndNonce] = 1;
 
         // Handle receive message
-        bytes32 _sender = _m._sender();
-        bytes memory _messageBody = _m._messageBody().clone();
+        bytes32 _sender = _msg._sender();
+        bytes memory _messageBody = _msg._messageBody().clone();
         require(
-            IMessageHandler(Message.bytes32ToAddress(_m._recipient()))
+            IMessageHandler(Message.bytes32ToAddress(_msg._recipient()))
                 .handleReceiveMessage(_sourceDomain, _sender, _messageBody),
             "handleReceiveMessage() failed"
         );

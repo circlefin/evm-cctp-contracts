@@ -253,7 +253,10 @@ contract TokenMessenger is IMessageHandler, Rescuable {
         bytes32 newMintRecipient
     ) external {
         bytes29 _originalMsg = originalMessage.ref(0);
+        _originalMsg._validateMessageFormat();
         bytes29 _originalMsgBody = _originalMsg._messageBody();
+        _originalMsgBody._validateBurnMessageFormat();
+
         bytes32 _originalMsgSender = _originalMsgBody._getMessageSender();
         // _originalMsgSender must match msg.sender of original message
         require(
@@ -318,9 +321,10 @@ contract TokenMessenger is IMessageHandler, Rescuable {
         returns (bool)
     {
         bytes29 _msg = messageBody.ref(0);
+        _msg._validateBurnMessageFormat();
         require(
-            _msg._isValidBurnMessage(messageBodyVersion),
-            "Invalid message"
+            _msg._getVersion() == messageBodyVersion,
+            "Invalid message body version"
         );
 
         bytes32 _mintRecipient = _msg._getMintRecipient();
