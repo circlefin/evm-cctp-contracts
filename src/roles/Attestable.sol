@@ -131,8 +131,9 @@ contract Attestable is Ownable2Step {
             newAttesterManager != address(0),
             "Invalid attester manager address"
         );
+        address _oldAttesterManager = _attesterManager;
         _setAttesterManager(newAttesterManager);
-        emit AttesterManagerUpdated(msg.sender, newAttesterManager);
+        emit AttesterManagerUpdated(_oldAttesterManager, newAttesterManager);
     }
 
     /**

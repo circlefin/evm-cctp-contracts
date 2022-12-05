@@ -52,55 +52,61 @@ contract AttestableTest is Test, TestUtils {
         uint256 newSignatureThreshold
     );
 
-    address initialAttesterManager = vm.addr(1505);
     Attestable attestable;
 
     function setUp() public {
-        vm.prank(initialAttesterManager);
+        vm.prank(owner);
         attestable = new Attestable(attester);
     }
 
     function testConstructor_setsAttesterManager() public {
-        vm.prank(initialAttesterManager);
+        vm.prank(owner);
         Attestable _attester = new Attestable(attester);
-        assertEq(_attester.attesterManager(), initialAttesterManager);
+        assertEq(_attester.attesterManager(), owner);
     }
 
     function testUpdateAttesterManager_revertsWhenCalledByNonOwner() public {
-        assertEq(attestable.attesterManager(), initialAttesterManager);
+        assertEq(attestable.attesterManager(), owner);
         address _newAttesterManager = vm.addr(1506);
 
         vm.expectRevert("Ownable: caller is not the owner");
         attestable.updateAttesterManager(_newAttesterManager);
 
-        assertEq(attestable.attesterManager(), initialAttesterManager);
+        assertEq(attestable.attesterManager(), owner);
     }
 
     function testUpdateAttesterManager_revertsWhenGivenZeroAddress() public {
-        assertEq(attestable.attesterManager(), initialAttesterManager);
+        assertEq(attestable.attesterManager(), owner);
         address _newAttesterManager = address(0);
 
-        vm.prank(initialAttesterManager);
+        vm.prank(owner);
         vm.expectRevert("Invalid attester manager address");
         attestable.updateAttesterManager(_newAttesterManager);
 
-        assertEq(attestable.attesterManager(), initialAttesterManager);
+        assertEq(attestable.attesterManager(), owner);
     }
 
     function testUpdateAttesterManager_succeeds() public {
-        vm.startPrank(initialAttesterManager);
+        vm.startPrank(owner);
 
-        assertEq(attestable.attesterManager(), initialAttesterManager);
+        assertEq(attestable.attesterManager(), owner);
         address _newAttesterManager = vm.addr(1506);
 
         vm.expectEmit(true, true, true, true);
-        emit AttesterManagerUpdated(
-            initialAttesterManager,
-            _newAttesterManager
-        );
+        emit AttesterManagerUpdated(owner, _newAttesterManager);
         attestable.updateAttesterManager(_newAttesterManager);
 
         assertEq(attestable.attesterManager(), _newAttesterManager);
+
+        // update again, assert that the previous attesterManager is logged.
+        address _secondNewAttesterManager = vm.addr(1507);
+        vm.expectEmit(true, true, true, true);
+        emit AttesterManagerUpdated(
+            _newAttesterManager,
+            _secondNewAttesterManager
+        );
+        attestable.updateAttesterManager(_secondNewAttesterManager);
+        assertEq(attestable.attesterManager(), _secondNewAttesterManager);
 
         vm.stopPrank();
     }
@@ -135,7 +141,7 @@ contract AttestableTest is Test, TestUtils {
     }
 
     function testSetSignatureThreshold_rejectsZeroValue() public {
-        vm.startPrank(initialAttesterManager);
+        vm.startPrank(owner);
 
         vm.expectRevert("Invalid signature threshold");
         attestable.setSignatureThreshold(0);
@@ -164,7 +170,7 @@ contract AttestableTest is Test, TestUtils {
     function testSetSignatureThreshold_notEqualToCurrentSignatureThreshold()
         public
     {
-        vm.startPrank(initialAttesterManager);
+        vm.startPrank(owner);
 
         vm.expectRevert("Signature threshold already set");
         attestable.setSignatureThreshold(1);
@@ -214,7 +220,7 @@ contract AttestableTest is Test, TestUtils {
     }
 
     function testEnableAttester_rejectsZeroAddress() public {
-        vm.startPrank(initialAttesterManager);
+        vm.startPrank(owner);
 
         address _newAttesterManager = address(0);
         vm.expectRevert("New attester must be nonzero");
@@ -224,7 +230,7 @@ contract AttestableTest is Test, TestUtils {
     }
 
     function testEnableAttester_returnsFalseIfAttesterAlreadyExists() public {
-        vm.startPrank(initialAttesterManager);
+        vm.startPrank(owner);
 
         vm.expectRevert("Attester already enabled");
         attestable.enableAttester(attester);
@@ -235,7 +241,7 @@ contract AttestableTest is Test, TestUtils {
     }
 
     function testDisableAttester_succeeds() public {
-        vm.startPrank(initialAttesterManager);
+        vm.startPrank(owner);
 
         // enable second attester, so disabling is allowed
         attestable.enableAttester(secondAttester);
@@ -261,7 +267,7 @@ contract AttestableTest is Test, TestUtils {
     function testDisableAttester_revertsIfOneOrLessAttestersAreEnabled()
         public
     {
-        vm.startPrank(initialAttesterManager);
+        vm.startPrank(owner);
 
         vm.expectRevert("Too few enabled attesters");
         attestable.disableAttester(attester);
@@ -270,7 +276,7 @@ contract AttestableTest is Test, TestUtils {
     }
 
     function testDisableAttester_revertsIfSignatureThresholdTooLow() public {
-        vm.startPrank(initialAttesterManager);
+        vm.startPrank(owner);
 
         attestable.enableAttester(secondAttester);
         attestable.setSignatureThreshold(2);
@@ -282,7 +288,7 @@ contract AttestableTest is Test, TestUtils {
     }
 
     function testDisableAttester_revertsIfAttesterAlreadyDisabled() public {
-        vm.startPrank(initialAttesterManager);
+        vm.startPrank(owner);
 
         address _nonAttester = vm.addr(1603);
         // enable second attester, so disabling is allowed
