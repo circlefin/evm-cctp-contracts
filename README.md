@@ -1,4 +1,4 @@
-# evm-bridge-contracts
+# evm-cctp-contracts
 
 ## Prerequisites
 

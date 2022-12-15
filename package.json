@@ -1,5 +1,5 @@
 {
-  "name": "evm-bridge-contracts",
+  "name": "evm-cctp-contracts",
   "license": "UNLICENSED",
   "scripts": {
     "lint": "solhint '**/*.sol'"
