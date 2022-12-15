@@ -66,6 +66,7 @@ The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tuto
     - `MESSAGE_TRANSMITTER_RESCUER_ADDRESS`
     - `TOKEN_MESSENGER_RESCUER_ADDRESS`
     - `TOKEN_MINTER_RESCUER_ADDRESS`
+    - `TOKEN_CONTROLLER_ADDRESS`
     - `DOMAIN`
     - `REMOTE_DOMAIN`
     - `BURN_LIMIT_PER_MESSAGE`

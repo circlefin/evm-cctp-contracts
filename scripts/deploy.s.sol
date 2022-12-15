@@ -23,7 +23,7 @@ contract DeployScript is Script {
     uint32 private domain;
     uint32 private remoteDomain;
     uint32 private maxMessageBodySize = 8192;
-    uint256 private burnLimitPerTransaction;
+    uint256 private burnLimitPerMessage;
 
     uint256 private messageTransmitterDeployerPrivateKey;
     uint256 private tokenMessengerDeployerPrivateKey;
@@ -152,7 +152,7 @@ contract DeployScript is Script {
 
         tokenMinter.setMaxBurnAmountPerMessage(
             usdcContractAddress,
-            burnLimitPerTransaction
+            burnLimitPerMessage
         );
 
         tokenMinter.linkTokenPair(
@@ -201,8 +201,8 @@ contract DeployScript is Script {
 
         attesterAddress = vm.envAddress("ATTESTER_ADDRESS");
         usdcContractAddress = vm.envAddress("USDC_CONTRACT_ADDRESS");
-        tokenControllerAddress = vm.envAddress("TOKEN_CONTROLLER");
-        burnLimitPerTransaction = vm.envUint("BURN_LIMIT_PER_TRANSACTION");
+        tokenControllerAddress = vm.envAddress("TOKEN_CONTROLLER_ADDRESS");
+        burnLimitPerMessage = vm.envUint("BURN_LIMIT_PER_MESSAGE");
 
         usdcRemoteContractAddress = vm.envAddress(
             "REMOTE_USDC_CONTRACT_ADDRESS"
