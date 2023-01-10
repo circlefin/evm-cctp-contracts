@@ -47,8 +47,8 @@ const main = async() => {
     const amount = process.env.AMOUNT;
 
     // STEP 1: Approve messenger contract to withdraw from our active eth address
-    const approveTxGas = await usdcEthContract.methods.approve(ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS, amount+1).estimateGas()
-    const approveTx = await usdcEthContract.methods.approve(ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS, amount+1).send({gas: approveTxGas})
+    const approveTxGas = await usdcEthContract.methods.approve(ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS, amount).estimateGas()
+    const approveTx = await usdcEthContract.methods.approve(ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS, amount).send({gas: approveTxGas})
     const approveTxReceipt = await waitForTransaction(web3, approveTx.transactionHash);
     console.log('ApproveTxReceipt: ', approveTxReceipt)
 

@@ -25,7 +25,7 @@ AMOUNT=<ADD_AMOUNT_TO_BE_TRANSFERED>
 The script has 5 steps:
 1. First step approves `ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS` to withdraw USDC from our eth address.
 ```js
-const approveTx = await usdcEthContract.methods.approve(ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS, amount+1).send({gas: approveTxGas})
+const approveTx = await usdcEthContract.methods.approve(ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS, amount).send({gas: approveTxGas})
 ```
 
 2. Second step executes `depositForBurn` function on `TokenMessengerContract` deployed in [Goerli testnet](https://goerli.etherscan.io/address/0xd0c3da58f55358142b8d3e06c1c30c5c6114efe8)
