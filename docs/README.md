@@ -3,7 +3,7 @@
 
 ## Overview
 
-This example uses [web3.js](https://web3js.readthedocs.io/en/v1.8.1/getting-started.html) to transfer USDC from an address on ETH testnet to another address AVAX testnet.
+This example uses [web3.js](https://web3js.readthedocs.io/en/v1.8.1/getting-started.html) to transfer USDC from an address on ETH testnet to another address on AVAX testnet.
 
 ### Prerequisite
 The script requires [Node.js](https://nodejs.org/en/download/) installed.
@@ -23,7 +23,7 @@ AMOUNT=<ADD_AMOUNT_TO_BE_TRANSFERED>
 
 ## Script Details
 The script has 5 steps:
-1. First step approves `ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS` to withrdraw USDC from our eth address.
+1. First step approves `ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS` to withdraw USDC from our eth address.
 ```js
 const approveTx = await usdcEthContract.methods.approve(ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS, amount+1).send({gas: approveTxGas})
 ```
@@ -33,7 +33,7 @@ const approveTx = await usdcEthContract.methods.approve(ETH_TOKEN_MESSENGER_CONT
 const burnTx = await ethTokenMessengerContract.methods.depositForBurn(amount, AVAX_DESTINATION_DOMAIN, destinationAddressInBytes32, USDC_ETH_CONTRACT_ADDRESS).send();
 ``` 
 
-3. Third step extracts `messageBytes` emitted by `MessageSent` event from `depositForBurn` transaction logs and hashes the retrived `messageBytes` using `keccak256` algorithm
+3. Third step extracts `messageBytes` emitted by `MessageSent` event from `depositForBurn` transaction logs and hashes the retrieved `messageBytes` using `keccak256` hashing algorithm
 ```js
 const transactionReceipt = await web3.eth.getTransactionReceipt(burnTx.transactionHash);
 const eventTopic = web3.utils.keccak256('MessageSent(bytes)')
@@ -42,11 +42,14 @@ const messageBytes = web3.eth.abi.decodeParameters(['bytes'], log.data)[0]
 const messageHash = web3.utils.keccak256(messageBytes);
 ```
 
-4. Fourth step calls the attestation service to acquire signature using the `messageHash` from previous step.
+4. Fourth step polls the attestation service to acquire signature using the `messageHash` from previous step.
 ```js
-const response = await fetch(`https://iris-api-sandbox.circle.com/attestations/${messageHash}`);
-const attestationResponse = await response.json()
-const signature = attestationResponse.attestation;
+let attestationResponse = {status: 'pending'};
+while(attestationResponse.status != 'complete') {
+    const response = await fetch(`https://iris-api-sandbox.circle.com/attestations/${messageHash}`);
+    attestationResponse = await response.json()
+    await new Promise(r => setTimeout(r, 2000));
+}
 ```
 
 5. Last step calls `receiveMessage` function on `TokenMessengerContract` deployed in [Avalanche Fuji Network](https://testnet.snowtrace.io/address/0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79) to receive USDC at AVAX address.
