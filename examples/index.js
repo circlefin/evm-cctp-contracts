@@ -53,9 +53,10 @@ async function main() {
     console.log(`MessageHash: ${messageHash}`)
 
     // STEP 3: Fetch attestation signature
-    const response = await fetch(`https://iris-api-sandbox.circle.com/attestations/${messageHash}`);
-    const attestationResponse = await response.json()
+    let attestationResponse;
     while(attestationResponse.status != 'complete') {
+        const response = await fetch(`https://iris-api-sandbox.circle.com/attestations/${messageHash}`);
+        attestationResponse = await response.json()
         await new Promise(r => setTimeout(r, 2000));
     }
 

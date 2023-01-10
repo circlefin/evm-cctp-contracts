@@ -1,9 +1,11 @@
 
 # Quickstart: Cross-chain USDC Transfer
 
-This example uses [Ethers.js](https://docs.ethers.org/v5/getting-started/) and [Metamask](https://metamask.io/) to transfer USDC from address on ETH testnet to another address AVAX testnet. The script has 4 steps and can be run in 2 parts. Run steps 1 to 3 require Goerli testnet selected in Metamask with associated active address. Step 4 require changing the network to Avalance Fuji testnet with associated active address.
+## Overview
 
-Following guide provides step by step instruction on how to run the script:
+This example uses [Ethers.js](https://docs.ethers.org/v5/getting-started/) and [Metamask](https://metamask.io/) to transfer USDC from an address on ETH testnet to another address AVAX testnet. The script has 4 steps and can be run in 2 parts. Running steps 1 to 3 require Goerli testnet selected and a associated active address in Metamask. Step 4 require changing the network to Avalance Fuji testnet and an address where USDC will be transferred. Also add that address to script for `mintRecipient` variable.
+
+## Following guide provides step by step instruction on how to run the script:
 1. Start a local server by running `python3 -m http.server 8000` in the folder.
 2. Switch to Goerli test network and active address with some USDC and ETH in Metamask browser extension.
 3. Go to `http://localhost:8000` in browser and keep the console opened.
@@ -21,7 +23,7 @@ const burnTx = await ethTokenMessengerContract.depositForBurn(amount, AVAX_DESTI
 const approveTx = await usdcEthContract.approve(TOKEN_MESSENGER_CONTRACT_ADDRESS, 500000) // 0.5 USDC
 ```
 
-6. We then need to extract `messageBytes` from the above transaction logs.
+6. We then need to extract `messageBytes` emitted by `MessageSent` event from `depositForBurn` transaction logs.
 ```js
 const transactionReceipt = await provider.getTransactionReceipt(burnTx.hash);
 const eventTopic = ethers.utils.id('MessageSent(bytes)')
@@ -38,13 +40,13 @@ const response = await fetch(`https://iris-api-sandbox.circle.com/attestations/$
 const attestationResponse = await response.json()
 const signature = attestationResponse.attestation;
 ```
-9. Switch to Avalanche Fuji Network and active address with some AVAX in Metamask.
+9. Switch to Avalanche Fuji Network and active address with some AVAX in Metamask. This should be the `mintRecipient` address used earlier in the script.
 10. Populate the below fields in step 4 of the script using the `messageBytes` and `signature` gathered in previous steps.
 ```js
 const receivingMessageBytes = '<ADD_MESSAGE_BYTES_HERE>'
 const signature = '<ADD_SIGNATURE_HERE>'
 ```
-11. Call `receiveMessage` function on `TokenMessengerContract` deployed in [Avalanche Fuji Network](https://testnet.snowtrace.io/address/0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79)
+11. Call `receiveMessage` function on `TokenMessengerContract` deployed in [Avalanche Fuji Network](https://testnet.snowtrace.io/address/0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79).
 ```js
 const receiveTx = await avaxMessageTransmitterContract.receiveMessage(receivingMessageBytes, signature);
 ```
