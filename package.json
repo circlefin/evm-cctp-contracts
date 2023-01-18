@@ -1,6 +1,6 @@
 {
   "name": "evm-cctp-contracts",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "scripts": {
     "lint": "solhint '**/*.sol'"
   },
