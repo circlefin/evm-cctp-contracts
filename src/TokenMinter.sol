@@ -89,6 +89,7 @@ contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
         uint256 amount
     )
         external
+        virtual
         override
         whenNotPaused
         onlyLocalTokenMessenger

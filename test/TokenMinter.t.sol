@@ -17,6 +17,7 @@ pragma solidity 0.7.6;
 
 import "../src/messages/Message.sol";
 import "../src/TokenMinter.sol";
+import "../src/TokenMinterV2.sol";
 import "./TestUtils.sol";
 import "./mocks/MockMintBurnToken.sol";
 import "../lib/forge-std/src/Test.sol";
@@ -66,7 +67,7 @@ contract TokenMinterTest is Test, TestUtils {
 
     IMintBurnToken localToken;
     IMintBurnToken remoteToken;
-    TokenMinter tokenMinter;
+    TokenMinterV2 tokenMinter;
 
     address localTokenAddress;
     bytes32 remoteTokenBytes32;
@@ -76,7 +77,7 @@ contract TokenMinterTest is Test, TestUtils {
     address pauser = vm.addr(1509);
 
     function setUp() public {
-        tokenMinter = new TokenMinter(tokenController);
+        tokenMinter = new TokenMinterV2(tokenController);
         localToken = new MockMintBurnToken();
         localTokenAddress = address(localToken);
         remoteToken = new MockMintBurnToken();
@@ -86,7 +87,28 @@ contract TokenMinterTest is Test, TestUtils {
     }
 
     function testMint_succeeds(uint256 _amount, address _localToken) public {
+        tokenMinter.setMinterAllowanceForDomain(sourceDomain, _amount);
         _mint(_amount);
+    }
+
+    function testMint_failsIfMinterAllowanceForDomainIsNotSufficient(
+        uint256 _amount,
+        address _localToken
+    ) public {
+        _linkTokenPair(localTokenAddress);
+        _amount = 1;
+        tokenMinter.setMinterAllowanceForDomain(sourceDomain, 0);
+        vm.startPrank(localTokenMessenger);
+        vm.expectRevert(
+            "FiatToken: mint amount exceeds minterAllowancePerSourceDomain"
+        );
+        tokenMinter.mint(
+            sourceDomain,
+            remoteTokenBytes32,
+            mintRecipientAddress,
+            _amount
+        );
+        vm.stopPrank();
     }
 
     function testMint_revertsOnUnsupportedMintToken(uint256 _amount) public {
@@ -128,18 +150,21 @@ contract TokenMinterTest is Test, TestUtils {
         // Mint works again after unpause
         vm.prank(pauser);
         tokenMinter.unpause();
+        tokenMinter.setMinterAllowanceForDomain(sourceDomain, _amount);
         _mint(_amount);
     }
 
-    function testMint_revertsOnFailedTokenMint(address _to, uint256 _amount)
-        public
-    {
+    function testMint_revertsOnFailedTokenMint(
+        address _to,
+        uint256 _amount
+    ) public {
         _linkTokenPair(localTokenAddress);
         vm.mockCall(
             localTokenAddress,
             abi.encodeWithSelector(MockMintBurnToken.mint.selector),
             abi.encode(false)
         );
+        tokenMinter.setMinterAllowanceForDomain(sourceDomain, _amount);
         vm.startPrank(localTokenMessenger);
         vm.expectRevert("Mint operation failed");
         tokenMinter.mint(sourceDomain, remoteTokenBytes32, _to, _amount);
@@ -160,6 +185,7 @@ contract TokenMinterTest is Test, TestUtils {
             _allowedBurnAmount
         );
 
+        tokenMinter.setMinterAllowanceForDomain(sourceDomain, _amount);
         _mintAndBurn(_amount, _localToken);
     }
 
@@ -197,6 +223,7 @@ contract TokenMinterTest is Test, TestUtils {
         // Mint works again after unpause
         vm.prank(pauser);
         tokenMinter.unpause();
+        tokenMinter.setMinterAllowanceForDomain(sourceDomain, _burnAmount);
         _mintAndBurn(_burnAmount, localTokenAddress);
     }
 
@@ -336,9 +363,9 @@ contract TokenMinterTest is Test, TestUtils {
         );
     }
 
-    function testSetTokenController_succeeds(address newTokenController)
-        public
-    {
+    function testSetTokenController_succeeds(
+        address newTokenController
+    ) public {
         vm.assume(newTokenController != address(0));
         assertEq(tokenMinter.tokenController(), tokenController);
 
