@@ -1,0 +1,1 @@
+This repository includes files inspired by https://github.com/nomad-xyz/monorepo, including but not limited to src/messages/Message.sol, src/messages/BurnMessage.sol, src/interfaces/IMessageHandler.sol, src/TokenMessenger.sol, and src/MessageTransmitter.sol.

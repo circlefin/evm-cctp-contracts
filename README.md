@@ -77,3 +77,6 @@ The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tuto
 
 2. Run `make simulate RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run. *Note: Use address from one of the private keys (used for deploying) above as `sender`. It is used to deploy the shared libraries that contracts use*
 3. Run `make deploy RPC_URL=<RPC_URL> SENDER=<SENDER>` to deploy the contracts
+
+## License
+For license information, see LICENSE and additional notices stored in NOTICES.
