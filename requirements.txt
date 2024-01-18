@@ -4,10 +4,10 @@ async-timeout==4.0.2
 attrs==22.1.0
 base58==2.1.1
 bitarray==2.6.0
-certifi==2023.7.22
+certifi==2023.11.17
 charset-normalizer==2.1.0
 cytoolz==0.12.0
-eth-abi==4.2.0
+eth-abi==5.0.0
 eth-account==0.5.9
 eth-hash==0.5.0
 eth-keyfile==0.5.1
@@ -27,7 +27,7 @@ netaddr==0.8.0
 parsimonious==0.8.1
 protobuf==3.20.2
 py-solc-x==1.1.1
-pycryptodome==3.19.1
+pycryptodome==3.20.0
 pyrsistent==0.18.1
 python-dotenv==0.21.0
 requests==2.31.0
@@ -36,7 +36,7 @@ semantic-version==2.10.0
 six==1.16.0
 slither-analyzer==0.8.3
 toolz==0.12.0
-urllib3==1.26.18
+urllib3==2.1.0
 varint==1.0.2
 web3==5.30.0
 websockets==9.1
