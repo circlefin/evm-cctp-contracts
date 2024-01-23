@@ -1,6 +1,8 @@
 name: Continuous Integration
 on:
   pull_request:
+  push:
+    branches: [master]
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
@@ -9,22 +11,22 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: 'true'
-      
+
       - name: Install Node
         uses: actions/setup-node@v3
-        
+
       - name: Install Solhint
-        run: npm i 
+        run: npm i
 
       - name: Run Linter
         run: npm run lint
 
       - name: Build Forge Image
         run: make build
-      
+
       - name: Run Unit Tests
         run: make test
-      
+
       - name: Run Integration Tests
         run: make anvil-test
 
@@ -33,3 +35,12 @@ jobs:
         with:
           fail-on: none
 
+  scan:
+    needs: lint-and-test
+    if: github.event_name == 'pull_request'
+    uses: circlefin/circle-public-github-workflows/.github/workflows/pr-scan.yaml@v1
+
+  release-sbom:
+    needs: lint-and-test
+    if: github.event_name == 'push'
+    uses: circlefin/circle-public-github-workflows/.github/workflows/attach-release-assets.yaml@v1
