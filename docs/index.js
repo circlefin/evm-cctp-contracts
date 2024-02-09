@@ -27,10 +27,10 @@ const main = async() => {
     web3.eth.accounts.wallet.add(avaxSigner);
 
     // Testnet Contract Addresses
-    const ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS = '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5'; // Circle Messenger contract
-    const USDC_ETH_CONTRACT_ADDRESS = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238'; // Circle Sepolia USDC contract
-    const ETH_MESSAGE_CONTRACT_ADDRESS = '0x80537e4e8bab73d21096baa3a8c813b45ca0b7c9'; // Just a library to allow a call of addressToBytes32
-    const AVAX_MESSAGE_TRANSMITTER_CONTRACT_ADDRESS = '0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79'; // Circle Messenger contract
+    const ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS = '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5';
+    const USDC_ETH_CONTRACT_ADDRESS = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+    const ETH_MESSAGE_CONTRACT_ADDRESS = '0x80537e4e8bab73d21096baa3a8c813b45ca0b7c9';
+    const AVAX_MESSAGE_TRANSMITTER_CONTRACT_ADDRESS = '0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79';
 
     // initialize contracts using address and ABI
     const ethTokenMessengerContract = new web3.eth.Contract(tokenMessengerAbi, ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS, {from: ethSigner.address});
