@@ -27,9 +27,9 @@ const main = async() => {
     web3.eth.accounts.wallet.add(avaxSigner);
 
     // Testnet Contract Addresses
-    const ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS = "0xd0c3da58f55358142b8d3e06c1c30c5c6114efe8";
-    const USDC_ETH_CONTRACT_ADDRESS = "0x07865c6e87b9f70255377e024ace6630c1eaa37f";
-    const ETH_MESSAGE_CONTRACT_ADDRESS = "0x1a9695e9dbdb443f4b20e3e4ce87c8d963fda34f"
+    const ETH_TOKEN_MESSENGER_CONTRACT_ADDRESS = '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5';
+    const USDC_ETH_CONTRACT_ADDRESS = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
+    const ETH_MESSAGE_CONTRACT_ADDRESS = '0x80537e4e8bab73d21096baa3a8c813b45ca0b7c9';
     const AVAX_MESSAGE_TRANSMITTER_CONTRACT_ADDRESS = '0xa9fb1b3009dcb79e2fe346c16a604b8fa8ae0a79';
 
     // initialize contracts using address and ABI
