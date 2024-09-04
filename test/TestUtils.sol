@@ -81,7 +81,7 @@ contract TestUtils is Test {
     address arbitraryAddress = vm.addr(1903);
 
     // 8 KiB
-    uint32 maxMessageBodySize = 8 * 2**10;
+    uint32 maxMessageBodySize = 8 * 2 ** 10;
     // zero signature
     bytes zeroSignature =
         "00000000000000000000000000000000000000000000000000000000000000000";
@@ -133,6 +133,11 @@ contract TestUtils is Test {
 
     function expectRevertWithWrongOwner() public {
         vm.prank(arbitraryAddress);
+        vm.expectRevert("Ownable: caller is not the owner");
+    }
+
+    function expectRevertWithWrongOwner(address wrongOwner) public {
+        vm.prank(wrongOwner);
         vm.expectRevert("Ownable: caller is not the owner");
     }
 
@@ -215,6 +220,39 @@ contract TestUtils is Test {
         assertEq(_pausableContract.pauser(), _newPauser);
     }
 
+    function transferOwnershipFailsIfNotOwner(
+        address _ownableContractAddress,
+        address _notOwner,
+        address _newOwner
+    ) public {
+        Ownable2Step _ownableContract = Ownable2Step(_ownableContractAddress);
+        address _initialOwner = _ownableContract.owner();
+        expectRevertWithWrongOwner(_notOwner);
+        _ownableContract.transferOwnership(_newOwner);
+
+        // Sanity check
+        assertEq(_initialOwner, _ownableContract.owner());
+    }
+
+    function acceptOwnershipFailsIfNotPendingOwner(
+        address _ownableContractAddress,
+        address _newOwner,
+        address _otherAccount
+    ) public {
+        Ownable2Step _ownableContract = Ownable2Step(_ownableContractAddress);
+        address _initialOwner = _ownableContract.owner();
+        _ownableContract.transferOwnership(_newOwner);
+        assertEq(_ownableContract.pendingOwner(), _newOwner);
+
+        vm.prank(_otherAccount);
+        vm.expectRevert("Ownable2Step: caller is not the new owner");
+        _ownableContract.acceptOwnership();
+
+        // Sanity check
+        assertEq(_initialOwner, _ownableContract.owner());
+        assertEq(_newOwner, _ownableContract.pendingOwner());
+    }
+
     function transferOwnershipAndAcceptOwnership(
         address _ownableContractAddress,
         address _newOwner
@@ -284,19 +322,18 @@ contract TestUtils is Test {
         assertEq(_ownableContract.owner(), _secondNewOwner);
     }
 
-    function _signMessageWithAttesterPK(bytes memory _message)
-        internal
-        returns (bytes memory)
-    {
+    function _signMessageWithAttesterPK(
+        bytes memory _message
+    ) internal returns (bytes memory) {
         uint256[] memory attesterPrivateKeys = new uint256[](1);
         attesterPrivateKeys[0] = attesterPK;
         return _signMessage(_message, attesterPrivateKeys);
     }
 
-    function _signMessage(bytes memory _message, uint256[] memory _privKeys)
-        internal
-        returns (bytes memory)
-    {
+    function _signMessage(
+        bytes memory _message,
+        uint256[] memory _privKeys
+    ) internal returns (bytes memory) {
         bytes memory _signaturesConcatenated = "";
 
         for (uint256 i = 0; i < _privKeys.length; i++) {
