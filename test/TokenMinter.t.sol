@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 pragma solidity 0.7.6;
+pragma abicoder v2;
 
 import "../src/messages/Message.sol";
 import "../src/TokenMinter.sol";
@@ -131,9 +132,10 @@ contract TokenMinterTest is Test, TestUtils {
         _mint(_amount);
     }
 
-    function testMint_revertsOnFailedTokenMint(address _to, uint256 _amount)
-        public
-    {
+    function testMint_revertsOnFailedTokenMint(
+        address _to,
+        uint256 _amount
+    ) public {
         _linkTokenPair(localTokenAddress);
         vm.mockCall(
             localTokenAddress,
@@ -336,9 +338,9 @@ contract TokenMinterTest is Test, TestUtils {
         );
     }
 
-    function testSetTokenController_succeeds(address newTokenController)
-        public
-    {
+    function testSetTokenController_succeeds(
+        address newTokenController
+    ) public {
         vm.assume(newTokenController != address(0));
         assertEq(tokenMinter.tokenController(), tokenController);
 

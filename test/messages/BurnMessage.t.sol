@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 pragma solidity 0.7.6;
+pragma abicoder v2;
 
 import "@memview-sol/contracts/TypedMemView.sol";
 import "forge-std/Test.sol";

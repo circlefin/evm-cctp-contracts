@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 pragma solidity 0.7.6;
+pragma abicoder v2;
 
 import {Test} from "../../lib/forge-std/src/Test.sol";
 import {BaseTokenMessenger} from "../../src/v2/BaseTokenMessenger.sol";
