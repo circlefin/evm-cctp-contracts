@@ -41,7 +41,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
      * @param destinationTokenMessenger address of TokenMessenger on destination domain as bytes32
      * @param destinationCaller authorized caller as bytes32 of receiveMessage() on destination domain.
      * If equal to bytes32(0), any address can broadcast the message.
-     * @param fee requested fee to pay on destination domain, in units of burnToken
+     * @param maxFee maximum fee to pay on destination domain, in units of burnToken
      * @param minFinalityThreshold the minimum finality at which the message should be attested to.
      * @param hook target and calldata for execution on destination domain
      */
@@ -53,7 +53,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
         uint32 destinationDomain,
         bytes32 destinationTokenMessenger,
         bytes32 destinationCaller,
-        uint256 fee,
+        uint256 maxFee,
         uint32 indexed minFinalityThreshold,
         bytes hook
     );
@@ -80,6 +80,48 @@ contract TokenMessengerV2 is BaseTokenMessenger {
      * @notice Deposits and burns tokens from sender to be minted on destination domain.
      * Emits a `DepositForBurn` event.
      * @dev reverts if:
+     * - given burnToken is not supported
+     * - given destinationDomain has no TokenMessenger registered
+     * - transferFrom() reverts. For example, if sender's burnToken balance or approved allowance
+     * to this contract is less than `amount`.
+     * - burn() reverts. For example, if `amount` is 0.
+     * - maxFee is greater than or equal to the amount.
+     * - MessageTransmitter#sendMessage reverts.
+     * @param amount amount of tokens to burn
+     * @param destinationDomain destination domain
+     * @param mintRecipient address of mint recipient on destination domain
+     * @param burnToken address of contract to burn deposited tokens, on local domain
+     * @param destinationCaller authorized caller on the destination domain, as bytes32. If equal to bytes32(0),
+     * any address can broadcast the message.
+     * @param maxFee maximum fee to pay on the destination domain, specified in units of burnToken
+     * @param minFinalityThreshold the minimum finality at which a burn message will be attested to.
+     */
+    function depositForBurn(
+        uint256 amount,
+        uint32 destinationDomain,
+        bytes32 mintRecipient,
+        address burnToken,
+        bytes32 destinationCaller,
+        uint256 maxFee,
+        uint32 minFinalityThreshold
+    ) external {
+        bytes calldata _emptyHook = msg.data[0:0];
+        _depositForBurn(
+            amount,
+            destinationDomain,
+            mintRecipient,
+            burnToken,
+            destinationCaller,
+            maxFee,
+            minFinalityThreshold,
+            _emptyHook
+        );
+    }
+
+    /**
+     * @notice Deposits and burns tokens from sender to be minted on destination domain.
+     * Emits a `DepositForBurn` event.
+     * @dev reverts if:
      * - hook appears invalid, such as being less than 32 bytes in length
      * - given burnToken is not supported
      * - given destinationDomain has no TokenMessenger registered
@@ -95,8 +137,9 @@ contract TokenMessengerV2 is BaseTokenMessenger {
      * @param destinationDomain destination domain
      * @param mintRecipient address of mint recipient on destination domain
      * @param burnToken address of contract to burn deposited tokens, on local domain
-     * @param destinationCaller caller on the destination domain, as bytes32
-     * @param fee requested fee to pay on the destination domain, specified in units of burnToken
+     * @param destinationCaller authorized caller on the destination domain, as bytes32. If equal to bytes32(0),
+     * any address can broadcast the message.
+     * @param maxFee maximum fee to pay on the destination domain, specified in units of burnToken
      * @param minFinalityThreshold the minimum finality at which a burn message will be attested to.
      * @param hook hook to execute on destination domain. Must be 32-bytes length or more.
      */
@@ -106,7 +149,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
         bytes32 mintRecipient,
         address burnToken,
         bytes32 destinationCaller,
-        uint256 fee,
+        uint256 maxFee,
         uint32 minFinalityThreshold,
         bytes calldata hook
     ) external {
@@ -118,7 +161,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
             mintRecipient,
             burnToken,
             destinationCaller,
-            fee,
+            maxFee,
             minFinalityThreshold,
             hook
         );
@@ -131,13 +174,13 @@ contract TokenMessengerV2 is BaseTokenMessenger {
         bytes32 _mintRecipient,
         address _burnToken,
         bytes32 _destinationCaller,
-        uint256 _fee,
+        uint256 _maxFee,
         uint32 _minFinalityThreshold,
         bytes calldata _hook
     ) internal {
         require(_amount > 0, "Amount must be nonzero");
         require(_mintRecipient != bytes32(0), "Mint recipient must be nonzero");
-        require(_fee < _amount, "Fee must be less than amount");
+        require(_maxFee < _amount, "Max fee must be less than amount");
 
         bytes32 _destinationTokenMessenger = _getRemoteTokenMessenger(
             _destinationDomain
@@ -153,7 +196,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
             _mintRecipient,
             _amount,
             Message.addressToBytes32(msg.sender),
-            _fee,
+            _maxFee,
             _hook
         );
 
@@ -174,7 +217,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
             _destinationDomain,
             _destinationTokenMessenger,
             _destinationCaller,
-            _fee,
+            _maxFee,
             _minFinalityThreshold,
             _hook
         );
