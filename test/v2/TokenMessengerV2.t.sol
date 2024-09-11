@@ -37,7 +37,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
      * @param destinationDomain destination domain
      * @param destinationTokenMessenger address of TokenMessenger on destination domain as bytes32
      * @param destinationCaller authorized caller as bytes32 of receiveMessage() on destination domain, if not equal to bytes32(0).
-     * @param fee fee paid for fast burn on destination domain, in burnToken
+     * @param maxFee maximum fee to pay on destination domain, in burnToken
      * @param minFinalityThreshold the minimum finality at which the message should be attested to.
      * @param hook hook target and calldata for execution on destination domain
      */
@@ -49,7 +49,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint32 destinationDomain,
         bytes32 destinationTokenMessenger,
         bytes32 destinationCaller,
-        uint256 fee,
+        uint256 maxFee,
         uint32 indexed minFinalityThreshold,
         bytes hook
     );
@@ -125,20 +125,106 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
 
     // Tests
 
-    function testDepositForBurnWithHook_revertsIfNoRemoteTokenMessengerExistsForDomain(
+    function testDepositForBurn_revertsIfTransferAmountIsZero(
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold
+    ) public {
+        vm.assume(_mintRecipient != bytes32(0));
+
+        vm.expectRevert("Amount must be nonzero");
+        localTokenMessenger.depositForBurn(
+            0, // amount
+            remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            0,
+            _minFinalityThreshold
+        );
+    }
+
+    function testDepositForBurn_revertsIfMintRecipientIsZero(
+        uint256 _amount,
+        address _burnToken,
+        bytes32 _destinationCaller,
+        uint256 _maxFee,
+        uint32 _minFinalityThreshold
+    ) public {
+        vm.assume(_amount > 0);
+        vm.assume(_maxFee < _amount);
+
+        vm.expectRevert("Mint recipient must be nonzero");
+        localTokenMessenger.depositForBurn(
+            _amount,
+            remoteDomain,
+            bytes32(0), // mintRecipient
+            _burnToken,
+            _destinationCaller,
+            _maxFee,
+            _minFinalityThreshold
+        );
+    }
+
+    function testDepositForBurn_revertsIfFeeEqualsTransferAmount(
+        uint256 _amount,
+        address _burnToken,
+        bytes32 _mintRecipient,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold
+    ) public {
+        vm.assume(_amount > 0);
+        vm.assume(_mintRecipient != bytes32(0));
+
+        vm.expectRevert("Max fee must be less than amount");
+        localTokenMessenger.depositForBurn(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            _amount, // maxFee
+            _minFinalityThreshold
+        );
+    }
+
+    function testDepositForBurn_revertsIfFeeExceedsTransferAmount(
+        uint256 _amount,
+        address _burnToken,
+        bytes32 _mintRecipient,
+        bytes32 _destinationCaller,
+        uint256 _maxFee,
+        uint32 _minFinalityThreshold
+    ) public {
+        vm.assume(_amount > 0);
+        vm.assume(_maxFee > _amount);
+        vm.assume(_mintRecipient != bytes32(0));
+
+        vm.expectRevert("Max fee must be less than amount");
+        localTokenMessenger.depositForBurn(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            _maxFee,
+            _minFinalityThreshold
+        );
+    }
+
+    function testDepositForBurn_revertsIfNoRemoteTokenMessengerExistsForDomain(
         uint256 _amount,
         uint32 _remoteDomain,
         bytes32 _mintRecipient,
         address _burnToken,
         bytes32 _destinationCaller,
-        uint256 _fee,
-        uint32 _minFinalityThreshold,
-        bytes calldata _hook
+        uint256 _maxFee,
+        uint32 _minFinalityThreshold
     ) public {
         vm.assume(_amount > 0);
-        vm.assume(_fee < _amount);
+        vm.assume(_maxFee < _amount);
         vm.assume(_mintRecipient != bytes32(0));
-        vm.assume(_hook.length > 32);
 
         TokenMessengerV2 _tokenMessenger = new TokenMessengerV2(
             localMessageTransmitter,
@@ -146,32 +232,29 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         );
 
         vm.expectRevert("No TokenMessenger for domain");
-        _tokenMessenger.depositForBurnWithHook(
+        _tokenMessenger.depositForBurn(
             _amount,
             _remoteDomain,
             _mintRecipient,
             _burnToken,
             _destinationCaller,
-            _fee,
-            _minFinalityThreshold,
-            _hook
+            _maxFee,
+            _minFinalityThreshold
         );
     }
 
-    function testDepositForBurnWithHook_revertsIfLocalMinterIsNotSet(
+    function testDepositForBurn_revertsIfLocalMinterIsNotSet(
         uint256 _amount,
         uint32 _remoteDomain,
         bytes32 _mintRecipient,
         address _burnToken,
         bytes32 _destinationCaller,
-        uint256 _fee,
-        uint32 _minFinalityThreshold,
-        bytes calldata _hook
+        uint256 _maxFee,
+        uint32 _minFinalityThreshold
     ) public {
         vm.assume(_amount > 0);
-        vm.assume(_fee < _amount);
+        vm.assume(_maxFee < _amount);
         vm.assume(_mintRecipient != bytes32(0));
-        vm.assume(_hook.length > 32);
 
         TokenMessengerV2 _tokenMessenger = new TokenMessengerV2(
             localMessageTransmitter,
@@ -184,13 +267,174 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         );
 
         vm.expectRevert("Local minter is not set");
-        _tokenMessenger.depositForBurnWithHook(
+        _tokenMessenger.depositForBurn(
             _amount,
             _remoteDomain,
             _mintRecipient,
             _burnToken,
             _destinationCaller,
-            _fee,
+            _maxFee,
+            _minFinalityThreshold
+        );
+    }
+
+    function testDepositForBurn_revertsOnFailedTokenTransfer(
+        uint256 _amount,
+        bytes32 _mintRecipient,
+        bytes32 _destinationCaller,
+        uint256 _maxFee,
+        uint32 _minFinalityThreshold
+    ) public {
+        vm.assume(_amount > 0);
+        vm.assume(_maxFee < _amount);
+        vm.assume(_mintRecipient != bytes32(0));
+
+        vm.mockCall(
+            address(localToken),
+            abi.encodeWithSelector(MockMintBurnToken.transferFrom.selector),
+            abi.encode(false)
+        );
+        vm.expectRevert("Transfer operation failed");
+        localTokenMessenger.depositForBurn(
+            _amount,
+            destinationDomain,
+            _mintRecipient,
+            address(localToken),
+            _destinationCaller,
+            _maxFee,
+            _minFinalityThreshold
+        );
+    }
+
+    function testDepositForBurn_revertsIfTokenTransferReverts(
+        address _caller,
+        uint256 _amount,
+        bytes32 _mintRecipient,
+        bytes32 _destinationCaller,
+        uint256 _maxFee,
+        uint32 _minFinalityThreshold
+    ) public {
+        vm.assume(_amount > 0);
+        vm.assume(_maxFee < _amount);
+        vm.assume(_mintRecipient != bytes32(0));
+
+        // TransferFrom will revert, as localTokenMessenger has no allowance
+        assertEq(
+            localToken.allowance(_caller, address(localTokenMessenger)),
+            0
+        );
+
+        vm.expectRevert("ERC20: transfer amount exceeds allowance");
+        localTokenMessenger.depositForBurn(
+            _amount,
+            destinationDomain,
+            _mintRecipient,
+            address(localToken),
+            _destinationCaller,
+            _maxFee,
+            _minFinalityThreshold
+        );
+    }
+
+    function testDepositForBurn_revertsIfTransferAmountExceedsMaxBurnAmountPerMessage(
+        uint256 _amount,
+        bytes32 _mintRecipient,
+        bytes32 _destinationCaller,
+        uint256 _maxFee,
+        uint32 _minFinalityThreshold,
+        address _caller
+    ) public {
+        vm.assume(_mintRecipient != bytes32(0));
+        vm.assume(_maxFee < _amount);
+        vm.assume(_amount > 1);
+        vm.assume(_caller != address(0));
+
+        _setupDepositForBurn(_caller, _amount, _amount - 1);
+
+        vm.prank(_caller);
+        vm.expectRevert("Burn amount exceeds per tx limit");
+        localTokenMessenger.depositForBurn(
+            _amount,
+            destinationDomain,
+            _mintRecipient,
+            address(localToken),
+            _destinationCaller,
+            _maxFee,
+            _minFinalityThreshold
+        );
+    }
+
+    function testDepositForBurn_succeeds(
+        uint256 _amount,
+        uint256 _burnLimit,
+        bytes32 _mintRecipient,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold,
+        address _caller
+    ) public {
+        vm.assume(_mintRecipient != bytes32(0));
+        vm.assume(_amount > 1);
+        vm.assume(_amount < _burnLimit);
+        vm.assume(_caller != address(0));
+
+        uint256 _maxFee = _amount - 1;
+
+        _setupDepositForBurn(_caller, _amount, _burnLimit);
+
+        _depositForBurn(
+            _caller,
+            _mintRecipient,
+            _destinationCaller,
+            _amount,
+            _maxFee,
+            _minFinalityThreshold,
+            msg.data[0:0]
+        );
+    }
+
+    function testDepositForBurnWithHook_revertsIfHookIsEmpty(
+        uint256 _amount,
+        uint256 _maxFee,
+        bytes32 _mintRecipient,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold
+    ) public {
+        vm.assume(_mintRecipient != bytes32(0));
+        vm.assume(_maxFee < _amount);
+        vm.assume(_amount > 1);
+
+        vm.expectRevert("Invalid hook length");
+        localTokenMessenger.depositForBurnWithHook(
+            _amount,
+            destinationDomain,
+            _mintRecipient,
+            address(localToken),
+            _destinationCaller,
+            _maxFee,
+            _minFinalityThreshold,
+            bytes("")
+        );
+    }
+
+    function testDepositForBurnWithHook_revertsIfHookIsTooShort(
+        uint256 _amount,
+        bytes32 _mintRecipient,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold,
+        bytes calldata _hook
+    ) public {
+        vm.assume(_mintRecipient != bytes32(0));
+        vm.assume(_amount > 1);
+        vm.assume(_hook.length > 0 && _hook.length < 32);
+
+        vm.expectRevert("Invalid hook length");
+        localTokenMessenger.depositForBurnWithHook(
+            _amount,
+            destinationDomain,
+            _mintRecipient,
+            address(localToken),
+            _destinationCaller,
+            _amount - 1, // maxFee
             _minFinalityThreshold,
             _hook
         );
@@ -223,12 +467,12 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint256 _amount,
         address _burnToken,
         bytes32 _destinationCaller,
-        uint256 _fee,
+        uint256 _maxFee,
         uint32 _minFinalityThreshold,
         bytes calldata _hook
     ) public {
         vm.assume(_amount > 0);
-        vm.assume(_fee < _amount);
+        vm.assume(_maxFee < _amount);
         vm.assume(_hook.length > 32);
 
         vm.expectRevert("Mint recipient must be nonzero");
@@ -238,7 +482,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             bytes32(0), // mintRecipient
             _burnToken,
             _destinationCaller,
-            _fee,
+            _maxFee,
             _minFinalityThreshold,
             _hook
         );
@@ -256,14 +500,14 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         vm.assume(_mintRecipient != bytes32(0));
         vm.assume(_hook.length > 32);
 
-        vm.expectRevert("Fee must be less than amount");
+        vm.expectRevert("Max fee must be less than amount");
         localTokenMessenger.depositForBurnWithHook(
             _amount,
             remoteDomain,
             _mintRecipient,
             _burnToken,
             _destinationCaller,
-            _amount, // fee
+            _amount, // maxFee
             _minFinalityThreshold,
             _hook
         );
@@ -274,23 +518,94 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         address _burnToken,
         bytes32 _mintRecipient,
         bytes32 _destinationCaller,
-        uint256 _fee,
+        uint256 _maxFee,
         uint32 _minFinalityThreshold,
         bytes calldata _hook
     ) public {
         vm.assume(_amount > 0);
-        vm.assume(_fee > _amount);
+        vm.assume(_maxFee > _amount);
         vm.assume(_mintRecipient != bytes32(0));
         vm.assume(_hook.length > 32);
 
-        vm.expectRevert("Fee must be less than amount");
+        vm.expectRevert("Max fee must be less than amount");
         localTokenMessenger.depositForBurnWithHook(
             _amount,
             remoteDomain,
             _mintRecipient,
             _burnToken,
             _destinationCaller,
-            _fee,
+            _maxFee,
+            _minFinalityThreshold,
+            _hook
+        );
+    }
+
+    function testDepositForBurnWithHook_revertsIfNoRemoteTokenMessengerExistsForDomain(
+        uint256 _amount,
+        uint32 _remoteDomain,
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller,
+        uint256 _maxFee,
+        uint32 _minFinalityThreshold,
+        bytes calldata _hook
+    ) public {
+        vm.assume(_amount > 0);
+        vm.assume(_maxFee < _amount);
+        vm.assume(_mintRecipient != bytes32(0));
+        vm.assume(_hook.length > 32);
+
+        TokenMessengerV2 _tokenMessenger = new TokenMessengerV2(
+            localMessageTransmitter,
+            messageBodyVersion
+        );
+
+        vm.expectRevert("No TokenMessenger for domain");
+        _tokenMessenger.depositForBurnWithHook(
+            _amount,
+            _remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            _maxFee,
+            _minFinalityThreshold,
+            _hook
+        );
+    }
+
+    function testDepositForBurnWithHook_revertsIfLocalMinterIsNotSet(
+        uint256 _amount,
+        uint32 _remoteDomain,
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller,
+        uint256 _maxFee,
+        uint32 _minFinalityThreshold,
+        bytes calldata _hook
+    ) public {
+        vm.assume(_amount > 0);
+        vm.assume(_maxFee < _amount);
+        vm.assume(_mintRecipient != bytes32(0));
+        vm.assume(_hook.length > 32);
+
+        TokenMessengerV2 _tokenMessenger = new TokenMessengerV2(
+            localMessageTransmitter,
+            messageBodyVersion
+        );
+
+        _tokenMessenger.addRemoteTokenMessenger(
+            _remoteDomain,
+            remoteTokenMessengerAddr
+        );
+
+        vm.expectRevert("Local minter is not set");
+        _tokenMessenger.depositForBurnWithHook(
+            _amount,
+            _remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            _maxFee,
             _minFinalityThreshold,
             _hook
         );
@@ -300,12 +615,12 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint256 _amount,
         bytes32 _mintRecipient,
         bytes32 _destinationCaller,
-        uint256 _fee,
+        uint256 _maxFee,
         uint32 _minFinalityThreshold,
         bytes calldata _hook
     ) public {
         vm.assume(_amount > 0);
-        vm.assume(_fee < _amount);
+        vm.assume(_maxFee < _amount);
         vm.assume(_mintRecipient != bytes32(0));
         vm.assume(_hook.length > 32);
 
@@ -321,7 +636,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             _mintRecipient,
             address(localToken),
             _destinationCaller,
-            _fee,
+            _maxFee,
             _minFinalityThreshold,
             _hook
         );
@@ -332,12 +647,12 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint256 _amount,
         bytes32 _mintRecipient,
         bytes32 _destinationCaller,
-        uint256 _fee,
+        uint256 _maxFee,
         uint32 _minFinalityThreshold,
         bytes calldata _hook
     ) public {
         vm.assume(_amount > 0);
-        vm.assume(_fee < _amount);
+        vm.assume(_maxFee < _amount);
         vm.assume(_mintRecipient != bytes32(0));
         vm.assume(_hook.length > 32);
 
@@ -354,7 +669,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             _mintRecipient,
             address(localToken),
             _destinationCaller,
-            _fee,
+            _maxFee,
             _minFinalityThreshold,
             _hook
         );
@@ -364,18 +679,20 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint256 _amount,
         bytes32 _mintRecipient,
         bytes32 _destinationCaller,
-        uint256 _fee,
+        uint256 _maxFee,
         uint32 _minFinalityThreshold,
-        bytes calldata _hook
+        bytes calldata _hook,
+        address _caller
     ) public {
         vm.assume(_mintRecipient != bytes32(0));
         vm.assume(_hook.length > 32);
-        vm.assume(_fee < _amount);
+        vm.assume(_maxFee < _amount);
         vm.assume(_amount > 1);
+        vm.assume(_caller != address(0));
 
-        _setupDepositForBurn(arbitraryAddress, _amount, _amount - 1);
+        _setupDepositForBurn(_caller, _amount, _amount - 1);
 
-        vm.prank(arbitraryAddress);
+        vm.prank(_caller);
         vm.expectRevert("Burn amount exceeds per tx limit");
         localTokenMessenger.depositForBurnWithHook(
             _amount,
@@ -383,55 +700,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             _mintRecipient,
             address(localToken),
             _destinationCaller,
-            _fee,
-            _minFinalityThreshold,
-            _hook
-        );
-    }
-
-    function testDepositForBurnWithHook_revertsIfHookIsEmpty(
-        uint256 _amount,
-        uint256 _fee,
-        bytes32 _mintRecipient,
-        bytes32 _destinationCaller,
-        uint32 _minFinalityThreshold
-    ) public {
-        vm.assume(_mintRecipient != bytes32(0));
-        vm.assume(_fee < _amount);
-        vm.assume(_amount > 1);
-
-        vm.expectRevert("Invalid hook length");
-        localTokenMessenger.depositForBurnWithHook(
-            _amount,
-            destinationDomain,
-            _mintRecipient,
-            address(localToken),
-            _destinationCaller,
-            _fee,
-            _minFinalityThreshold,
-            bytes("")
-        );
-    }
-
-    function testDepositForBurnWithHook_revertsIfHookIsTooShort(
-        uint256 _amount,
-        bytes32 _mintRecipient,
-        bytes32 _destinationCaller,
-        uint32 _minFinalityThreshold,
-        bytes calldata _hook
-    ) public {
-        vm.assume(_mintRecipient != bytes32(0));
-        vm.assume(_amount > 1);
-        vm.assume(_hook.length > 0 && _hook.length < 32);
-
-        vm.expectRevert("Invalid hook length");
-        localTokenMessenger.depositForBurnWithHook(
-            _amount,
-            destinationDomain,
-            _mintRecipient,
-            address(localToken),
-            _destinationCaller,
-            _amount - 1, // fee
+            _maxFee,
             _minFinalityThreshold,
             _hook
         );
@@ -443,23 +712,25 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         bytes32 _mintRecipient,
         bytes32 _destinationCaller,
         uint32 _minFinalityThreshold,
-        bytes calldata _hook
+        bytes calldata _hook,
+        address _caller
     ) public {
         vm.assume(_mintRecipient != bytes32(0));
         vm.assume(_amount > 1);
         vm.assume(_amount < _burnLimit);
         vm.assume(_hook.length > 32);
+        vm.assume(_caller != address(0));
 
-        uint256 _fee = _amount - 1;
+        uint256 _maxFee = _amount - 1;
 
-        _setupDepositForBurn(arbitraryAddress, _amount, _burnLimit);
+        _setupDepositForBurn(_caller, _amount, _burnLimit);
 
         _depositForBurn(
-            arbitraryAddress,
+            _caller,
             _mintRecipient,
             _destinationCaller,
             _amount,
-            _fee,
+            _maxFee,
             _minFinalityThreshold,
             _hook
         );
@@ -487,7 +758,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         bytes32 _mintRecipient,
         bytes32 _destinationCaller,
         uint256 _amount,
-        uint256 _fee,
+        uint256 _maxFee,
         uint32 _minFinalityThreshold,
         bytes calldata _hook
     ) internal {
@@ -497,7 +768,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             _mintRecipient,
             _amount,
             Message.addressToBytes32(_caller),
-            _fee,
+            _maxFee,
             _hook
         );
 
@@ -541,21 +812,34 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             destinationDomain,
             remoteTokenMessengerAddr,
             _destinationCaller,
-            _fee,
+            _maxFee,
             _minFinalityThreshold,
             _hook
         );
 
         vm.prank(_caller);
-        localTokenMessenger.depositForBurnWithHook(
-            _amount,
-            destinationDomain,
-            _mintRecipient,
-            address(localToken),
-            _destinationCaller,
-            _fee,
-            _minFinalityThreshold,
-            _hook
-        );
+
+        if (_hook.length == 0) {
+            localTokenMessenger.depositForBurn(
+                _amount,
+                destinationDomain,
+                _mintRecipient,
+                address(localToken),
+                _destinationCaller,
+                _maxFee,
+                _minFinalityThreshold
+            );
+        } else {
+            localTokenMessenger.depositForBurnWithHook(
+                _amount,
+                destinationDomain,
+                _mintRecipient,
+                address(localToken),
+                _destinationCaller,
+                _maxFee,
+                _minFinalityThreshold,
+                _hook
+            );
+        }
     }
 }

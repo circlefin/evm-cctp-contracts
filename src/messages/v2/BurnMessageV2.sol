@@ -33,7 +33,7 @@ library BurnMessageV2 {
      * @param _mintRecipient The mint recipient address as bytes32
      * @param _amount The burn amount
      * @param _messageSender The message sender
-     * @param _feeRequested The fee requested for the burn
+     * @param _maxFee The maximum fee to be paid on destination domain
      * @param _hook Optional hook to execute on destination domain
      * @return Formatted message.
      */
@@ -43,7 +43,7 @@ library BurnMessageV2 {
         bytes32 _mintRecipient,
         uint256 _amount,
         bytes32 _messageSender,
-        uint256 _feeRequested,
+        uint256 _maxFee,
         bytes calldata _hook
     ) internal pure returns (bytes memory) {
         return
@@ -53,7 +53,7 @@ library BurnMessageV2 {
                 _mintRecipient,
                 _amount,
                 _messageSender,
-                _feeRequested,
+                _maxFee,
                 _hook
             );
     }

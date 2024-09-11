@@ -33,7 +33,7 @@ contract BurnMessageV2Test is Test {
         bytes32 _mintRecipient,
         uint256 _amount,
         bytes32 _messageSender,
-        uint256 _feeRequested,
+        uint256 _maxFee,
         bytes calldata _hook
     ) public {
         bytes memory _expectedMessageBody = abi.encodePacked(
@@ -42,7 +42,7 @@ contract BurnMessageV2Test is Test {
             _mintRecipient,
             _amount,
             _messageSender,
-            _feeRequested,
+            _maxFee,
             _hook
         );
 
@@ -52,7 +52,7 @@ contract BurnMessageV2Test is Test {
             _mintRecipient,
             _amount,
             _messageSender,
-            _feeRequested,
+            _maxFee,
             _hook
         );
 
