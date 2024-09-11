@@ -9,11 +9,35 @@ build:
 test:
 	@${FOUNDRY} "forge test -vv"
 
-simulate:
-	forge script scripts/deploy.s.sol:DeployScript --rpc-url ${RPC_URL} --sender ${SENDER}
+simulate-deploy:
+	forge script scripts/v1/deploy.s.sol:DeployScript --rpc-url ${RPC_URL} --sender ${SENDER}
 
 deploy:
-	forge script scripts/deploy.s.sol:DeployScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+	forge script scripts/v1/deploy.s.sol:DeployScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+
+simulate-deployv2:
+	forge script scripts/v2/1_deploy.s.sol:DeployV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
+
+deployv2:
+	forge script scripts/v2/1_deploy.s.sol:DeployV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+
+simulate-setup-second-attester:
+	forge script scripts/v2/2_setupSecondAttester.s.sol:SetupSecondAttesterScript --rpc-url ${RPC_URL} --sender ${SENDER}
+
+setup-second-attester:
+	forge script scripts/v2/2_setupSecondAttester.s.sol:SetupSecondAttesterScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+
+simulate-setup-remote-resources:
+	forge script scripts/v2/3_setupRemoteResources.s.sol:SetupRemoteResourcesScript --rpc-url ${RPC_URL} --sender ${SENDER}
+
+setup-remote-resources:
+	forge script scripts/v2/3_setupRemoteResources.s.sol:SetupRemoteResourcesScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+
+simulate-rotate-keys:
+	forge script scripts/v2/4_rotateKeys.s.sol:RotateKeysScript --rpc-url ${RPC_URL} --sender ${SENDER}
+
+rotate-keys:
+	forge script scripts/v2/4_rotateKeys.s.sol:RotateKeysScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
 anvil:
 	docker rm -f anvil || true

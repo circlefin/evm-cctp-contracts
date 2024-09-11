@@ -1,12 +1,17 @@
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 import "forge-std/Script.sol";
-import "../src/TokenMessenger.sol";
-import "../src/TokenMinter.sol";
-import "../src/MessageTransmitter.sol";
-import "../src/messages/Message.sol";
+import "../../src/TokenMessenger.sol";
+import "../../src/TokenMinter.sol";
+import "../../src/MessageTransmitter.sol";
+import "../../src/messages/Message.sol";
 
-contract DeployScript is Script {
+contract DeployV2Script is Script {
+    // Expose for tests
+    MessageTransmitter public messageTransmitter;
+    TokenMessenger public tokenMessenger;
+    TokenMinter public tokenMinter;
+
     address private attesterAddress;
     address private usdcContractAddress;
     address private usdcRemoteContractAddress;
@@ -35,15 +40,14 @@ contract DeployScript is Script {
      * @param privateKey Private Key for signing the transactions
      * @return MessageTransmitter instance
      */
-    function deployMessageTransmitter(uint256 privateKey)
-        private
-        returns (MessageTransmitter)
-    {
+    function deployMessageTransmitter(
+        uint256 privateKey
+    ) private returns (MessageTransmitter) {
         // Start recording transactions
         vm.startBroadcast(privateKey);
 
         // Deploy MessageTransmitter
-        MessageTransmitter messageTransmitter = new MessageTransmitter(
+        MessageTransmitter _messageTransmitter = new MessageTransmitter(
             domain,
             attesterAddress,
             maxMessageBodySize,
@@ -51,14 +55,14 @@ contract DeployScript is Script {
         );
 
         // Add Pauser
-        messageTransmitter.updatePauser(messageTransmitterPauserAddress);
+        _messageTransmitter.updatePauser(messageTransmitterPauserAddress);
 
         // Add Rescuer
-        messageTransmitter.updateRescuer(messageTransmitterRescuerAddress);
+        _messageTransmitter.updateRescuer(messageTransmitterRescuerAddress);
 
         // Stop recording transactions
         vm.stopBroadcast();
-        return messageTransmitter;
+        return _messageTransmitter;
     }
 
     /**
@@ -75,18 +79,18 @@ contract DeployScript is Script {
         vm.startBroadcast(privateKey);
 
         // Deploy TokenMessenger
-        TokenMessenger tokenMessenger = new TokenMessenger(
+        TokenMessenger _tokenMessenger = new TokenMessenger(
             messageTransmitterAddress,
             messageBodyVersion
         );
 
         // Add Rescuer
-        tokenMessenger.updateRescuer(tokenMessengerRescuerAddress);
+        _tokenMessenger.updateRescuer(tokenMessengerRescuerAddress);
 
         // Stop recording transations
         vm.stopBroadcast();
 
-        return tokenMessenger;
+        return _tokenMessenger;
     }
 
     /**
@@ -103,35 +107,35 @@ contract DeployScript is Script {
         vm.startBroadcast(privateKey);
 
         // Deploy TokenMinter
-        TokenMinter tokenMinter = new TokenMinter(tokenControllerAddress);
+        TokenMinter _tokenMinter = new TokenMinter(tokenControllerAddress);
 
         // Add Local TokenMessenger
-        tokenMinter.addLocalTokenMessenger(tokenMessengerAddress);
+        _tokenMinter.addLocalTokenMessenger(tokenMessengerAddress);
 
         // Add Pauser
-        tokenMinter.updatePauser(tokenMinterPauserAddress);
+        _tokenMinter.updatePauser(tokenMinterPauserAddress);
 
         // Add Rescuer
-        tokenMinter.updateRescuer(tokenMinterRescuerAddress);
+        _tokenMinter.updateRescuer(tokenMinterRescuerAddress);
 
         // Stop recording transations
         vm.stopBroadcast();
 
-        return tokenMinter;
+        return _tokenMinter;
     }
 
     /**
      * @notice add local minter to the TokenMessenger
      */
     function addMinterAddressToTokenMessenger(
-        TokenMessenger tokenMessenger,
+        TokenMessenger _tokenMessenger,
         uint256 privateKey,
         address minterAddress
     ) private {
         // Start recording transations
         vm.startBroadcast(privateKey);
 
-        tokenMessenger.addLocalMinter(minterAddress);
+        _tokenMessenger.addLocalMinter(minterAddress);
 
         // Stop recording transations
         vm.stopBroadcast();
@@ -140,9 +144,10 @@ contract DeployScript is Script {
     /**
      * @notice link current chain and remote chain tokens
      */
-    function linkTokenPair(TokenMinter tokenMinter, uint256 privateKey)
-        private
-    {
+    function linkTokenPair(
+        TokenMinter _tokenMinter,
+        uint256 privateKey
+    ) private {
         // Start recording transations
         vm.startBroadcast(privateKey);
 
@@ -150,12 +155,12 @@ contract DeployScript is Script {
             usdcRemoteContractAddress
         );
 
-        tokenMinter.setMaxBurnAmountPerMessage(
+        _tokenMinter.setMaxBurnAmountPerMessage(
             usdcContractAddress,
             burnLimitPerMessage
         );
 
-        tokenMinter.linkTokenPair(
+        _tokenMinter.linkTokenPair(
             usdcContractAddress,
             remoteDomain,
             remoteUsdcContractAddressInBytes32
@@ -169,7 +174,7 @@ contract DeployScript is Script {
      * @notice add address of TokenMessenger deployed on another chain
      */
     function addRemoteTokenMessenger(
-        TokenMessenger tokenMessenger,
+        TokenMessenger _tokenMessenger,
         uint256 privateKey
     ) private {
         // Start recording transations
@@ -177,7 +182,7 @@ contract DeployScript is Script {
         bytes32 remoteTokenMessengerAddressInBytes32 = Message.addressToBytes32(
             remoteTokenMessengerAddress
         );
-        tokenMessenger.addRemoteTokenMessenger(
+        _tokenMessenger.addRemoteTokenMessenger(
             remoteDomain,
             remoteTokenMessengerAddressInBytes32
         );
@@ -236,18 +241,18 @@ contract DeployScript is Script {
      */
     function run() public {
         // Deploy MessageTransmitter
-        MessageTransmitter messageTransmitter = deployMessageTransmitter(
+        messageTransmitter = deployMessageTransmitter(
             messageTransmitterDeployerPrivateKey
         );
 
         // Deploy TokenMessenger
-        TokenMessenger tokenMessenger = deployTokenMessenger(
+        tokenMessenger = deployTokenMessenger(
             tokenMessengerDeployerPrivateKey,
             address(messageTransmitter)
         );
 
         // Deploy TokenMinter
-        TokenMinter tokenMinter = deployTokenMinter(
+        tokenMinter = deployTokenMinter(
             tokenMinterDeployerPrivateKey,
             address(tokenMessenger)
         );
