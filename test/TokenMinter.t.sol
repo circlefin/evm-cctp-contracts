@@ -413,22 +413,25 @@ contract TokenMinterTest is Test, TestUtils {
     function testRescuable(
         address _rescuer,
         address _rescueRecipient,
-        uint256 _amount
+        uint256 _amount,
+        address _nonRescuer
     ) public {
         assertContractIsRescuable(
             address(tokenMinter),
             _rescuer,
             _rescueRecipient,
-            _amount
+            _amount,
+            _nonRescuer
         );
     }
 
-    function testPausable(address _newPauser) public {
+    function testPausable(address _newPauser, address _nonOwner) public {
         assertContractIsPausable(
             address(tokenMinter),
             pauser,
             _newPauser,
-            tokenMinter.owner()
+            tokenMinter.owner(),
+            _nonOwner
         );
     }
 

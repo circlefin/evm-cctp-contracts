@@ -51,6 +51,8 @@ contract TestUtils is Test {
 
     event PauserChanged(address indexed newAddress);
 
+    event RescuerChanged(address indexed newRescuer);
+
     // test keys
     uint256 attesterPK = 1;
     uint256 fakeAttesterPK = 2;
@@ -151,10 +153,17 @@ contract TestUtils is Test {
         address _rescuableContractAddress,
         address _rescuer,
         address _rescueRecipient,
-        uint256 _amount
+        uint256 _amount,
+        address _nonRescuer
     ) public {
-        // Send erc20 to _rescuableContractAddress
         Rescuable _rescuableContract = Rescuable(_rescuableContractAddress);
+
+        vm.assume(_rescuer != address(0));
+        vm.assume(_rescueRecipient != address(0));
+        vm.assume(_rescuer != _nonRescuer);
+        vm.assume(_nonRescuer != _rescuableContract.owner());
+
+        // Send erc20 to _rescuableContractAddress
         MockMintBurnToken _mockMintBurnToken = new MockMintBurnToken();
 
         // _rescueRecipient's initial balance of _mockMintBurnToken is 0
@@ -171,10 +180,17 @@ contract TestUtils is Test {
             _amount
         );
 
+        // Test updating the rescuer
         // (Updating rescuer to zero-address is not permitted)
-        if (_rescuer != address(0)) {
-            _rescuableContract.updateRescuer(_rescuer);
-        }
+        vm.expectRevert("Rescuable: new rescuer is the zero address");
+        _rescuableContract.updateRescuer(address(0));
+
+        assertTrue(_rescuer != address(0));
+
+        // Update rescuer to a valid address
+        vm.expectEmit(true, true, true, true);
+        emit RescuerChanged(_rescuer);
+        _rescuableContract.updateRescuer(_rescuer);
 
         // Rescue erc20 to _rescueRecipient
         vm.prank(_rescuer);
@@ -186,19 +202,40 @@ contract TestUtils is Test {
 
         // Assert funds are rescued
         assertEq(_mockMintBurnToken.balanceOf(_rescueRecipient), _amount);
+
+        // Check that non-rescuer address cannot rescue funds
+        assertTrue(_rescuableContract.rescuer() != _nonRescuer);
+        vm.prank(_nonRescuer);
+        vm.expectRevert("Rescuable: caller is not the rescuer");
+        _rescuableContract.rescueERC20(
+            _mockMintBurnToken,
+            _rescueRecipient,
+            _amount
+        );
+
+        // Check that non-owner cannot update rescuer
+        vm.prank(_nonRescuer);
+        vm.expectRevert("Ownable: caller is not the owner");
+        _rescuableContract.updateRescuer(_nonRescuer);
+        vm.stopPrank();
     }
 
     function assertContractIsPausable(
         address _pausableContractAddress,
         address _currentPauser,
         address _newPauser,
-        address _owner
+        address _owner,
+        address _nonOwner
     ) public {
         vm.assume(_newPauser != address(0));
+        vm.assume(_owner != _nonOwner);
+        vm.assume(_currentPauser != _newPauser);
+
         Pausable _pausableContract = Pausable(_pausableContractAddress);
         assertEq(_pausableContract.pauser(), _currentPauser);
         assertFalse(_pausableContract.paused());
 
+        // Check that the current pauser can pause / unpause
         vm.startPrank(_currentPauser);
 
         vm.expectEmit(true, true, true, true);
@@ -213,6 +250,26 @@ contract TestUtils is Test {
 
         vm.stopPrank();
 
+        // Check that a non-pauser cannot pause / unpause
+        assertTrue(_newPauser != _currentPauser);
+        vm.startPrank(_newPauser);
+
+        vm.expectRevert("Pausable: caller is not the pauser");
+        _pausableContract.pause();
+
+        vm.expectRevert("Pausable: caller is not the pauser");
+        _pausableContract.unpause();
+
+        vm.stopPrank();
+
+        // Check that a non-owner cannot rotate the pauser
+        assertTrue(_nonOwner != _owner);
+        vm.prank(_nonOwner);
+        vm.expectRevert("Ownable: caller is not the owner");
+        _pausableContract.updatePauser(_newPauser);
+        vm.stopPrank();
+
+        // Check that owner can rotate pauser, and it emits an event
         vm.expectEmit(true, true, true, true);
         emit PauserChanged(_newPauser);
         vm.prank(_owner);
@@ -254,12 +311,58 @@ contract TestUtils is Test {
         assertEq(_newOwner, _ownableContract.pendingOwner());
     }
 
+    function transferOwnership_revertsFromNonOwner(
+        address _ownableContractAddress,
+        address _newOwner,
+        address _nonOwner
+    ) public {
+        Ownable2Step _ownableContract = Ownable2Step(_ownableContractAddress);
+        address initialOwner = _ownableContract.owner();
+        vm.assume(initialOwner != _nonOwner);
+        vm.assume(initialOwner != _newOwner);
+        vm.assume(_newOwner != _nonOwner);
+
+        assertTrue(_nonOwner != initialOwner);
+
+        // Test non-owner cannot transfer ownership
+        vm.prank(_nonOwner);
+        vm.expectRevert("Ownable: caller is not the owner");
+        _ownableContract.transferOwnership(_newOwner);
+        vm.stopPrank();
+    }
+
+    function acceptOwnership_revertsFromNonPendingOwner(
+        address _ownableContractAddress,
+        address _newOwner,
+        address _nonOwner
+    ) public {
+        Ownable2Step _ownableContract = Ownable2Step(_ownableContractAddress);
+        address _initialOwner = _ownableContract.owner();
+        vm.assume(_initialOwner != _nonOwner);
+        vm.assume(_initialOwner != _newOwner);
+        vm.assume(_newOwner != _nonOwner);
+
+        // First, transfer ownership
+        vm.prank(_initialOwner);
+        _ownableContract.transferOwnership(_newOwner);
+        vm.stopPrank();
+        assertEq(_ownableContract.owner(), _initialOwner);
+        assertEq(_ownableContract.pendingOwner(), _newOwner);
+
+        // Test non-pending owner cannot acceptOwnership
+        vm.prank(_nonOwner);
+        vm.expectRevert("Ownable2Step: caller is not the new owner");
+        _ownableContract.acceptOwnership();
+        vm.stopPrank();
+    }
+
     function transferOwnershipAndAcceptOwnership(
         address _ownableContractAddress,
         address _newOwner
     ) public {
         Ownable2Step _ownableContract = Ownable2Step(_ownableContractAddress);
         address initialOwner = _ownableContract.owner();
+        vm.assume(initialOwner != _newOwner);
         // assert that the owner is still unchanged
         assertEq(_ownableContract.owner(), initialOwner);
 

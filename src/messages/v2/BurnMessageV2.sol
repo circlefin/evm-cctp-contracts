@@ -22,10 +22,38 @@ import {BurnMessage} from "../BurnMessage.sol";
 
 /**
  * @title BurnMessageV2 Library
- * @notice TODO: STABLE-6895
- * @dev TODO: STABLE-6895
+ * @notice Library for formatted BurnMessages used by TokenMessengerV2.
+ * @dev BurnMessageV2 format:
+ * Field                 Bytes      Type       Index
+ * version               4          uint32     0
+ * burnToken             32         bytes32    4
+ * mintRecipient         32         bytes32    36
+ * amount                32         uint256    68
+ * messageSender         32         bytes32    100
+ * maxFee                32         uint256    132
+ * feeExecuted           32         uint256    164
+ * expirationBlock       32         uint256    196
+ * hookData              dynamic    bytes      228
+ * @dev Differences from v1:
+ * - maxFee is added
+ * - feeExecuted is added
+ * - expirationBlock is added
+ * - hookData is added
  **/
 library BurnMessageV2 {
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+    using BurnMessage for bytes29;
+
+    // Field indices
+    uint8 private constant MAX_FEE_INDEX = 132;
+    uint8 private constant FEE_EXECUTED_INDEX = 164;
+    uint8 private constant EXPIRATION_BLOCK_INDEX = 196;
+    uint8 private constant HOOK_DATA_INDEX = 228;
+
+    uint256 private constant EMPTY_FEE_EXECUTED = 0;
+    uint256 private constant EMPTY_EXPIRATION_BLOCK = 0;
+
     /**
      * @notice Formats a burn message
      * @param _version The message body version
@@ -37,7 +65,7 @@ library BurnMessageV2 {
      * @param _hook Optional hook to execute on destination domain
      * @return Formatted message.
      */
-    function _formatMessage(
+    function _formatMessageForRelay(
         uint32 _version,
         bytes32 _burnToken,
         bytes32 _mintRecipient,
@@ -54,9 +82,67 @@ library BurnMessageV2 {
                 _amount,
                 _messageSender,
                 _maxFee,
+                EMPTY_FEE_EXECUTED,
+                EMPTY_EXPIRATION_BLOCK,
                 _hook
             );
     }
 
-    // TODO: STABLE-6895, complete implementation, including message validation.
+    // @notice Returns _message's version field
+    function _getVersion(bytes29 _message) internal pure returns (uint32) {
+        return _message._getVersion();
+    }
+
+    // @notice Returns _message's burn token field
+    function _getBurnToken(bytes29 _message) internal pure returns (bytes32) {
+        return _message._getBurnToken();
+    }
+
+    // @notice Returns _message's mintRecipient field
+    function _getMintRecipient(
+        bytes29 _message
+    ) internal pure returns (bytes32) {
+        return _message._getMintRecipient();
+    }
+
+    // @notice Returns _message's amount field
+    function _getAmount(bytes29 _message) internal pure returns (uint256) {
+        return _message._getAmount();
+    }
+
+    // @notice Returns _message's messageSender field
+    function _getMessageSender(
+        bytes29 _message
+    ) internal pure returns (bytes32) {
+        return _message._getMessageSender();
+    }
+
+    // @notice Returns _message's maxFee field
+    function _getMaxFee(bytes29 _message) internal pure returns (uint256) {
+        return _message.indexUint(MAX_FEE_INDEX, 32);
+    }
+
+    // @notice Returns _message's feeExecuted field
+    function _getFeeExecuted(bytes29 _message) internal pure returns (uint256) {
+        return _message.indexUint(FEE_EXECUTED_INDEX, 32);
+    }
+
+    // @notice Returns _message's expirationBlock field
+    function _getExpirationBlock(
+        bytes29 _message
+    ) internal pure returns (uint256) {
+        return _message.indexUint(EXPIRATION_BLOCK_INDEX, 32);
+    }
+
+    /**
+     * @notice Reverts if burn message is malformed or invalid length
+     * @param _message The burn message as bytes29
+     */
+    function _validateBurnMessageFormat(bytes29 _message) internal pure {
+        require(_message.isValid(), "Malformed message");
+        require(
+            _message.len() >= HOOK_DATA_INDEX,
+            "Invalid message: too short"
+        );
+    }
 }

@@ -885,22 +885,25 @@ contract MessageTransmitterTest is Test, TestUtils {
     function testRescuable(
         address _rescuer,
         address _rescueRecipient,
-        uint256 _amount
+        uint256 _amount,
+        address _nonRescuer
     ) public {
         assertContractIsRescuable(
             address(srcMessageTransmitter),
             _rescuer,
             _rescueRecipient,
-            _amount
+            _amount,
+            _nonRescuer
         );
     }
 
-    function testPausable(address _newPauser) public {
+    function testPausable(address _newPauser, address _nonOwner) public {
         assertContractIsPausable(
             address(srcMessageTransmitter),
             pauser,
             _newPauser,
-            srcMessageTransmitter.owner()
+            srcMessageTransmitter.owner(),
+            _nonOwner
         );
     }
 
