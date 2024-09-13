@@ -21,7 +21,7 @@ import {BaseTokenMessenger} from "./BaseTokenMessenger.sol";
 import {ITokenMinter} from "../interfaces/ITokenMinter.sol";
 import {IMintBurnToken} from "../interfaces/IMintBurnToken.sol";
 import {BurnMessageV2} from "../messages/v2/BurnMessageV2.sol";
-import {Message} from "../messages/Message.sol";
+import {AddressUtils} from "../messages/v2/AddressUtils.sol";
 import {MessageTransmitterV2} from "./MessageTransmitterV2.sol";
 
 /**
@@ -190,12 +190,12 @@ contract TokenMessengerV2 is BaseTokenMessenger {
         _depositAndBurnTokens(_burnToken, msg.sender, _amount);
 
         // Format message body
-        bytes memory _burnMessage = BurnMessageV2._formatMessage(
+        bytes memory _burnMessage = BurnMessageV2._formatMessageForRelay(
             messageBodyVersion,
-            Message.addressToBytes32(_burnToken),
+            AddressUtils.addressToBytes32(_burnToken),
             _mintRecipient,
             _amount,
-            Message.addressToBytes32(msg.sender),
+            AddressUtils.addressToBytes32(msg.sender),
             _maxFee,
             _hook
         );

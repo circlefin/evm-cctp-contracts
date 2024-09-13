@@ -27,7 +27,7 @@ contract BurnMessageV2Test is Test {
     using TypedMemView for bytes29;
     using BurnMessageV2 for bytes29;
 
-    function testFormatMessage_succeeds(
+    function testFormatMessageyForRelay_succeeds(
         uint32 _version,
         bytes32 _burnToken,
         bytes32 _mintRecipient,
@@ -35,7 +35,7 @@ contract BurnMessageV2Test is Test {
         bytes32 _messageSender,
         uint256 _maxFee,
         bytes calldata _hook
-    ) public {
+    ) public pure {
         bytes memory _expectedMessageBody = abi.encodePacked(
             _version,
             _burnToken,
@@ -43,10 +43,12 @@ contract BurnMessageV2Test is Test {
             _amount,
             _messageSender,
             _maxFee,
+            uint256(0),
+            uint256(0),
             _hook
         );
 
-        bytes memory _messageBody = BurnMessageV2._formatMessage(
+        bytes memory _messageBody = BurnMessageV2._formatMessageForRelay(
             _version,
             _burnToken,
             _mintRecipient,
@@ -57,6 +59,50 @@ contract BurnMessageV2Test is Test {
         );
 
         bytes29 _m = _messageBody.ref(0);
+        assertEq(uint256(_m._getVersion()), uint256(_version));
+        assertEq(_m._getBurnToken(), _burnToken);
+        assertEq(_m._getMintRecipient(), _mintRecipient);
+        assertEq(_m._getAmount(), _amount);
+        assertEq(_m._getMessageSender(), _messageSender);
+        assertEq(_m._getMaxFee(), _maxFee);
+        assertEq(_m._getFeeExecuted(), 0);
+        assertEq(_m._getExpirationBlock(), 0);
+
+        _m._validateBurnMessageFormat();
+
         assertEq(_expectedMessageBody.ref(0).keccak(), _m.keccak());
+    }
+
+    function testIsValidBurnMessage_revertsForTooShortMessage(
+        uint32 _version,
+        bytes32 _burnToken,
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _messageSender,
+        uint256 _maxFee,
+        bytes calldata _hookData
+    ) public {
+        bytes memory _messageBody = BurnMessageV2._formatMessageForRelay(
+            _version,
+            _burnToken,
+            _mintRecipient,
+            _amount,
+            _messageSender,
+            _maxFee,
+            _hookData
+        );
+        bytes29 _m = _messageBody.ref(0);
+
+        // Lop off the hookData bytes, and then one more
+        _m = _m.slice(0, _m.len() - _hookData.length - 1, 0);
+
+        vm.expectRevert("Invalid message: too short");
+        _m._validateBurnMessageFormat();
+    }
+
+    function testIsValidBurnMessage_revertsForEmptyMessage() public {
+        bytes29 _m = TypedMemView.nullView();
+        vm.expectRevert("Malformed message");
+        BurnMessageV2._validateBurnMessageFormat(_m);
     }
 }

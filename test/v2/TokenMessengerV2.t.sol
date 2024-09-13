@@ -20,7 +20,7 @@ pragma abicoder v2;
 
 import {BaseTokenMessengerTest} from "./BaseTokenMessenger.t.sol";
 import {TokenMessengerV2} from "../../src/v2/TokenMessengerV2.sol";
-import {Message} from "../../src/messages/Message.sol";
+import {AddressUtils} from "../../src/messages/v2/AddressUtils.sol";
 import {MockMintBurnToken} from "../mocks/MockMintBurnToken.sol";
 import {TokenMinter} from "../../src/TokenMinter.sol";
 import {MessageTransmitterV2} from "../../src/v2/MessageTransmitterV2.sol";
@@ -80,7 +80,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         // Add a local minter
         localTokenMessenger.addLocalMinter(address(localTokenMinter));
 
-        remoteTokenMessengerAddr = Message.addressToBytes32(
+        remoteTokenMessengerAddr = AddressUtils.addressToBytes32(
             remoteTokenMessageger
         );
 
@@ -94,7 +94,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             localTokenMinter,
             address(localToken),
             remoteDomain,
-            Message.addressToBytes32(remoteTokenAddr)
+            AddressUtils.addressToBytes32(remoteTokenAddr)
         );
 
         localTokenMinter.addLocalTokenMessenger(address(localTokenMessenger));
@@ -762,15 +762,16 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint32 _minFinalityThreshold,
         bytes calldata _hook
     ) internal {
-        bytes memory _expectedBurnMessage = BurnMessageV2._formatMessage(
-            messageBodyVersion,
-            Message.addressToBytes32(address(localToken)),
-            _mintRecipient,
-            _amount,
-            Message.addressToBytes32(_caller),
-            _maxFee,
-            _hook
-        );
+        bytes memory _expectedBurnMessage = BurnMessageV2
+            ._formatMessageForRelay(
+                messageBodyVersion, // version
+                AddressUtils.addressToBytes32(address(localToken)), // burn token
+                _mintRecipient, // mint recipient
+                _amount, // amount
+                AddressUtils.addressToBytes32(_caller), // sender
+                _maxFee, // max fee
+                _hook
+            );
 
         // expect burn() on localTokenMinter
         vm.expectCall(
