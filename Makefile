@@ -15,6 +15,12 @@ simulate-deploy:
 deploy:
 	forge script scripts/v1/deploy.s.sol:DeployScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
+simulate-deploy-proxy-factory:
+	forge script scripts/DeployProxyFactory.s.sol:DeployProxyFactoryScript --rpc-url ${RPC_URL} --sender ${SENDER}
+
+deploy-proxy-factory:
+	forge script scripts/DeployProxyFactory.s.sol:DeployProxyFactoryScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+
 simulate-deployv2:
 	forge script scripts/v2/1_deploy.s.sol:DeployV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
 
