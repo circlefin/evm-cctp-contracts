@@ -24,6 +24,8 @@ import {Pausable} from "../roles/Pausable.sol";
 import {Rescuable} from "../roles/Rescuable.sol";
 import {MessageV2} from "../messages/v2/MessageV2.sol";
 import {AddressUtils} from "../messages/v2/AddressUtils.sol";
+import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
+import {IMessageHandlerV2} from "../interfaces/v2/IMessageHandlerV2.sol";
 
 /**
  * @title MessageTransmitterV2
@@ -45,12 +47,33 @@ contract MessageTransmitterV2 is
     event MessageSent(bytes message);
 
     /**
+     * @notice Emitted when a new message is received
+     * @param caller Caller (msg.sender) on destination domain
+     * @param sourceDomain The source domain this message originated from
+     * @param nonce The nonce unique to this message
+     * @param sender The sender of this message
+     * @param finalityThresholdExecuted The finality at which message was attested to
+     * @param messageBody message body bytes
+     */
+    event MessageReceived(
+        address indexed caller,
+        uint32 sourceDomain,
+        bytes32 indexed nonce,
+        bytes32 sender,
+        uint32 indexed finalityThresholdExecuted,
+        bytes messageBody
+    );
+
+    /**
      * @notice Emitted when max message body size is updated
      * @param newMaxMessageBodySize new maximum message body size, in bytes
      */
     event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
 
     // ============ Libraries ============
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+    using MessageV2 for bytes29;
 
     // ============ State Variables ============
     // Domain of chain on which the contract is deployed
@@ -59,9 +82,15 @@ contract MessageTransmitterV2 is
     // Message Format version
     uint32 public immutable version;
 
+    // The threshold at which messages are considered finalized
+    uint32 public immutable finalizedMessageThreshold = 2000;
+
     // Maximum size of message body, in bytes.
     // This value is set by owner.
     uint256 public maxMessageBodySize;
+
+    // Maps a bytes32 nonce -> uint256 (0 if unused, 1 if used)
+    mapping(bytes32 => uint256) public usedNonces;
 
     // ============ Constructor ============
     // TODO STABLE-6894 & STABLE-STABLE-7293: refactor constructor
@@ -120,10 +149,118 @@ contract MessageTransmitterV2 is
         emit MessageSent(_message);
     }
 
+    /**
+     * @notice Receive a message. Messages can only be broadcast once for a given nonce.
+     * The message body of a valid message is passed to the
+     * specified recipient for further processing.
+     *
+     * @dev Attestation format:
+     * A valid attestation is the concatenated 65-byte signature(s) of exactly
+     * `thresholdSignature` signatures, in increasing order of attester address.
+     * ***If the attester addresses recovered from signatures are not in
+     * increasing order, signature verification will fail.***
+     * If incorrect number of signatures or duplicate signatures are supplied,
+     * signature verification will fail.
+     *
+     * Message Format:
+     *
+     * Field                        Bytes      Type       Index
+     * version                      4          uint32     0
+     * sourceDomain                 4          uint32     4
+     * destinationDomain            4          uint32     8
+     * nonce                        32         bytes32    12
+     * sender                       32         bytes32    44
+     * recipient                    32         bytes32    76
+     * destinationCaller            32         bytes32    108
+     * minFinalityThreshold         4          uint32     140
+     * finalityThresholdExecuted    4          uint32     144
+     * messageBody                  dynamic    bytes      148
+     * @param message Message bytes
+     * @param attestation Concatenated 65-byte signature(s) of `message`, in increasing order
+     * of the attester address recovered from signatures.
+     * @return success bool, true if successful
+     */
     function receiveMessage(
         bytes calldata message,
-        bytes calldata signature
-    ) external override returns (bool success) {}
+        bytes calldata attestation
+    ) external override whenNotPaused returns (bool success) {
+        // Validate each signature in the attestation
+        _verifyAttestationSignatures(message, attestation);
+
+        bytes29 _msg = message.ref(0);
+
+        // Validate message format
+        _msg._validateMessageFormat();
+
+        // Validate domain
+        require(
+            _msg._getDestinationDomain() == localDomain,
+            "Invalid destination domain"
+        );
+
+        // Validate destination caller
+        if (_msg._getDestinationCaller() != bytes32(0)) {
+            require(
+                _msg._getDestinationCaller() ==
+                    AddressUtils.addressToBytes32(msg.sender),
+                "Invalid caller for message"
+            );
+        }
+
+        // Validate version
+        require(_msg._getVersion() == version, "Invalid message version");
+
+        // Validate nonce is available
+        bytes32 _nonce = _msg._getNonce();
+        require(usedNonces[_nonce] == 0, "Nonce already used");
+        // Mark nonce used
+        usedNonces[_nonce] = 1;
+
+        // Unpack remaining values
+        uint32 _sourceDomain = _msg._getSourceDomain();
+        bytes32 _sender = _msg._getSender();
+        address _recipient = AddressUtils.bytes32ToAddress(
+            _msg._getRecipient()
+        );
+        uint32 _finalityThresholdExecuted = _msg
+            ._getFinalityThresholdExecuted();
+        bytes memory _messageBody = _msg._getMessageBody().clone();
+
+        // Handle receive message
+        if (_finalityThresholdExecuted < finalizedMessageThreshold) {
+            require(
+                IMessageHandlerV2(_recipient).handleReceiveUnfinalizedMessage(
+                    _sourceDomain,
+                    _sender,
+                    _finalityThresholdExecuted,
+                    _messageBody
+                ),
+                "handleReceiveUnfinalizedMessage() failed"
+            );
+        } else {
+            require(
+                IMessageHandlerV2(_recipient).handleReceiveFinalizedMessage(
+                    _sourceDomain,
+                    _sender,
+                    _finalityThresholdExecuted,
+                    _messageBody
+                ),
+                "handleReceiveFinalizedMessage() failed"
+            );
+        }
+
+        // Emit MessageReceived event
+        emit MessageReceived(
+            msg.sender,
+            _sourceDomain,
+            _nonce,
+            _sender,
+            _finalityThresholdExecuted,
+            _messageBody
+        );
+
+        return true;
+    }
 
     /**
      * @notice Sets the max message body size
