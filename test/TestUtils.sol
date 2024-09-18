@@ -83,6 +83,11 @@ contract TestUtils is Test {
     address owner = vm.addr(1902);
     address arbitraryAddress = vm.addr(1903);
 
+    // See: https://github.com/foundry-rs/foundry/blob/2cdbfaca634b284084d0f86357623aef7a0d2ce3/crates/evm/core/src/constants.rs#L9
+    // This address may be passed into fuzz tests by Foundry. VM.mockCalls fail when
+    // specifying the cheat code address as the target.
+    address foundryCheatCodeAddr = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
+
     // 8 KiB
     uint32 maxMessageBodySize = 8 * 2 ** 10;
     // zero signature
