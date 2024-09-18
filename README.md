@@ -96,9 +96,26 @@ The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tuto
 
 ### V2
 
-The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tutorials/solidity-scripting). The script is located in [scripts/v2/1_deploy.s.sol](/scripts/v2/1_deploy.s.sol). Follow the below steps to deploy the contracts:
+Deploy Create2Factory first if not yet deployed.
 
-1. Add the below environment variables to your [env](.env) file
+<ol type="a">
+  <li>
+  
+  Add the below environment variable to your [env](.env) file:
+   - `CREATE2_FACTORY_DEPLOYER_KEY`</li>
+  <li>
+  
+  Run `make simulate-deploy-create2-factory RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.</li>
+  <li>
+
+  Run
+    ```make deploy-create2-factory RPC_URL=<RPC_URL> SENDER=<SENDER>```
+  to deploy the Create2Factory.</li>
+</ol>
+
+The contracts are deployed via `CREATE2` through Create2Factory. Follow the below steps to deploy the contracts:
+
+1. Replace the environment variables in your [env](.env) file with the following:
 
    - `MESSAGE_TRANSMITTER_DEPLOYER_KEY`
    - `TOKEN_MESSENGER_DEPLOYER_KEY`
@@ -116,6 +133,7 @@ The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tuto
    - `DOMAIN`
    - `REMOTE_DOMAIN`
    - `BURN_LIMIT_PER_MESSAGE`
+   - `CREATE2_FACTORY_ADDRESS`
 
    In addition, to link the remote bridge, one of two steps needs to be followed:
 
