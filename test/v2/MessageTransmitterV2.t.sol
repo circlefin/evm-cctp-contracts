@@ -626,7 +626,8 @@ contract MessageTransmitterV2Test is TestUtils {
         address _destinationCaller,
         uint32 _minFinalityThreshold,
         uint32 _finalityThresholdExecuted,
-        bytes calldata _messageBody
+        bytes calldata _messageBody,
+        address _randomCaller
     ) public {
         bytes memory _message = _formatMessageForReceive(
             version,
@@ -641,7 +642,7 @@ contract MessageTransmitterV2Test is TestUtils {
             _messageBody
         );
         bytes memory _signature = _sign1of1Message(_message);
-        _receiveMessage(_message, _signature);
+        _receiveMessage(_message, _signature, _randomCaller);
 
         // Try again
         vm.prank(_destinationCaller);
@@ -690,7 +691,8 @@ contract MessageTransmitterV2Test is TestUtils {
         address _destinationCaller,
         uint32 _minFinalityThreshold,
         uint32 _finalityThresholdExecuted,
-        bytes calldata _messageBody
+        bytes calldata _messageBody,
+        address _randomCaller
     ) public {
         bytes memory _message = _formatMessageForReceive(
             version,
@@ -705,7 +707,7 @@ contract MessageTransmitterV2Test is TestUtils {
             _messageBody
         );
         bytes memory _signature = _sign1of1Message(_message);
-        _receiveMessage(_message, _signature);
+        _receiveMessage(_message, _signature, _randomCaller);
     }
 
     function testReceiveMessage_succeedsWith2of2Signing(
@@ -716,7 +718,8 @@ contract MessageTransmitterV2Test is TestUtils {
         address _destinationCaller,
         uint32 _minFinalityThreshold,
         uint32 _finalityThresholdExecuted,
-        bytes calldata _messageBody
+        bytes calldata _messageBody,
+        address _randomCaller
     ) public {
         _setup2of2Multisig();
 
@@ -733,7 +736,7 @@ contract MessageTransmitterV2Test is TestUtils {
             _messageBody
         );
         bytes memory _signature = _sign2OfNMultisigMessage(_message);
-        _receiveMessage(_message, _signature);
+        _receiveMessage(_message, _signature, _randomCaller);
     }
 
     function testReceiveMessage_succeedsWith2of3Signing(
@@ -744,7 +747,8 @@ contract MessageTransmitterV2Test is TestUtils {
         address _destinationCaller,
         uint32 _minFinalityThreshold,
         uint32 _finalityThresholdExecuted,
-        bytes calldata _messageBody
+        bytes calldata _messageBody,
+        address _randomCaller
     ) public {
         _setup2of3Multisig();
 
@@ -761,7 +765,7 @@ contract MessageTransmitterV2Test is TestUtils {
             _messageBody
         );
         bytes memory _signature = _sign2OfNMultisigMessage(_message);
-        _receiveMessage(_message, _signature);
+        _receiveMessage(_message, _signature, _randomCaller);
     }
 
     function testReceiveMessage_succeedsWithFinalizedMessage(
@@ -772,7 +776,8 @@ contract MessageTransmitterV2Test is TestUtils {
         address _destinationCaller,
         uint32 _minFinalityThreshold,
         uint32 _finalityThresholdExecuted,
-        bytes calldata _messageBody
+        bytes calldata _messageBody,
+        address _randomCaller
     ) public {
         vm.assume(
             _finalityThresholdExecuted >=
@@ -791,7 +796,7 @@ contract MessageTransmitterV2Test is TestUtils {
             _messageBody
         );
         bytes memory _signature = _sign1of1Message(_message);
-        _receiveMessage(_message, _signature);
+        _receiveMessage(_message, _signature, _randomCaller);
     }
 
     function testReceiveMessage_succeedsWithUnfinalizedMessage(
@@ -802,7 +807,8 @@ contract MessageTransmitterV2Test is TestUtils {
         address _destinationCaller,
         uint32 _minFinalityThreshold,
         uint32 _finalityThresholdExecuted,
-        bytes calldata _messageBody
+        bytes calldata _messageBody,
+        address _randomCaller
     ) public {
         vm.assume(
             _finalityThresholdExecuted <
@@ -821,7 +827,7 @@ contract MessageTransmitterV2Test is TestUtils {
             _messageBody
         );
         bytes memory _signature = _sign1of1Message(_message);
-        _receiveMessage(_message, _signature);
+        _receiveMessage(_message, _signature, _randomCaller);
     }
 
     function testReceiveMessage_succeedsWithNonZeroDestinationCaller(
@@ -848,7 +854,7 @@ contract MessageTransmitterV2Test is TestUtils {
             _messageBody
         );
         bytes memory _signature = _sign1of1Message(_message);
-        _receiveMessage(_message, _signature);
+        _receiveMessage(_message, _signature, _destinationCaller);
     }
 
     function testReceiveMessage_succeedsWithZeroDestinationCaller(
@@ -858,8 +864,10 @@ contract MessageTransmitterV2Test is TestUtils {
         address _recipient,
         uint32 _minFinalityThreshold,
         uint32 _finalityThresholdExecuted,
-        bytes calldata _messageBody
+        bytes calldata _messageBody,
+        address _randomCaller
     ) public {
+        vm.assume(_randomCaller != address(0));
         bytes memory _message = _formatMessageForReceive(
             version,
             _sourceDomain,
@@ -873,7 +881,7 @@ contract MessageTransmitterV2Test is TestUtils {
             _messageBody
         );
         bytes memory _signature = _sign1of1Message(_message);
-        _receiveMessage(_message, _signature);
+        _receiveMessage(_message, _signature, _randomCaller);
     }
 
     function testSendMaxMessageBodySize_revertsOnNonOwner(
@@ -1009,9 +1017,12 @@ contract MessageTransmitterV2Test is TestUtils {
         vm.stopPrank();
     }
 
+    // Calls receiveMessage with msg.destinationCaller if set; otherwise
+    // with `_randomCaller`
     function _receiveMessage(
         bytes memory _message,
-        bytes memory _signature
+        bytes memory _signature,
+        address _randomCaller
     ) internal {
         bytes29 _msg = _message.ref(0);
         address _recipient = AddressUtils.bytes32ToAddress(
@@ -1034,10 +1045,17 @@ contract MessageTransmitterV2Test is TestUtils {
         vm.mockCall(_recipient, _encodedMessageHandlerCall, abi.encode(true));
         vm.expectCall(_recipient, _encodedMessageHandlerCall, 1);
 
-        // Spoof the destination caller
-        address _caller = AddressUtils.bytes32ToAddress(
-            _msg._getDestinationCaller()
-        );
+        // Spoof the destination caller if needed
+        address _caller;
+        if (_msg._getDestinationCaller() == bytes32(0)) {
+            // Don't spoof the 0-address; defeats the purpose of the test
+            vm.assume(_randomCaller != address(0));
+            _caller = _randomCaller;
+        } else {
+            _caller = AddressUtils.bytes32ToAddress(
+                _msg._getDestinationCaller()
+            );
+        }
 
         // assert that a MessageReceive event was logged with expected message bytes
         vm.expectEmit(true, true, true, true);
