@@ -23,13 +23,16 @@ import {IMintBurnToken} from "../interfaces/IMintBurnToken.sol";
 import {BurnMessageV2} from "../messages/v2/BurnMessageV2.sol";
 import {AddressUtils} from "../messages/v2/AddressUtils.sol";
 import {MessageTransmitterV2} from "./MessageTransmitterV2.sol";
+import {IMessageHandlerV2} from "../interfaces/v2/IMessageHandlerV2.sol";
+import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
+import {BurnMessageV2} from "../messages/v2/BurnMessageV2.sol";
 
 /**
  * @title TokenMessengerV2
  * @notice Sends messages and receives messages to/from MessageTransmitters
  * and to/from TokenMinters
  */
-contract TokenMessengerV2 is BaseTokenMessenger {
+contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     // ============ Events ============
     /**
      * @notice Emitted when a DepositForBurn message is sent
@@ -43,7 +46,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
      * If equal to bytes32(0), any address can broadcast the message.
      * @param maxFee maximum fee to pay on destination domain, in units of burnToken
      * @param minFinalityThreshold the minimum finality at which the message should be attested to.
-     * @param hook target and calldata for execution on destination domain
+     * @param hookData optional hook for execution on destination domain
      */
     event DepositForBurn(
         address indexed burnToken,
@@ -55,13 +58,15 @@ contract TokenMessengerV2 is BaseTokenMessenger {
         bytes32 destinationCaller,
         uint256 maxFee,
         uint32 indexed minFinalityThreshold,
-        bytes hook
+        bytes hookData
     );
 
     // ============ Libraries ============
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+    using BurnMessageV2 for bytes29;
 
     // ============ State Variables ============
-    uint32 public immutable MIN_HOOK_LENGTH = 32;
 
     // ============ Modifiers ============
 
@@ -105,7 +110,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
         uint256 maxFee,
         uint32 minFinalityThreshold
     ) external {
-        bytes calldata _emptyHook = msg.data[0:0];
+        bytes calldata _emptyHookData = msg.data[0:0];
         _depositForBurn(
             amount,
             destinationDomain,
@@ -114,7 +119,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
             destinationCaller,
             maxFee,
             minFinalityThreshold,
-            _emptyHook
+            _emptyHookData
         );
     }
 
@@ -122,7 +127,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
      * @notice Deposits and burns tokens from sender to be minted on destination domain.
      * Emits a `DepositForBurn` event.
      * @dev reverts if:
-     * - hook appears invalid, such as being less than 32 bytes in length
+     * - hookData is zero-length
      * - given burnToken is not supported
      * - given destinationDomain has no TokenMessenger registered
      * - transferFrom() reverts. For example, if sender's burnToken balance or approved allowance
@@ -130,9 +135,6 @@ contract TokenMessengerV2 is BaseTokenMessenger {
      * - burn() reverts. For example, if `amount` is 0.
      * - fee is greater than or equal to the amount.
      * - MessageTransmitter#sendMessage reverts.
-     * @dev Note that even if the hook reverts on the destination domain, the mint will still proceed.
-     * @dev Hook formatting:
-     * - TODO: STABLE-7280
      * @param amount amount of tokens to burn
      * @param destinationDomain destination domain
      * @param mintRecipient address of mint recipient on destination domain
@@ -141,7 +143,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
      * any address can broadcast the message.
      * @param maxFee maximum fee to pay on the destination domain, specified in units of burnToken
      * @param minFinalityThreshold the minimum finality at which a burn message will be attested to.
-     * @param hook hook to execute on destination domain. Must be 32-bytes length or more.
+     * @param hookData hook data to append to burn message for interpretation on destination domain
      */
     function depositForBurnWithHook(
         uint256 amount,
@@ -151,9 +153,9 @@ contract TokenMessengerV2 is BaseTokenMessenger {
         bytes32 destinationCaller,
         uint256 maxFee,
         uint32 minFinalityThreshold,
-        bytes calldata hook
+        bytes calldata hookData
     ) external {
-        require(hook.length >= MIN_HOOK_LENGTH, "Invalid hook length");
+        require(hookData.length > 0, "Hook data is empty");
 
         _depositForBurn(
             amount,
@@ -163,11 +165,78 @@ contract TokenMessengerV2 is BaseTokenMessenger {
             destinationCaller,
             maxFee,
             minFinalityThreshold,
-            hook
+            hookData
         );
     }
 
+    /**
+     * @notice Handles an incoming finalized message received by the local MessageTransmitter,
+     * and takes the appropriate action. For a burn message, mints the
+     * associated token to the requested recipient on the local domain.
+     * @dev Validates the local sender is the local MessageTransmitter, and the
+     * remote sender is a registered remote TokenMessenger for `remoteDomain`.
+     * @param remoteDomain The domain where the message originated from.
+     * @param sender The sender of the message (remote TokenMessenger).
+     * @param messageBody The message body bytes.
+     * @return success Bool, true if successful.
+     */
+    function handleReceiveFinalizedMessage(
+        uint32 remoteDomain,
+        bytes32 sender,
+        uint32,
+        bytes calldata messageBody
+    )
+        external
+        override
+        onlyLocalMessageTransmitter
+        onlyRemoteTokenMessenger(remoteDomain, sender)
+        returns (bool)
+    {
+        bytes29 _msg = messageBody.ref(0);
+        _msg._validateBurnMessageFormat();
+        require(
+            _msg._getVersion() == messageBodyVersion,
+            "Invalid message body version"
+        );
+
+        bytes32 _mintRecipient = _msg._getMintRecipient();
+        bytes32 _burnToken = _msg._getBurnToken();
+        uint256 _amount = _msg._getAmount();
+
+        ITokenMinter _localMinter = _getLocalMinter();
+
+        _mintAndWithdraw(
+            address(_localMinter),
+            remoteDomain,
+            _burnToken,
+            AddressUtils.bytes32ToAddress(_mintRecipient),
+            _amount
+        );
+
+        return true;
+    }
+
+    function handleReceiveUnfinalizedMessage(
+        uint32 sourceDomain,
+        bytes32 sender,
+        uint32 finalityThresholdExecuted,
+        bytes calldata messageBody
+    ) external override returns (bool) {
+        // TODO: STABLE-7292
+    }
+
     // ============ Internal Utils ============
+    /**
+     * @notice Deposits and burns tokens from sender to be minted on destination domain.
+     * Emits a `DepositForBurn` event.
+     * @param _amount amount of tokens to burn (must be non-zero)
+     * @param _destinationDomain destination domain
+     * @param _mintRecipient address of mint recipient on destination domain
+     * @param _burnToken address of contract to burn deposited tokens, on local domain
+     * @param _destinationCaller caller on the destination domain, as bytes32
+     * @param _maxFee maximum fee to pay on destination chain
+     * @param _hookData optional hook data for execution on destination chain
+     */
     function _depositForBurn(
         uint256 _amount,
         uint32 _destinationDomain,
@@ -176,7 +245,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
         bytes32 _destinationCaller,
         uint256 _maxFee,
         uint32 _minFinalityThreshold,
-        bytes calldata _hook
+        bytes calldata _hookData
     ) internal {
         require(_amount > 0, "Amount must be nonzero");
         require(_mintRecipient != bytes32(0), "Mint recipient must be nonzero");
@@ -187,7 +256,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
         );
 
         // Deposit and burn tokens
-        _depositAndBurnTokens(_burnToken, msg.sender, _amount);
+        _depositAndBurn(_burnToken, msg.sender, _amount);
 
         // Format message body
         bytes memory _burnMessage = BurnMessageV2._formatMessageForRelay(
@@ -197,7 +266,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
             _amount,
             AddressUtils.addressToBytes32(msg.sender),
             _maxFee,
-            _hook
+            _hookData
         );
 
         // Send message
@@ -219,21 +288,7 @@ contract TokenMessengerV2 is BaseTokenMessenger {
             _destinationCaller,
             _maxFee,
             _minFinalityThreshold,
-            _hook
+            _hookData
         );
-    }
-
-    function _depositAndBurnTokens(
-        address _burnToken,
-        address _from,
-        uint256 _amount
-    ) internal {
-        ITokenMinter _localMinter = _getLocalMinter();
-        IMintBurnToken _mintBurnToken = IMintBurnToken(_burnToken);
-        require(
-            _mintBurnToken.transferFrom(_from, address(_localMinter), _amount),
-            "Transfer operation failed"
-        );
-        _localMinter.burn(_burnToken, _amount);
     }
 }
