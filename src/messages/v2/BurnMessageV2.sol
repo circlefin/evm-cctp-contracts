@@ -62,7 +62,7 @@ library BurnMessageV2 {
      * @param _amount The burn amount
      * @param _messageSender The message sender
      * @param _maxFee The maximum fee to be paid on destination domain
-     * @param _hook Optional hook to execute on destination domain
+     * @param _hookData Optional hook to execute on destination domain
      * @return Formatted message.
      */
     function _formatMessageForRelay(
@@ -72,7 +72,7 @@ library BurnMessageV2 {
         uint256 _amount,
         bytes32 _messageSender,
         uint256 _maxFee,
-        bytes calldata _hook
+        bytes calldata _hookData
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
@@ -84,7 +84,7 @@ library BurnMessageV2 {
                 _maxFee,
                 EMPTY_FEE_EXECUTED,
                 EMPTY_EXPIRATION_BLOCK,
-                _hook
+                _hookData
             );
     }
 

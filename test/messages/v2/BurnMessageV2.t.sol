@@ -34,7 +34,7 @@ contract BurnMessageV2Test is Test {
         uint256 _amount,
         bytes32 _messageSender,
         uint256 _maxFee,
-        bytes calldata _hook
+        bytes calldata _hookData
     ) public pure {
         bytes memory _expectedMessageBody = abi.encodePacked(
             _version,
@@ -45,7 +45,7 @@ contract BurnMessageV2Test is Test {
             _maxFee,
             uint256(0),
             uint256(0),
-            _hook
+            _hookData
         );
 
         bytes memory _messageBody = BurnMessageV2._formatMessageForRelay(
@@ -55,7 +55,7 @@ contract BurnMessageV2Test is Test {
             _amount,
             _messageSender,
             _maxFee,
-            _hook
+            _hookData
         );
 
         bytes29 _m = _messageBody.ref(0);

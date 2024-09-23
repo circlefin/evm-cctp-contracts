@@ -16,7 +16,6 @@
  * limitations under the License.
  */
 pragma solidity 0.7.6;
-pragma abicoder v2;
 
 import {IMessageTransmitterV2} from "../interfaces/v2/IMessageTransmitterV2.sol";
 import {Attestable} from "../roles/Attestable.sol";

@@ -20,6 +20,7 @@ pragma solidity 0.7.6;
 import {Ownable2Step} from "../roles/Ownable2Step.sol";
 import {ITokenMinter} from "../interfaces/ITokenMinter.sol";
 import {Rescuable} from "../roles/Rescuable.sol";
+import {IMintBurnToken} from "../interfaces/IMintBurnToken.sol";
 
 /**
  * @title BaseTokenMessenger
@@ -55,6 +56,18 @@ abstract contract BaseTokenMessenger is Rescuable {
      * @notice Emitted when the local minter is removed
      */
     event LocalMinterRemoved(address localMinter);
+
+    /**
+     * @notice Emitted when tokens are minted
+     * @param mintRecipient recipient address of minted tokens
+     * @param amount amount of minted tokens
+     * @param mintToken contract address of minted token
+     */
+    event MintAndWithdraw(
+        address indexed mintRecipient,
+        uint256 amount,
+        address indexed mintToken
+    );
 
     // ============ State Variables ============
     // Local Message Transmitter responsible for sending and receiving messages to/from remote domains
@@ -223,5 +236,51 @@ abstract contract BaseTokenMessenger is Rescuable {
         return
             address(localMessageTransmitter) != address(0) &&
             msg.sender == address(localMessageTransmitter);
+    }
+
+    /**
+     * @notice Deposits tokens from `_from` address and burns them
+     * @param _burnToken address of contract to burn deposited tokens, on local domain
+     * @param _from address depositing the funds
+     * @param _amount deposit amount
+     */
+    function _depositAndBurn(
+        address _burnToken,
+        address _from,
+        uint256 _amount
+    ) internal {
+        ITokenMinter _localMinter = _getLocalMinter();
+        IMintBurnToken _mintBurnToken = IMintBurnToken(_burnToken);
+        require(
+            _mintBurnToken.transferFrom(_from, address(_localMinter), _amount),
+            "Transfer operation failed"
+        );
+        _localMinter.burn(_burnToken, _amount);
+    }
+
+    /**
+     * @notice Mints tokens to a recipient
+     * @param _tokenMinter address of TokenMinter contract
+     * @param _remoteDomain domain where burned tokens originate from
+     * @param _burnToken address of token burned
+     * @param _mintRecipient recipient address of minted tokens
+     * @param _amount amount of minted tokens
+     */
+    function _mintAndWithdraw(
+        address _tokenMinter,
+        uint32 _remoteDomain,
+        bytes32 _burnToken,
+        address _mintRecipient,
+        uint256 _amount
+    ) internal {
+        ITokenMinter _minter = ITokenMinter(_tokenMinter);
+        address _mintToken = _minter.mint(
+            _remoteDomain,
+            _burnToken,
+            _mintRecipient,
+            _amount
+        );
+
+        emit MintAndWithdraw(_mintRecipient, _amount, _mintToken);
     }
 }
