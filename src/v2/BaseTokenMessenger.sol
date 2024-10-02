@@ -18,7 +18,7 @@
 pragma solidity 0.7.6;
 
 import {Ownable2Step} from "../roles/Ownable2Step.sol";
-import {ITokenMinter} from "../interfaces/ITokenMinter.sol";
+import {ITokenMinterV2} from "../interfaces/v2/ITokenMinterV2.sol";
 import {Rescuable} from "../roles/Rescuable.sol";
 import {IMintBurnToken} from "../interfaces/IMintBurnToken.sol";
 
@@ -46,27 +46,33 @@ abstract contract BaseTokenMessenger is Rescuable {
     /**
      * @notice Emitted when the local minter is added
      * @param localMinter address of local minter
-     * @notice Emitted when the local minter is added
      */
     event LocalMinterAdded(address localMinter);
 
     /**
      * @notice Emitted when the local minter is removed
      * @param localMinter address of local minter
-     * @notice Emitted when the local minter is removed
      */
     event LocalMinterRemoved(address localMinter);
 
     /**
+     * @notice Emitted when the fee recipient is set
+     * @param feeRecipient address of fee recipient set
+     */
+    event FeeRecipientSet(address feeRecipient);
+
+    /**
      * @notice Emitted when tokens are minted
      * @param mintRecipient recipient address of minted tokens
-     * @param amount amount of minted tokens
+     * @param amount amount of minted tokens received by `mintRecipient`
      * @param mintToken contract address of minted token
+     * @param feeCollected fee collected for mint
      */
     event MintAndWithdraw(
         address indexed mintRecipient,
         uint256 amount,
-        address indexed mintToken
+        address indexed mintToken,
+        uint256 feeCollected
     );
 
     // ============ State Variables ============
@@ -77,10 +83,13 @@ abstract contract BaseTokenMessenger is Rescuable {
     uint32 public immutable messageBodyVersion;
 
     // Minter responsible for minting and burning tokens on the local domain
-    ITokenMinter public localMinter;
+    ITokenMinterV2 public localMinter;
 
     // Valid TokenMessengers on remote domains
     mapping(uint32 => bytes32) public remoteTokenMessengers;
+
+    // Address to receive collected fees
+    address public feeRecipient;
 
     // ============ Modifiers ============
     /**
@@ -171,7 +180,7 @@ abstract contract BaseTokenMessenger is Rescuable {
             "Local minter is already set."
         );
 
-        localMinter = ITokenMinter(newLocalMinter);
+        localMinter = ITokenMinterV2(newLocalMinter);
 
         emit LocalMinterAdded(newLocalMinter);
     }
@@ -186,6 +195,18 @@ abstract contract BaseTokenMessenger is Rescuable {
 
         delete localMinter;
         emit LocalMinterRemoved(_localMinterAddress);
+    }
+
+    /**
+     * @notice Sets the fee recipient address
+     * @dev Reverts if not called by the owner
+     * @dev Reverts if `_feeRecipient` is the zero address
+     * @param _feeRecipient Address of fee recipient
+     */
+    function setFeeRecipient(address _feeRecipient) external onlyOwner {
+        require(_feeRecipient != address(0), "Zero address not allowed");
+        feeRecipient = _feeRecipient;
+        emit FeeRecipientSet(_feeRecipient);
     }
 
     // ============ Internal Utils ============
@@ -206,7 +227,7 @@ abstract contract BaseTokenMessenger is Rescuable {
      * @notice return the local minter address if it is set, else revert.
      * @return local minter as ITokenMinter.
      */
-    function _getLocalMinter() internal view returns (ITokenMinter) {
+    function _getLocalMinter() internal view returns (ITokenMinterV2) {
         require(address(localMinter) != address(0), "Local minter is not set");
         return localMinter;
     }
@@ -249,7 +270,7 @@ abstract contract BaseTokenMessenger is Rescuable {
         address _from,
         uint256 _amount
     ) internal {
-        ITokenMinter _localMinter = _getLocalMinter();
+        ITokenMinterV2 _localMinter = _getLocalMinter();
         IMintBurnToken _mintBurnToken = IMintBurnToken(_burnToken);
         require(
             _mintBurnToken.transferFrom(_from, address(_localMinter), _amount),
@@ -259,28 +280,42 @@ abstract contract BaseTokenMessenger is Rescuable {
     }
 
     /**
-     * @notice Mints tokens to a recipient
-     * @param _tokenMinter address of TokenMinter contract
+     * @notice Mints tokens to a recipient and optionally a fee to the
+     * currently set fee recipient.
      * @param _remoteDomain domain where burned tokens originate from
      * @param _burnToken address of token burned
      * @param _mintRecipient recipient address of minted tokens
-     * @param _amount amount of minted tokens
+     * @param _amount amount of tokens to mint to `_mintRecipient`
+     * @param _fee fee collected for mint
      */
     function _mintAndWithdraw(
-        address _tokenMinter,
         uint32 _remoteDomain,
         bytes32 _burnToken,
         address _mintRecipient,
-        uint256 _amount
+        uint256 _amount,
+        uint256 _fee
     ) internal {
-        ITokenMinter _minter = ITokenMinter(_tokenMinter);
-        address _mintToken = _minter.mint(
-            _remoteDomain,
-            _burnToken,
-            _mintRecipient,
-            _amount
-        );
+        ITokenMinterV2 _minter = _getLocalMinter();
 
-        emit MintAndWithdraw(_mintRecipient, _amount, _mintToken);
+        address _mintToken;
+        if (_fee > 0) {
+            _mintToken = _minter.mint(
+                _remoteDomain,
+                _burnToken,
+                _mintRecipient,
+                feeRecipient,
+                _amount,
+                _fee
+            );
+        } else {
+            _mintToken = _minter.mint(
+                _remoteDomain,
+                _burnToken,
+                _mintRecipient,
+                _amount
+            );
+        }
+
+        emit MintAndWithdraw(_mintRecipient, _amount, _mintToken, _fee);
     }
 }

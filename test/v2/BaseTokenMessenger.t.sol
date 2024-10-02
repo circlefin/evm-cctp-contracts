@@ -24,33 +24,12 @@ import {TestUtils} from "../TestUtils.sol";
 
 abstract contract BaseTokenMessengerTest is Test, TestUtils {
     // Events
-    /**
-     * @notice Emitted when a remote TokenMessenger is added
-     * @param domain remote domain
-     * @param tokenMessenger TokenMessenger on remote domain
-     */
+
     event RemoteTokenMessengerAdded(uint32 domain, bytes32 tokenMessenger);
-
-    /**
-     * @notice Emitted when a remote TokenMessenger is removed
-     * @param domain remote domain
-     * @param tokenMessenger TokenMessenger on remote domain
-     */
     event RemoteTokenMessengerRemoved(uint32 domain, bytes32 tokenMessenger);
-
-    /**
-     * @notice Emitted when the local minter is added
-     * @param localMinter address of local minter
-     * @notice Emitted when the local minter is added
-     */
     event LocalMinterAdded(address localMinter);
-
-    /**
-     * @notice Emitted when the local minter is removed
-     * @param localMinter address of local minter
-     * @notice Emitted when the local minter is removed
-     */
     event LocalMinterRemoved(address localMinter);
+    event FeeRecipientSet(address feeRecipient);
 
     BaseTokenMessenger baseTokenMessenger;
 
@@ -262,6 +241,28 @@ abstract contract BaseTokenMessengerTest is Test, TestUtils {
         vm.assume(_notOwner != baseTokenMessenger.owner());
         expectRevertWithWrongOwner(_notOwner);
         baseTokenMessenger.removeLocalMinter();
+    }
+
+    function testSetFeeRecipient_revertsOnNonOwner(
+        address _notOwner,
+        address _feeRecipient
+    ) public {
+        vm.assume(_notOwner != baseTokenMessenger.owner());
+        expectRevertWithWrongOwner(_notOwner);
+        baseTokenMessenger.setFeeRecipient(_feeRecipient);
+    }
+
+    function testSetFeeRecipient_revertsIfFeeRecipientIsZeroAddress() public {
+        vm.expectRevert("Zero address not allowed");
+        baseTokenMessenger.setFeeRecipient(address(0));
+    }
+
+    function testSetFeeRecipient_succeeds(address _feeRecipient) public {
+        vm.assume(_feeRecipient != address(0));
+
+        vm.expectEmit(true, true, true, true);
+        emit FeeRecipientSet(_feeRecipient);
+        baseTokenMessenger.setFeeRecipient(_feeRecipient);
     }
 
     // Ownable tests

@@ -67,6 +67,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     using BurnMessageV2 for bytes29;
 
     // ============ State Variables ============
+    uint32 public immutable MINIMUM_SUPPORTED_FINALITY_THRESHOLD = 1000;
 
     // ============ Modifiers ============
 
@@ -192,37 +193,68 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         onlyRemoteTokenMessenger(remoteDomain, sender)
         returns (bool)
     {
+        // Validate finalized message
         bytes29 _msg = messageBody.ref(0);
-        _msg._validateBurnMessageFormat();
-        require(
-            _msg._getVersion() == messageBodyVersion,
-            "Invalid message body version"
-        );
+        (
+            address _mintRecipient,
+            bytes32 _burnToken,
+            uint256 _amount
+        ) = _validateFinalizedMessage(_msg);
 
-        bytes32 _mintRecipient = _msg._getMintRecipient();
-        bytes32 _burnToken = _msg._getBurnToken();
-        uint256 _amount = _msg._getAmount();
-
-        ITokenMinter _localMinter = _getLocalMinter();
-
-        _mintAndWithdraw(
-            address(_localMinter),
-            remoteDomain,
-            _burnToken,
-            AddressUtils.bytes32ToAddress(_mintRecipient),
-            _amount
-        );
+        _mintAndWithdraw(remoteDomain, _burnToken, _mintRecipient, _amount, 0);
 
         return true;
     }
 
+    /**
+     * @notice Handles an incoming unfinalized message received by the local MessageTransmitter,
+     * and takes the appropriate action. For a burn message, mints the
+     * associated token to the requested recipient on the local domain, less fees.
+     * Fees are separately minted to the currently set `feeRecipient` address.
+     * @dev Validates the local sender is the local MessageTransmitter, and the
+     * remote sender is a registered remote TokenMessenger for `remoteDomain`.
+     * @dev Validates that `finalityThresholdExecuted` is at least 1000.
+     * @param remoteDomain The domain where the message originated from.
+     * @param sender The sender of the message (remote TokenMessenger).
+     * @param messageBody The message body bytes.
+     * @return success Bool, true if successful.
+     */
     function handleReceiveUnfinalizedMessage(
-        uint32 sourceDomain,
+        uint32 remoteDomain,
         bytes32 sender,
         uint32 finalityThresholdExecuted,
         bytes calldata messageBody
-    ) external override returns (bool) {
-        // TODO: STABLE-7292
+    )
+        external
+        override
+        onlyLocalMessageTransmitter
+        onlyRemoteTokenMessenger(remoteDomain, sender)
+        returns (bool)
+    {
+        // Require minimum supported finality threshold
+        require(
+            finalityThresholdExecuted >= MINIMUM_SUPPORTED_FINALITY_THRESHOLD,
+            "Unsupported finality threshold"
+        );
+
+        // Validate message
+        bytes29 _msg = messageBody.ref(0);
+        (
+            address _mintRecipient,
+            bytes32 _burnToken,
+            uint256 _amount,
+            uint256 _fee
+        ) = _validateUnfinalizedMessage(_msg);
+
+        _mintAndWithdraw(
+            remoteDomain,
+            _burnToken,
+            _mintRecipient,
+            _amount - _fee,
+            _fee
+        );
+
+        return true;
     }
 
     // ============ Internal Utils ============
@@ -290,5 +322,71 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
             _minFinalityThreshold,
             _hookData
         );
+    }
+
+    /**
+     * @notice Validates a finalized BurnMessage and unpacks relevant message fields.
+     * @dev Reverts if the BurnMessage is malformed
+     * @dev Reverts if the BurnMessage version isn't supported
+     * @param _msg Finalized message
+     * @return _mintRecipient The recipient of the mint, as bytes32
+     * @return _burnToken The token address burned on the source chain
+     * @return _amount The amount of burnToken burned
+     */
+    function _validateFinalizedMessage(
+        bytes29 _msg
+    )
+        internal
+        view
+        returns (address _mintRecipient, bytes32 _burnToken, uint256 _amount)
+    {
+        _msg._validateBurnMessageFormat();
+        require(
+            _msg._getVersion() == messageBodyVersion,
+            "Invalid message body version"
+        );
+
+        return (
+            AddressUtils.bytes32ToAddress(_msg._getMintRecipient()),
+            _msg._getBurnToken(),
+            _msg._getAmount()
+        );
+    }
+
+    /**
+     * @notice Validates a finalized BurnMessage and unpacks relevant message fields.
+     * @dev Reverts if the BurnMessage is malformed
+     * @dev Reverts if the BurnMessage version isn't supported
+     * @dev Reverts if the message is expired
+     * @dev Reverts if the fee executed exceeds the amount
+     * @param _msg Finalized message
+     * @return _mintRecipient The recipient of the mint, as bytes32
+     * @return _burnToken The token address burned on the source chain
+     * @return _amount The amount of burnToken burned
+     */
+    function _validateUnfinalizedMessage(
+        bytes29 _msg
+    )
+        internal
+        view
+        returns (
+            address _mintRecipient,
+            bytes32 _burnToken,
+            uint256 _amount,
+            uint256 _fee
+        )
+    {
+        (_mintRecipient, _burnToken, _amount) = _validateFinalizedMessage(_msg);
+
+        // Enforce message expiration
+        uint256 _expirationBlock = _msg._getExpirationBlock();
+        require(
+            _expirationBlock == 0 || _expirationBlock > block.number,
+            "Message expired and must be re-signed"
+        );
+
+        // Validate fee
+        _fee = _msg._getFeeExecuted();
+        require(_fee == 0 || _fee < _amount, "Fee equals or exceeds amount");
     }
 }
