@@ -19,6 +19,7 @@ pragma abicoder v2;
 import "../src/TokenMinter.sol";
 import "../lib/forge-std/src/Test.sol";
 import "./mocks/MockMintBurnToken.sol";
+import {Denylistable} from "../src/roles/v2/Denylistable.sol";
 
 contract TestUtils is Test {
     /**
@@ -281,6 +282,54 @@ contract TestUtils is Test {
         _pausableContract.updatePauser(_newPauser);
 
         assertEq(_pausableContract.pauser(), _newPauser);
+    }
+
+    function assertContractIsDenylistable(
+        address _denylistableContract,
+        address _randomAddress,
+        address _newDenylister,
+        address _nonOwner
+    ) public {
+        Denylistable _denylistable = Denylistable(_denylistableContract);
+        address _owner = _denylistable.owner();
+
+        vm.assume(_owner != _nonOwner);
+        vm.assume(_newDenylister != address(0));
+        vm.assume(_newDenylister != _randomAddress);
+
+        // Test rotating denylister
+        // Check only the owner can update the denylister
+        vm.prank(_nonOwner);
+        vm.expectRevert("Ownable: caller is not the owner");
+        _denylistable.updateDenylister(_newDenylister);
+
+        // Rotate denylister
+        vm.prank(_owner);
+        _denylistable.updateDenylister(_newDenylister);
+        assertEq(_denylistable.denylister(), _newDenylister);
+
+        // Check adding and removing an address
+        // First check that other addresses cannot add to the denylist
+        assertTrue(_denylistable.denylister() != _randomAddress);
+        vm.prank(_randomAddress);
+        vm.expectRevert("Denylistable: caller is not denylister");
+        _denylistable.denylist(_owner);
+
+        // Now add
+        assertFalse(_denylistable.isDenylisted(_randomAddress));
+        vm.prank(_newDenylister);
+        _denylistable.denylist(_randomAddress);
+        assertTrue(_denylistable.isDenylisted(_randomAddress));
+
+        // Now try to remove from the denylist, but as a different caller
+        vm.prank(_randomAddress);
+        vm.expectRevert("Denylistable: caller is not denylister");
+        _denylistable.unDenylist(_randomAddress);
+
+        // Now, actually remove
+        vm.prank(_newDenylister);
+        _denylistable.unDenylist(_randomAddress);
+        assertFalse(_denylistable.isDenylisted(_randomAddress));
     }
 
     function transferOwnershipFailsIfNotOwner(

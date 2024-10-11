@@ -329,6 +329,21 @@ abstract contract BaseTokenMessengerTest is Test, TestUtils {
         );
     }
 
+    // Denylistable Tests
+
+    function testDenylistable(
+        address _randomAddress,
+        address _newDenylister,
+        address _nonOwner
+    ) public {
+        assertContractIsDenylistable(
+            address(baseTokenMessenger),
+            _randomAddress,
+            _newDenylister,
+            _nonOwner
+        );
+    }
+
     // Test utils
 
     function _addLocalMinter(
