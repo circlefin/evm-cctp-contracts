@@ -20,6 +20,7 @@ pragma solidity 0.7.6;
 import {Ownable2Step} from "../roles/Ownable2Step.sol";
 import {ITokenMinterV2} from "../interfaces/v2/ITokenMinterV2.sol";
 import {Rescuable} from "../roles/Rescuable.sol";
+import {Denylistable} from "../roles/v2/Denylistable.sol";
 import {IMintBurnToken} from "../interfaces/IMintBurnToken.sol";
 
 /**
@@ -27,7 +28,7 @@ import {IMintBurnToken} from "../interfaces/IMintBurnToken.sol";
  * @notice Base administrative functionality for TokenMessenger implementations,
  * including managing remote token messengers and the local token minter.
  */
-abstract contract BaseTokenMessenger is Rescuable {
+abstract contract BaseTokenMessenger is Rescuable, Denylistable {
     // ============ Events ============
     /**
      * @notice Emitted when a remote TokenMessenger is added

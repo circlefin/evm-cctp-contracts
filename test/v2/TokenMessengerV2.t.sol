@@ -70,6 +70,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     address remoteTokenAddr = address(40);
 
     address feeRecipient = address(50);
+    address denylister = address(60);
 
     MockMintBurnToken localToken = new MockMintBurnToken();
     TokenMinterV2 localTokenMinter = new TokenMinterV2(tokenController);
@@ -84,8 +85,12 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         );
         // Add a local minter
         localTokenMessenger.addLocalMinter(address(localTokenMinter));
-        // Add fee recipient
+
+        // Update fee recipient
         localTokenMessenger.setFeeRecipient(feeRecipient);
+
+        // Update denylister
+        localTokenMessenger.updateDenylister(denylister);
 
         remoteTokenMessengerAddr = AddressUtils.addressToBytes32(
             remoteTokenMessageger
@@ -131,6 +136,102 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     }
 
     // Tests
+
+    function testDepositForBurn_revertsIfMsgSenderIsOnDenylist(
+        address _messageSender,
+        address _txOriginator,
+        uint256 _amount,
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold
+    ) public {
+        vm.assume(_mintRecipient != bytes32(0));
+        vm.assume(_amount > 0);
+        vm.assume(_messageSender != _txOriginator);
+
+        // Add messageSender to deny list
+        vm.prank(denylister);
+        localTokenMessenger.denylist(_messageSender);
+        assertTrue(localTokenMessenger.isDenylisted(_messageSender));
+        assertFalse(localTokenMessenger.isDenylisted(_txOriginator));
+
+        vm.prank(_messageSender, _txOriginator);
+        vm.expectRevert("Denylistable: account is on denylist");
+        localTokenMessenger.depositForBurn(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            0,
+            _minFinalityThreshold
+        );
+    }
+
+    function testDepositForBurn_revertsIfTxOriginatorIsOnDenylist(
+        address _messageSender,
+        address _txOriginator,
+        uint256 _amount,
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold
+    ) public {
+        vm.assume(_mintRecipient != bytes32(0));
+        vm.assume(_amount > 0);
+        vm.assume(_messageSender != _txOriginator);
+
+        // Add _txOriginator to deny list
+        vm.prank(denylister);
+        localTokenMessenger.denylist(_txOriginator);
+        assertTrue(localTokenMessenger.isDenylisted(_txOriginator));
+        assertFalse(localTokenMessenger.isDenylisted(_messageSender));
+
+        vm.prank(_messageSender, _txOriginator);
+        vm.expectRevert("Denylistable: account is on denylist");
+        localTokenMessenger.depositForBurn(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            0,
+            _minFinalityThreshold
+        );
+    }
+
+    function testDepositForBurn_revertsIfBothTxOriginatorAndMsgSenderAreOnDenylist(
+        address _messageSender,
+        address _txOriginator,
+        uint256 _amount,
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold
+    ) public {
+        vm.assume(_messageSender != _txOriginator);
+
+        // Add both to deny list
+        vm.startPrank(denylister);
+        localTokenMessenger.denylist(_messageSender);
+        localTokenMessenger.denylist(_txOriginator);
+        assertTrue(localTokenMessenger.isDenylisted(_messageSender));
+        assertTrue(localTokenMessenger.isDenylisted(_txOriginator));
+        vm.stopPrank();
+
+        vm.prank(_messageSender, _txOriginator);
+        vm.expectRevert("Denylistable: account is on denylist");
+        localTokenMessenger.depositForBurn(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            0,
+            _minFinalityThreshold
+        );
+    }
 
     function testDepositForBurn_revertsIfTransferAmountIsZero(
         bytes32 _mintRecipient,
@@ -396,6 +497,108 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             _maxFee,
             _minFinalityThreshold,
             msg.data[0:0]
+        );
+    }
+
+    function testDepositForBurnWithHook_revertsIfMsgSenderIsOnDenylist(
+        address _messageSender,
+        address _txOriginator,
+        uint256 _amount,
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold,
+        bytes calldata _hookData
+    ) public {
+        vm.assume(_mintRecipient != bytes32(0));
+        vm.assume(_amount > 0);
+        vm.assume(_messageSender != _txOriginator);
+
+        // Add messageSender to deny list
+        vm.prank(denylister);
+        localTokenMessenger.denylist(_messageSender);
+        assertTrue(localTokenMessenger.isDenylisted(_messageSender));
+        assertFalse(localTokenMessenger.isDenylisted(_txOriginator));
+
+        vm.prank(_messageSender, _txOriginator);
+        vm.expectRevert("Denylistable: account is on denylist");
+        localTokenMessenger.depositForBurnWithHook(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            0,
+            _minFinalityThreshold,
+            _hookData
+        );
+    }
+
+    function testDepositForBurnWithHook_revertsIfTxOriginatorIsOnDenylist(
+        address _messageSender,
+        address _txOriginator,
+        uint256 _amount,
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold,
+        bytes calldata _hookData
+    ) public {
+        vm.assume(_mintRecipient != bytes32(0));
+        vm.assume(_amount > 0);
+        vm.assume(_messageSender != _txOriginator);
+
+        // Add txOriginator to deny list
+        vm.prank(denylister);
+        localTokenMessenger.denylist(_txOriginator);
+        assertTrue(localTokenMessenger.isDenylisted(_txOriginator));
+        assertFalse(localTokenMessenger.isDenylisted(_messageSender));
+
+        vm.prank(_messageSender, _txOriginator);
+        vm.expectRevert("Denylistable: account is on denylist");
+        localTokenMessenger.depositForBurnWithHook(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            0,
+            _minFinalityThreshold,
+            _hookData
+        );
+    }
+
+    function testDepositForBurnWithHook_revertsIfBothTxOriginatorAndMsgSenderAreOnDenylist(
+        address _messageSender,
+        address _txOriginator,
+        uint256 _amount,
+        bytes32 _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller,
+        uint32 _minFinalityThreshold,
+        bytes calldata _hookData
+    ) public {
+        vm.assume(_messageSender != _txOriginator);
+
+        // Add both to deny list
+        vm.startPrank(denylister);
+        localTokenMessenger.denylist(_messageSender);
+        localTokenMessenger.denylist(_txOriginator);
+        assertTrue(localTokenMessenger.isDenylisted(_messageSender));
+        assertTrue(localTokenMessenger.isDenylisted(_txOriginator));
+        vm.stopPrank();
+
+        vm.prank(_messageSender, _txOriginator);
+        vm.expectRevert("Denylistable: account is on denylist");
+        localTokenMessenger.depositForBurnWithHook(
+            _amount,
+            remoteDomain,
+            _mintRecipient,
+            _burnToken,
+            _destinationCaller,
+            0,
+            _minFinalityThreshold,
+            _hookData
         );
     }
 

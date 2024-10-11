@@ -69,8 +69,6 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     // ============ State Variables ============
     uint32 public immutable MINIMUM_SUPPORTED_FINALITY_THRESHOLD = 1000;
 
-    // ============ Modifiers ============
-
     // ============ Constructor ============
     /**
      * @param _messageTransmitter Message transmitter address
@@ -110,7 +108,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         bytes32 destinationCaller,
         uint256 maxFee,
         uint32 minFinalityThreshold
-    ) external {
+    ) external notDenylistedCallers {
         bytes calldata _emptyHookData = msg.data[0:0];
         _depositForBurn(
             amount,
@@ -155,7 +153,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         uint256 maxFee,
         uint32 minFinalityThreshold,
         bytes calldata hookData
-    ) external {
+    ) external notDenylistedCallers {
         require(hookData.length > 0, "Hook data is empty");
 
         _depositForBurn(
