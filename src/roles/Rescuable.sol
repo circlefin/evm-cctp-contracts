@@ -24,6 +24,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
  * @dev Forked from https://github.com/centrehq/centre-tokens/blob/0d3cab14ebd133a83fc834dbd48d0468bdf0b391/contracts/v1.1/Rescuable.sol
  * Modifications:
  * 1. Update Solidity version from 0.6.12 to 0.7.6 (8/23/2022)
+ * 2. Add internal _updateRescuer (10/8/2024)
  */
 contract Rescuable is Ownable2Step {
     using SafeERC20 for IERC20;
@@ -67,6 +68,14 @@ contract Rescuable is Ownable2Step {
      * @param newRescuer New rescuer's address
      */
     function updateRescuer(address newRescuer) external onlyOwner {
+        _updateRescuer(newRescuer);
+    }
+
+    /**
+     * @notice Assign the rescuer role to a given address.
+     * @param newRescuer New rescuer's address
+     */
+    function _updateRescuer(address newRescuer) internal {
         require(
             newRescuer != address(0),
             "Rescuable: new rescuer is the zero address"

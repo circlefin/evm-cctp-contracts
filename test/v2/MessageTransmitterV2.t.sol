@@ -25,6 +25,8 @@ import {AddressUtils} from "../../src/messages/v2/AddressUtils.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {IMessageHandlerV2} from "../../src/interfaces/v2/IMessageHandlerV2.sol";
 import {MockReentrantCallerV2} from "../mocks/v2/MockReentrantCallerV2.sol";
+import {AdminUpgradableProxy} from "../../src/v2/AdminUpgradableProxy.sol";
+import {MockMessageTransmitterV3} from "../mocks/v2/MockMessageTransmitterV3.sol";
 
 contract MessageTransmitterV2Test is TestUtils {
     event MessageSent(bytes message);
@@ -40,6 +42,8 @@ contract MessageTransmitterV2Test is TestUtils {
 
     event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
 
+    event Upgraded(address indexed implementation);
+
     // ============ Libraries ============
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
@@ -51,16 +55,286 @@ contract MessageTransmitterV2Test is TestUtils {
     uint32 localDomain = 1;
     uint32 remoteDomain = 2;
 
+    address deployer = address(10);
+    address pauser = address(20);
+    address rescuer = address(30);
+    address attesterManager = address(40);
+    address proxyAdmin = address(50);
+
     MessageTransmitterV2 messageTransmitter;
+    MessageTransmitterV2 messageTransmitterImpl;
 
     function setUp() public {
-        // message transmitter on source domain
-        messageTransmitter = new MessageTransmitterV2(
+        vm.startPrank(deployer);
+
+        // Deploy implementation
+        messageTransmitterImpl = new MessageTransmitterV2(localDomain, version);
+
+        // Deploy proxy
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        // Initialize MessageTransmitter
+        messageTransmitter = MessageTransmitterV2(address(_proxy));
+        address[] memory _attesters = new address[](1);
+        _attesters[0] = attester;
+        messageTransmitter.initialize(
+            owner,
+            pauser,
+            rescuer,
+            attesterManager,
+            _attesters,
+            1,
+            maxMessageBodySize
+        );
+
+        vm.stopPrank();
+    }
+
+    function testInitialize_revertsIfOwnerIsZero() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        vm.expectRevert("Owner is the zero address");
+        MessageTransmitterV2(address(_proxy)).initialize(
+            address(0),
+            pauser,
+            rescuer,
+            attesterManager,
+            new address[](0),
+            1,
+            maxMessageBodySize
+        );
+    }
+
+    function testInitialize_revertsIfPauserIsZero() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        address[] memory _attesters = new address[](1);
+        _attesters[0] = attester;
+
+        vm.expectRevert("Pausable: new pauser is the zero address");
+        MessageTransmitterV2(address(_proxy)).initialize(
+            owner,
+            address(0),
+            rescuer,
+            attesterManager,
+            _attesters,
+            1,
+            maxMessageBodySize
+        );
+    }
+
+    function testInitialize_revertsIfRescuerIsZero() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        address[] memory _attesters = new address[](1);
+        _attesters[0] = attester;
+
+        vm.expectRevert("Rescuable: new rescuer is the zero address");
+        MessageTransmitterV2(address(_proxy)).initialize(
+            owner,
+            pauser,
+            address(0),
+            attesterManager,
+            _attesters,
+            1,
+            maxMessageBodySize
+        );
+    }
+
+    function testInitialize_revertsIfAttesterManagerIsZero() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        vm.expectRevert("AttesterManager is the zero address");
+        MessageTransmitterV2(address(_proxy)).initialize(
+            owner,
+            pauser,
+            rescuer,
+            address(0),
+            new address[](0),
+            1,
+            maxMessageBodySize
+        );
+    }
+
+    function testInitialize_revertsIfSignatureThresholdZero() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        address[] memory _attesters = new address[](1);
+        _attesters[0] = attester;
+
+        vm.expectRevert("Signature threshold is zero");
+        MessageTransmitterV2(address(_proxy)).initialize(
+            owner,
+            pauser,
+            rescuer,
+            attesterManager,
+            _attesters,
+            0,
+            maxMessageBodySize
+        );
+    }
+
+    function testInitialize_revertsIfSignatureThresholdExceedsAttestersCount()
+        public
+    {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        address[] memory _attesters = new address[](2);
+        _attesters[0] = address(10);
+        _attesters[1] = address(20);
+
+        vm.expectRevert("Signature threshold exceeds attesters");
+        MessageTransmitterV2(address(_proxy)).initialize(
+            owner,
+            pauser,
+            rescuer,
+            attesterManager,
+            _attesters,
+            3, // signature threshold
+            maxMessageBodySize
+        );
+    }
+
+    function testInitialize_revertsIfMaxMessageBodySizeIsZero() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        address[] memory _attesters = new address[](1);
+        _attesters[0] = attester;
+
+        vm.expectRevert("MaxMessageBodySize is zero");
+        MessageTransmitterV2(address(_proxy)).initialize(
+            owner,
+            pauser,
+            rescuer,
+            attesterManager,
+            _attesters,
+            1,
+            0
+        );
+    }
+
+    function testInitialize_canBeCalledAtomicallyByTheProxy() public {
+        // Deploy proxy and initialize it atomically
+        address[] memory _attesters = new address[](1);
+        _attesters[0] = attester;
+
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            abi.encodeWithSelector(
+                MessageTransmitterV2.initialize.selector,
+                owner,
+                pauser,
+                rescuer,
+                attesterManager,
+                _attesters,
+                1,
+                maxMessageBodySize
+            )
+        );
+
+        MessageTransmitterV2 _messageTransmitter = MessageTransmitterV2(
+            address(_proxy)
+        );
+        assertEq(_messageTransmitter.owner(), owner);
+        assertEq(_messageTransmitter.pauser(), pauser);
+        assertEq(_messageTransmitter.rescuer(), rescuer);
+        assertEq(_messageTransmitter.attesterManager(), attesterManager);
+        assertTrue(_messageTransmitter.isEnabledAttester(attester));
+        assertEq(_messageTransmitter.maxMessageBodySize(), maxMessageBodySize);
+        assertEq(_messageTransmitter.signatureThreshold(), 1);
+    }
+
+    function testInitializedVersion_returnsTheInitializedVersion() public {
+        assertEq(uint256(messageTransmitter.initializedVersion()), 1);
+
+        // Upgrade to the next version
+        AdminUpgradableProxy _proxy = AdminUpgradableProxy(
+            payable(address(messageTransmitter))
+        );
+
+        // Deploy v3 implementation
+        MockMessageTransmitterV3 _implV3 = new MockMessageTransmitterV3(
             localDomain,
-            attester,
-            maxMessageBodySize,
             version
         );
+
+        // Upgrade
+        vm.prank(proxyAdmin);
+        vm.expectEmit(true, true, true, true);
+        emit Upgraded(address(_implV3));
+        _proxy.upgradeTo(address(_implV3));
+
+        // Call initializer on the new implementation
+        MockMessageTransmitterV3(address(_proxy)).initializeV3(address(123));
+
+        // Check initialized version
+        assertEq(
+            uint256(
+                MockMessageTransmitterV3(address(_proxy)).initializedVersion()
+            ),
+            2
+        );
+    }
+
+    function testUpgrade_succeeds() public {
+        AdminUpgradableProxy _proxy = AdminUpgradableProxy(
+            payable(address(messageTransmitter))
+        );
+
+        // Sanity check
+        assertEq(_proxy.implementation(), address(messageTransmitterImpl));
+
+        // Test that we can upgrade to a v3 MessageTransmitter
+        // Deploy v3 implementation
+        MockMessageTransmitterV3 _implV3 = new MockMessageTransmitterV3(
+            localDomain,
+            version + 1
+        );
+
+        // Upgrade
+        vm.prank(proxyAdmin);
+        vm.expectEmit(true, true, true, true);
+        emit Upgraded(address(_implV3));
+        _proxy.upgradeTo(address(_implV3));
+
+        // Sanity checks
+        assertEq(_proxy.implementation(), address(_implV3));
+        assertTrue(MockMessageTransmitterV3(address(_proxy)).v3Function());
+        // Check that the MessageTransmitter Message Format version has changed
+        assertEq(uint256(messageTransmitter.version()), uint256(version + 1));
     }
 
     function testSendMessage_revertsWhenPaused(
@@ -76,6 +350,7 @@ contract MessageTransmitterV2Test is TestUtils {
         vm.assume(_pauser != address(0));
         vm.assume(_destinationDomain != localDomain);
 
+        vm.prank(owner);
         messageTransmitter.updatePauser(_pauser);
 
         vm.prank(_pauser);
@@ -181,6 +456,7 @@ contract MessageTransmitterV2Test is TestUtils {
         vm.assume(_pauser != address(0));
 
         // Pause
+        vm.prank(owner);
         messageTransmitter.updatePauser(_pauser);
         vm.prank(_pauser);
         messageTransmitter.pause();
@@ -901,6 +1177,7 @@ contract MessageTransmitterV2Test is TestUtils {
         // Set new max size
         vm.expectEmit(true, true, true, true);
         emit MaxMessageBodySizeUpdated(_newMaxMessageBodySize);
+        vm.prank(owner);
         messageTransmitter.setMaxMessageBodySize(_newMaxMessageBodySize);
         assertEq(
             messageTransmitter.maxMessageBodySize(),
@@ -929,6 +1206,7 @@ contract MessageTransmitterV2Test is TestUtils {
         address _nonOwner
     ) public {
         vm.assume(_currentPauser != address(0));
+        vm.prank(owner);
         messageTransmitter.updatePauser(_currentPauser);
 
         assertContractIsPausable(
@@ -1079,15 +1357,19 @@ contract MessageTransmitterV2Test is TestUtils {
 
     // setup second and third attester (first set in setUp()); set sig threshold at 2
     function _setup2of3Multisig() internal {
+        vm.startPrank(messageTransmitter.attesterManager());
         messageTransmitter.enableAttester(secondAttester);
         messageTransmitter.enableAttester(thirdAttester);
         messageTransmitter.setSignatureThreshold(2);
+        vm.stopPrank();
     }
 
     // setup second attester (first set in setUp()); set sig threshold at 2
     function _setup2of2Multisig() internal {
+        vm.startPrank(messageTransmitter.attesterManager());
         messageTransmitter.enableAttester(secondAttester);
         messageTransmitter.setSignatureThreshold(2);
+        vm.stopPrank();
     }
 
     function _sign1of1Message(

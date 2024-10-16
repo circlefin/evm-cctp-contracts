@@ -98,9 +98,7 @@ contract Attestable is Ownable2Step {
      * @param newAttester attester to enable
      */
     function enableAttester(address newAttester) public onlyAttesterManager {
-        require(newAttester != address(0), "New attester must be nonzero");
-        require(enabledAttesters.add(newAttester), "Attester already enabled");
-        emit AttesterEnabled(newAttester);
+        _enableAttester(newAttester);
     }
 
     /**
@@ -124,10 +122,9 @@ contract Attestable is Ownable2Step {
      * @dev Allows the current attester manager to transfer control of the contract to a newAttesterManager.
      * @param newAttesterManager The address to update attester manager to.
      */
-    function updateAttesterManager(address newAttesterManager)
-        external
-        onlyOwner
-    {
+    function updateAttesterManager(
+        address newAttesterManager
+    ) external onlyOwner {
         require(
             newAttesterManager != address(0),
             "Invalid attester manager address"
@@ -167,10 +164,9 @@ contract Attestable is Ownable2Step {
      * of enabled attesters.
      * @param newSignatureThreshold new signature threshold
      */
-    function setSignatureThreshold(uint256 newSignatureThreshold)
-        external
-        onlyAttesterManager
-    {
+    function setSignatureThreshold(
+        uint256 newSignatureThreshold
+    ) external onlyAttesterManager {
         require(newSignatureThreshold != 0, "Invalid signature threshold");
 
         // New signature threshold cannot exceed the number of enabled attesters
@@ -216,6 +212,17 @@ contract Attestable is Ownable2Step {
      */
     function _setAttesterManager(address _newAttesterManager) internal {
         _attesterManager = _newAttesterManager;
+    }
+
+    /**
+     * @notice Enables an attester
+     * @dev New attester must be nonzero, and currently disabled.
+     * @param _newAttester attester to enable
+     */
+    function _enableAttester(address _newAttester) internal {
+        require(_newAttester != address(0), "New attester must be nonzero");
+        require(enabledAttesters.add(_newAttester), "Attester already enabled");
+        emit AttesterEnabled(_newAttester);
     }
 
     /**
@@ -277,11 +284,10 @@ contract Attestable is Ownable2Step {
      * @param _signature message signature
      * @return address of recovered signer
      **/
-    function _recoverAttesterSignature(bytes32 _digest, bytes memory _signature)
-        internal
-        pure
-        returns (address)
-    {
+    function _recoverAttesterSignature(
+        bytes32 _digest,
+        bytes memory _signature
+    ) internal pure returns (address) {
         return (ECDSA.recover(_digest, _signature));
     }
 }

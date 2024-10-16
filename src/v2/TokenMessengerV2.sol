@@ -18,14 +18,13 @@
 pragma solidity 0.7.6;
 
 import {BaseTokenMessenger} from "./BaseTokenMessenger.sol";
-import {ITokenMinter} from "../interfaces/ITokenMinter.sol";
-import {IMintBurnToken} from "../interfaces/IMintBurnToken.sol";
-import {BurnMessageV2} from "../messages/v2/BurnMessageV2.sol";
+import {ITokenMinterV2} from "../interfaces/v2/ITokenMinterV2.sol";
 import {AddressUtils} from "../messages/v2/AddressUtils.sol";
-import {MessageTransmitterV2} from "./MessageTransmitterV2.sol";
+import {IRelayerV2} from "../interfaces/v2/IRelayerV2.sol";
 import {IMessageHandlerV2} from "../interfaces/v2/IMessageHandlerV2.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {BurnMessageV2} from "../messages/v2/BurnMessageV2.sol";
+import {Initializable} from "./Initializable.sol";
 
 /**
  * @title TokenMessengerV2
@@ -77,7 +76,66 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     constructor(
         address _messageTransmitter,
         uint32 _messageBodyVersion
-    ) BaseTokenMessenger(_messageTransmitter, _messageBodyVersion) {}
+    ) BaseTokenMessenger(_messageTransmitter, _messageBodyVersion) {
+        _disableInitializers();
+    }
+
+    // ============ Initializers ============
+    /**
+     * @notice Initializes the contract
+     * @dev Reverts if `owner_` is the zero address
+     * @dev Reverts if `rescuer_` is the zero address
+     * @dev Reverts if `feeRecipient_` is the zero address
+     * @dev Reverts if `denylister_` is the zero address
+     * @dev Reverts if `tokenMinter_` is the zero address
+     * @dev Reverts if `remoteDomains_` is zero-length
+     * @dev Reverts if `remoteDomains_` and `remoteTokenMessengers_` are unequal length
+     * @dev Each remoteTokenMessenger address must correspond to the remote domain at the same
+     * index in respective arrays.
+     * @param owner_ Owner address
+     * @param rescuer_ Rescuer address
+     * @param feeRecipient_ FeeRecipient address
+     * @param denylister_ Denylister address
+     * @param tokenMinter_ Local token minter address
+     * @param remoteDomains_ Array of remote domains to configure
+     * @param remoteTokenMessengers_ Array of remote token messenger addresses
+     */
+    function initialize(
+        address owner_,
+        address rescuer_,
+        address feeRecipient_,
+        address denylister_,
+        address tokenMinter_,
+        uint32[] calldata remoteDomains_,
+        bytes32[] calldata remoteTokenMessengers_
+    ) external initializer {
+        require(owner_ != address(0), "Owner is the zero address");
+        require(tokenMinter_ != address(0), "TokenMinter is the zero address");
+        require(
+            remoteDomains_.length == remoteTokenMessengers_.length &&
+                remoteDomains_.length > 0,
+            "Invalid remote domain configuration"
+        );
+
+        // Roles
+        _transferOwnership(owner_);
+        _updateRescuer(rescuer_);
+        _updateDenylister(denylister_);
+        _setFeeRecipient(feeRecipient_);
+
+        localMinter = ITokenMinterV2(tokenMinter_);
+
+        // Remote messenger configuration
+        for (uint256 i; i < remoteDomains_.length; i++) {
+            require(
+                remoteTokenMessengers_[i] != bytes32(0),
+                "Invalid TokenMessenger"
+            );
+            uint32 _remoteDomain = remoteDomains_[i];
+            bytes32 _remoteTokenMessenger = remoteTokenMessengers_[i];
+            remoteTokenMessengers[_remoteDomain] = _remoteTokenMessenger;
+        }
+    }
 
     // ============ External Functions  ============
     /**
@@ -300,7 +358,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         );
 
         // Send message
-        MessageTransmitterV2(localMessageTransmitter).sendMessage(
+        IRelayerV2(localMessageTransmitter).sendMessage(
             _destinationDomain,
             _destinationTokenMessenger,
             _destinationCaller,

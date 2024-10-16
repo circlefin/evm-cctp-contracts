@@ -27,6 +27,8 @@ import {TokenMinter} from "../../src/TokenMinter.sol";
 import {MessageTransmitterV2} from "../../src/v2/MessageTransmitterV2.sol";
 import {BurnMessageV2} from "../../src/messages/v2/BurnMessageV2.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
+import {AdminUpgradableProxy} from "../../src/v2/AdminUpgradableProxy.sol";
+import {MockTokenMessengerV3} from "../mocks/v2/MockTokenMessengerV3.sol";
 
 contract TokenMessengerV2Test is BaseTokenMessengerTest {
     // Events
@@ -50,6 +52,8 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint256 feeCollected
     );
 
+    event Upgraded(address indexed implementation);
+
     // Libraries
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
@@ -63,14 +67,18 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     address remoteMessageTransmitter = address(20);
 
     TokenMessengerV2 localTokenMessenger;
+    TokenMessengerV2 tokenMessengerImpl;
 
-    address remoteTokenMessageger = address(30);
+    address remoteTokenMessenger = address(30);
     bytes32 remoteTokenMessengerAddr;
 
     address remoteTokenAddr = address(40);
 
+    // TokenMessengerV2 Roles
     address feeRecipient = address(50);
     address denylister = address(60);
+    address proxyAdmin = address(70);
+    address rescuer = address(80);
 
     MockMintBurnToken localToken = new MockMintBurnToken();
     TokenMinterV2 localTokenMinter = new TokenMinterV2(tokenController);
@@ -78,29 +86,38 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     uint32 immutable CONFIRMED_FINALITY_THRESHOLD = 1000;
 
     function setUp() public override {
-        // TokenMessenger under test
-        localTokenMessenger = new TokenMessengerV2(
+        // Deploy implementation
+        tokenMessengerImpl = new TokenMessengerV2(
             localMessageTransmitter,
             messageBodyVersion
         );
-        // Add a local minter
-        localTokenMessenger.addLocalMinter(address(localTokenMinter));
 
-        // Update fee recipient
-        localTokenMessenger.setFeeRecipient(feeRecipient);
-
-        // Update denylister
-        localTokenMessenger.updateDenylister(denylister);
+        // Deploy and initialize proxy
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
 
         remoteTokenMessengerAddr = AddressUtils.addressToBytes32(
-            remoteTokenMessageger
+            remoteTokenMessenger
         );
 
-        // Register remote token messenger
-        localTokenMessenger.addRemoteTokenMessenger(
-            remoteDomain,
-            remoteTokenMessengerAddr
+        (
+            uint32[] memory _remoteDomains,
+            bytes32[] memory _remoteTokenMessengers
+        ) = _defaultRemoteTokenMessengers();
+
+        TokenMessengerV2(address(_proxy)).initialize(
+            owner,
+            rescuer,
+            feeRecipient,
+            denylister,
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
         );
+        localTokenMessenger = TokenMessengerV2(address(_proxy));
 
         linkTokenPair(
             localTokenMinter,
@@ -136,6 +153,368 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     }
 
     // Tests
+
+    function testInitialize_revertsIfOwnerIsZeroAddress() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
+        vm.expectRevert("Owner is the zero address");
+
+        (
+            uint32[] memory _remoteDomains,
+            bytes32[] memory _remoteTokenMessengers
+        ) = _defaultRemoteTokenMessengers();
+
+        TokenMessengerV2(address(_proxy)).initialize(
+            address(0),
+            rescuer,
+            feeRecipient,
+            denylister,
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
+        );
+    }
+
+    function testInitialize_revertsIfRescuerIsZeroAddress() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        (
+            uint32[] memory _remoteDomains,
+            bytes32[] memory _remoteTokenMessengers
+        ) = _defaultRemoteTokenMessengers();
+
+        vm.expectRevert("Rescuable: new rescuer is the zero address");
+        TokenMessengerV2(address(_proxy)).initialize(
+            owner,
+            address(0),
+            feeRecipient,
+            denylister,
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
+        );
+    }
+
+    function testInitialize_revertsIfFeeRecipientIsZeroAddress() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        (
+            uint32[] memory _remoteDomains,
+            bytes32[] memory _remoteTokenMessengers
+        ) = _defaultRemoteTokenMessengers();
+
+        vm.expectRevert("Zero address not allowed");
+        TokenMessengerV2(address(_proxy)).initialize(
+            owner,
+            rescuer,
+            address(0),
+            denylister,
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
+        );
+    }
+
+    function testInitialize_revertsIfDenylisterIsZeroAddress() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        (
+            uint32[] memory _remoteDomains,
+            bytes32[] memory _remoteTokenMessengers
+        ) = _defaultRemoteTokenMessengers();
+
+        vm.expectRevert("Denylistable: new denylister is the zero address");
+        TokenMessengerV2(address(_proxy)).initialize(
+            owner,
+            rescuer,
+            feeRecipient,
+            address(0),
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
+        );
+    }
+
+    function testInitialize_revertsIfTokenMinterIsZeroAddress() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        (
+            uint32[] memory _remoteDomains,
+            bytes32[] memory _remoteTokenMessengers
+        ) = _defaultRemoteTokenMessengers();
+
+        vm.expectRevert("TokenMinter is the zero address");
+        TokenMessengerV2(address(_proxy)).initialize(
+            owner,
+            rescuer,
+            feeRecipient,
+            denylister,
+            address(0),
+            _remoteDomains,
+            _remoteTokenMessengers
+        );
+    }
+
+    function testInitialize_revertsIfRemoteDomainsDoNotMatchRemoteMessengers()
+        public
+    {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        (uint32[] memory _remoteDomains, ) = _defaultRemoteTokenMessengers();
+
+        // Add an extra remote token messenger
+        bytes32[] memory _remoteTokenMessengers = new bytes32[](
+            _remoteDomains.length + 1
+        );
+        for (uint256 i; i < _remoteTokenMessengers.length; i++) {
+            _remoteTokenMessengers[i] = bytes32("test");
+        }
+
+        vm.expectRevert("Invalid remote domain configuration");
+        TokenMessengerV2(address(_proxy)).initialize(
+            owner,
+            rescuer,
+            feeRecipient,
+            denylister,
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
+        );
+    }
+
+    function testInitialize_revertsIfRemoteTokenMessengerIsZeroAddress()
+        public
+    {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        bytes32[] memory _remoteTokenMessengers = new bytes32[](2);
+        _remoteTokenMessengers[0] = bytes32("1");
+        _remoteTokenMessengers[1] = bytes32(""); // empty
+
+        uint32[] memory _remoteDomains = new uint32[](2);
+        _remoteDomains[0] = 1;
+        _remoteDomains[1] = 2;
+
+        vm.expectRevert("Invalid TokenMessenger");
+        TokenMessengerV2(address(_proxy)).initialize(
+            owner,
+            rescuer,
+            feeRecipient,
+            denylister,
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
+        );
+    }
+
+    function testInitialize_revertsIfRemoteDomainsIsEmpty() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        uint32[] memory _remoteDomains = new uint32[](0);
+        bytes32[] memory _remoteTokenMessengers = new bytes32[](0);
+
+        vm.expectRevert("Invalid remote domain configuration");
+        TokenMessengerV2(address(_proxy)).initialize(
+            owner,
+            rescuer,
+            feeRecipient,
+            denylister,
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
+        );
+    }
+
+    function testInitialize_revertsIfCalledTwice() public {
+        (
+            uint32[] memory _remoteDomains,
+            bytes32[] memory _remoteTokenMessengers
+        ) = _defaultRemoteTokenMessengers();
+
+        vm.expectRevert("Initializable: invalid initialization");
+        localTokenMessenger.initialize(
+            owner,
+            rescuer,
+            feeRecipient,
+            denylister,
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
+        );
+    }
+
+    function testInitialize_setsTheOwner() public view {
+        assertEq(localTokenMessenger.owner(), owner);
+    }
+
+    function testInitialize_setsTheRescuer() public view {
+        assertEq(localTokenMessenger.rescuer(), rescuer);
+    }
+
+    function testInitialize_setsTheFeeRecipient() public view {
+        assertEq(localTokenMessenger.feeRecipient(), feeRecipient);
+    }
+
+    function testInitialize_setsTheDenylister() public view {
+        assertEq(localTokenMessenger.denylister(), denylister);
+    }
+
+    function testInitialize_setsTheTokenMinter() public view {
+        assertEq(
+            address(localTokenMessenger.localMinter()),
+            address(localTokenMinter)
+        );
+    }
+
+    function testInitialize_setsSingleRemoteTokenMessenger() public view {
+        assertEq(
+            bytes32(localTokenMessenger.remoteTokenMessengers(remoteDomain)),
+            remoteTokenMessengerAddr
+        );
+    }
+
+    function testInitialize_setsMultipleRemoteTokenMessengers() public {
+        bytes32[] memory _remoteTokenMessengers = new bytes32[](2);
+        _remoteTokenMessengers[0] = bytes32("1");
+        _remoteTokenMessengers[1] = bytes32("2");
+
+        uint32[] memory _remoteDomains = new uint32[](2);
+        _remoteDomains[0] = 1;
+        _remoteDomains[1] = 2;
+
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        TokenMessengerV2(address(_proxy)).initialize(
+            owner,
+            rescuer,
+            feeRecipient,
+            denylister,
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
+        );
+        assertEq(
+            bytes32(TokenMessengerV2(address(_proxy)).remoteTokenMessengers(1)),
+            bytes32("1")
+        );
+        assertEq(
+            bytes32(TokenMessengerV2(address(_proxy)).remoteTokenMessengers(2)),
+            bytes32("2")
+        );
+    }
+
+    function testInitialize_setsTheInitializedVersion() public view {
+        assertEq(uint256(localTokenMessenger.initializedVersion()), 1);
+    }
+
+    function testInitialize_canBeCalledAtomicallyByTheProxy() public {
+        (
+            uint32[] memory _remoteDomains,
+            bytes32[] memory _remoteTokenMessengers
+        ) = _defaultRemoteTokenMessengers();
+
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            abi.encodeWithSelector(
+                TokenMessengerV2.initialize.selector,
+                owner,
+                rescuer,
+                feeRecipient,
+                denylister,
+                address(localTokenMinter),
+                _remoteDomains,
+                _remoteTokenMessengers
+            )
+        );
+        assertEq(TokenMessengerV2(address(_proxy)).owner(), owner);
+        assertEq(TokenMessengerV2(address(_proxy)).rescuer(), rescuer);
+        assertEq(
+            TokenMessengerV2(address(_proxy)).feeRecipient(),
+            feeRecipient
+        );
+        assertEq(
+            uint256(TokenMessengerV2(address(_proxy)).initializedVersion()),
+            1
+        );
+        assertEq(TokenMessengerV2(address(_proxy)).denylister(), denylister);
+        assertEq(
+            address(TokenMessengerV2(address(_proxy)).localMinter()),
+            address(localTokenMinter)
+        );
+        assertEq(
+            TokenMessengerV2(address(_proxy)).remoteTokenMessengers(
+                remoteDomain
+            ),
+            remoteTokenMessengerAddr
+        );
+    }
+
+    function testUpgrade_succeeds() public {
+        AdminUpgradableProxy _proxy = AdminUpgradableProxy(
+            payable(address(localTokenMessenger))
+        );
+
+        // Sanity check
+        assertEq(_proxy.implementation(), address(tokenMessengerImpl));
+
+        // Test that we can upgrade to a v3 TokenMessenger
+        // Deploy v3 implementation
+        MockTokenMessengerV3 _implV3 = new MockTokenMessengerV3(
+            localMessageTransmitter,
+            messageBodyVersion + 1
+        );
+
+        // Upgrade
+        vm.prank(proxyAdmin);
+        vm.expectEmit(true, true, true, true);
+        emit Upgraded(address(_implV3));
+        _proxy.upgradeTo(address(_implV3));
+
+        // Sanity checks
+        assertEq(_proxy.implementation(), address(_implV3));
+        assertTrue(MockTokenMessengerV3(address(_proxy)).v3Function());
+        // Check that the message body version is updated
+        assertEq(
+            uint256(localTokenMessenger.messageBodyVersion()),
+            uint256(messageBodyVersion + 1)
+        );
+    }
 
     function testDepositForBurn_revertsIfMsgSenderIsOnDenylist(
         address _messageSender,
@@ -1064,6 +1443,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         assertTrue(address(localTokenMessenger.localMinter()) != address(0));
 
         // Remove local minter
+        vm.prank(owner);
         localTokenMessenger.removeLocalMinter();
 
         assertEq(address(localTokenMessenger.localMinter()), address(0));
@@ -1461,6 +1841,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         assertTrue(address(localTokenMessenger.localMinter()) != address(0));
 
         // Remove local minter
+        vm.prank(owner);
         localTokenMessenger.removeLocalMinter();
 
         assertEq(address(localTokenMessenger.localMinter()), address(0));
@@ -1744,6 +2125,21 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     }
 
     // Test helpers
+
+    function _defaultRemoteTokenMessengers()
+        internal
+        view
+        returns (
+            uint32[] memory _remoteDomains,
+            bytes32[] memory _remoteTokenMessengers
+        )
+    {
+        _remoteDomains = new uint32[](1);
+        _remoteDomains[0] = remoteDomain;
+
+        _remoteTokenMessengers = new bytes32[](1);
+        _remoteTokenMessengers[0] = remoteTokenMessengerAddr;
+    }
 
     function _formatBurnMessageForReceive(
         uint32 _version,

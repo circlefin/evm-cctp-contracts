@@ -25,15 +25,15 @@ import {MessageV2} from "../messages/v2/MessageV2.sol";
 import {AddressUtils} from "../messages/v2/AddressUtils.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {IMessageHandlerV2} from "../interfaces/v2/IMessageHandlerV2.sol";
+import {Initializable} from "./Initializable.sol";
 
 /**
  * @title MessageTransmitterV2
  * @notice Contract responsible for sending and receiving messages across chains.
  */
-// TODO STABLE-6894 & STABLE-STABLE-7293: refactor inheritance
-// as-needed to work with Proxy pattern.
 contract MessageTransmitterV2 is
     IMessageTransmitterV2,
+    Initializable,
     Pausable,
     Rescuable,
     Attestable
@@ -92,17 +92,65 @@ contract MessageTransmitterV2 is
     mapping(bytes32 => uint256) public usedNonces;
 
     // ============ Constructor ============
-    // TODO STABLE-6894 & STABLE-STABLE-7293: refactor constructor
-    // as-needed to work with Proxy pattern.
-    constructor(
-        uint32 _localDomain,
-        address _attester,
-        uint32 _maxMessageBodySize,
-        uint32 _version
-    ) Attestable(_attester) {
+    /**
+     * @param _localDomain Domain of chain on which the contract is deployed
+     * @param _version Message Format version
+     */
+    constructor(uint32 _localDomain, uint32 _version) Attestable(msg.sender) {
         localDomain = _localDomain;
         version = _version;
-        maxMessageBodySize = _maxMessageBodySize;
+
+        _disableInitializers();
+    }
+
+    // ============ Initializers ============
+    /**
+     * @notice Initializes the contract
+     * @dev Addresses must be non-zero
+     * @dev Signature threshold must be greater than zero
+     * @param owner_ Owner address
+     * @param pauser_ Pauser address
+     * @param rescuer_ Rescuer address
+     * @param attesterManager_ AttesterManager address
+     * @param attesters_ Set of attesters to enable
+     * @param signatureThreshold_ Signature threshold
+     * @param maxMessageBodySize_ Maximum message body size
+     */
+    function initialize(
+        address owner_,
+        address pauser_,
+        address rescuer_,
+        address attesterManager_,
+        address[] calldata attesters_,
+        uint256 signatureThreshold_,
+        uint256 maxMessageBodySize_
+    ) external initializer {
+        require(owner_ != address(0), "Owner is the zero address");
+        require(
+            attesterManager_ != address(0),
+            "AttesterManager is the zero address"
+        );
+        require(signatureThreshold_ > 0, "Signature threshold is zero");
+        require(
+            signatureThreshold_ <= attesters_.length,
+            "Signature threshold exceeds attesters"
+        );
+        require(maxMessageBodySize_ > 0, "MaxMessageBodySize is zero");
+
+        // Roles
+        _transferOwnership(owner_);
+        _updateRescuer(rescuer_);
+        _updatePauser(pauser_);
+        _setAttesterManager(attesterManager_);
+
+        // Settings
+        signatureThreshold = signatureThreshold_;
+        maxMessageBodySize = maxMessageBodySize_;
+
+        // Attester configuration
+        for (uint256 i; i < attesters_.length; i++) {
+            _enableAttester(attesters_[i]);
+        }
     }
 
     // ============ External Functions  ============
@@ -274,5 +322,10 @@ contract MessageTransmitterV2 is
         emit MaxMessageBodySizeUpdated(maxMessageBodySize);
     }
 
-    // ============ Internal Utils ============
+    /**
+     * @dev Returns the current initialized version
+     */
+    function initializedVersion() public view returns (uint64) {
+        return _getInitializedVersion();
+    }
 }

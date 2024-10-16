@@ -18,14 +18,14 @@
 pragma solidity 0.7.6;
 pragma abicoder v2;
 
-import {AdminUpgradableProxy} from "../../src/v2/AdminUpgradeableProxy.sol";
+import {AdminUpgradableProxy} from "../../src/v2/AdminUpgradableProxy.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {MockInitializableImplementation} from "../mocks/MockInitializableImplementation.sol";
 import {MockProxyImplementation, MockAlternateProxyImplementation} from "../mocks/v2/MockProxyImplementation.sol";
 import {MockPayableProxyImplementation} from "../mocks/v2/MockPayableProxyImplementation.sol";
 import {Test} from "forge-std/Test.sol";
 
-contract AdminUpgradeableProxyTest is Test {
+contract AdminUpgradableProxyTest is Test {
     // Events
 
     event AdminChanged(address previousAdmin, address newAdmin);
