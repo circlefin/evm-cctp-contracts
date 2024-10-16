@@ -17,26 +17,15 @@
  */
 pragma solidity 0.7.6;
 
-import {Initializable} from "../../src/v2/Initializable.sol";
+import {TokenMessengerV2} from "../../../src/v2/TokenMessengerV2.sol";
 
-contract MockInitializableImplementation is Initializable {
-    address public addr;
-    uint256 public num;
+contract MockTokenMessengerV3 is TokenMessengerV2 {
+    constructor(
+        address _messageTransmitter,
+        uint32 _messageBodyVersion
+    ) TokenMessengerV2(_messageTransmitter, _messageBodyVersion) {}
 
-    function initialize(address _addr, uint256 _num) external initializer {
-        addr = _addr;
-        num = _num;
-    }
-
-    function initializeV2() external reinitializer(2) {}
-
-    function initializeV3() external reinitializer(3) {}
-
-    function disableInitializers() external {
-        _disableInitializers();
-    }
-
-    function initializedVersion() external view returns (uint64) {
-        return _getInitializedVersion();
+    function v3Function() external pure returns (bool) {
+        return true;
     }
 }

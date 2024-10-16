@@ -17,18 +17,18 @@
  */
 pragma solidity 0.7.6;
 
-import {Ownable2Step} from "../roles/Ownable2Step.sol";
 import {ITokenMinterV2} from "../interfaces/v2/ITokenMinterV2.sol";
 import {Rescuable} from "../roles/Rescuable.sol";
 import {Denylistable} from "../roles/v2/Denylistable.sol";
 import {IMintBurnToken} from "../interfaces/IMintBurnToken.sol";
+import {Initializable} from "./Initializable.sol";
 
 /**
  * @title BaseTokenMessenger
  * @notice Base administrative functionality for TokenMessenger implementations,
  * including managing remote token messengers and the local token minter.
  */
-abstract contract BaseTokenMessenger is Rescuable, Denylistable {
+abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
     // ============ Events ============
     /**
      * @notice Emitted when a remote TokenMessenger is added
@@ -205,9 +205,14 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable {
      * @param _feeRecipient Address of fee recipient
      */
     function setFeeRecipient(address _feeRecipient) external onlyOwner {
-        require(_feeRecipient != address(0), "Zero address not allowed");
-        feeRecipient = _feeRecipient;
-        emit FeeRecipientSet(_feeRecipient);
+        _setFeeRecipient(_feeRecipient);
+    }
+
+    /**
+     * @dev Returns the current initialized version
+     */
+    function initializedVersion() public view returns (uint64) {
+        return _getInitializedVersion();
     }
 
     // ============ Internal Utils ============
@@ -318,5 +323,16 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable {
         }
 
         emit MintAndWithdraw(_mintRecipient, _amount, _mintToken, _fee);
+    }
+
+    /**
+     * @notice Sets the fee recipient address
+     * @dev Reverts if `_feeRecipient` is the zero address
+     * @param _feeRecipient Address of fee recipient
+     */
+    function _setFeeRecipient(address _feeRecipient) internal {
+        require(_feeRecipient != address(0), "Zero address not allowed");
+        feeRecipient = _feeRecipient;
+        emit FeeRecipientSet(_feeRecipient);
     }
 }

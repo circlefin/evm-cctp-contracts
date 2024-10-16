@@ -17,26 +17,21 @@
  */
 pragma solidity 0.7.6;
 
-import {Initializable} from "../../src/v2/Initializable.sol";
+import {MessageTransmitterV2} from "../../../src/v2/MessageTransmitterV2.sol";
 
-contract MockInitializableImplementation is Initializable {
-    address public addr;
-    uint256 public num;
+contract MockMessageTransmitterV3 is MessageTransmitterV2 {
+    address public newV3State;
 
-    function initialize(address _addr, uint256 _num) external initializer {
-        addr = _addr;
-        num = _num;
+    constructor(
+        uint32 _localDomain,
+        uint32 _version
+    ) MessageTransmitterV2(_localDomain, _version) {}
+
+    function initializeV3(address newState) external reinitializer(2) {
+        newV3State = newState;
     }
 
-    function initializeV2() external reinitializer(2) {}
-
-    function initializeV3() external reinitializer(3) {}
-
-    function disableInitializers() external {
-        _disableInitializers();
-    }
-
-    function initializedVersion() external view returns (uint64) {
-        return _getInitializedVersion();
+    function v3Function() external pure returns (bool) {
+        return true;
     }
 }

@@ -188,6 +188,7 @@ contract TestUtils is Test {
 
         // Test updating the rescuer
         // (Updating rescuer to zero-address is not permitted)
+        vm.prank(_rescuableContract.owner());
         vm.expectRevert("Rescuable: new rescuer is the zero address");
         _rescuableContract.updateRescuer(address(0));
 
@@ -196,6 +197,7 @@ contract TestUtils is Test {
         // Update rescuer to a valid address
         vm.expectEmit(true, true, true, true);
         emit RescuerChanged(_rescuer);
+        vm.prank(_rescuableContract.owner());
         _rescuableContract.updateRescuer(_rescuer);
 
         // Rescue erc20 to _rescueRecipient
@@ -423,6 +425,7 @@ contract TestUtils is Test {
         // set pending owner
         vm.expectEmit(true, true, true, true);
         emit OwnershipTransferStarted(initialOwner, _newOwner);
+        vm.prank(initialOwner);
         _ownableContract.transferOwnership(_newOwner);
         // assert that the owner is still unchanged, but pending owner is changed
         assertEq(_ownableContract.owner(), initialOwner);
@@ -460,6 +463,7 @@ contract TestUtils is Test {
         // set pending owner
         vm.expectEmit(true, true, true, true);
         emit OwnershipTransferStarted(initialOwner, _newOwner);
+        vm.prank(initialOwner);
         _ownableContract.transferOwnership(_newOwner);
         // assert that the owner is still unchanged, but pending owner is changed
         assertEq(_ownableContract.owner(), initialOwner);
@@ -468,6 +472,7 @@ contract TestUtils is Test {
         // change the owner again, because we realize _newOwner cannot accept ownership
         vm.expectEmit(true, true, true, true);
         emit OwnershipTransferStarted(initialOwner, _secondNewOwner);
+        vm.prank(initialOwner);
         _ownableContract.transferOwnership(_secondNewOwner);
 
         // accept ownership
