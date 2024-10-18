@@ -27,9 +27,13 @@ abstract contract Denylistable is Ownable2Step {
     // ============ Events ============
     /**
      * @notice Emitted when the Denylister is updated
+     * @param oldDenylister address of the previous Denylister
      * @param newDenylister address of new Denylister
      */
-    event DenylisterChanged(address indexed newDenylister);
+    event DenylisterChanged(
+        address indexed oldDenylister,
+        address indexed newDenylister
+    );
 
     /**
      * @notice Emitted when `account` is added to the denylist
@@ -137,8 +141,9 @@ abstract contract Denylistable is Ownable2Step {
             _newDenylister != address(0),
             "Denylistable: new denylister is the zero address"
         );
+        address _oldDenylister = _denylister;
         _denylister = _newDenylister;
-        emit DenylisterChanged(_newDenylister);
+        emit DenylisterChanged(_oldDenylister, _newDenylister);
     }
 
     /**
