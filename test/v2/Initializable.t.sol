@@ -27,6 +27,14 @@ contract InitializableTest is Test {
 
     event Initialized(uint64 version);
 
+    struct InitializableStorage {
+        uint64 _initialized;
+        bool _initializing;
+    }
+
+    bytes32 private constant INITIALIZABLE_STORAGE =
+        0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00;
+
     function setUp() public {
         impl = new MockInitializableImplementation();
     }
@@ -96,6 +104,17 @@ contract InitializableTest is Test {
         impl.initialize(address(10), 1);
     }
 
+    function testDisableInitializers_revertsIfInitializing() public {
+        // Set the initializing storage slot to 'true' directly
+        _setInitializableStorage(impl.initializedVersion(), true);
+
+        // Sanity check
+        assertTrue(impl.initializing());
+
+        vm.expectRevert("Initializable: invalid initialization");
+        impl.disableInitializers();
+    }
+
     function test_revertsIfDowngraded() public {
         impl.initializeV3();
         assertEq(uint256(impl.initializedVersion()), 3);
@@ -105,5 +124,46 @@ contract InitializableTest is Test {
         impl.initializeV2();
 
         assertEq(uint256(impl.initializedVersion()), 3);
+    }
+
+    function testOnlyInitializing_revertsIfCalledOutsideOfInitialization()
+        public
+    {
+        assertFalse(impl.initializing());
+
+        vm.expectRevert("Initializable: not initializing");
+        impl.supportingInitializer();
+    }
+
+    function testOnlyInitializing_succeedsIfCalledWhileInitializing() public {
+        // Set 'initializing' to true directly
+        _setInitializableStorage(impl.initializedVersion(), true);
+        assertTrue(impl.initializing());
+
+        // Should be callable now
+        impl.supportingInitializer();
+    }
+
+    // Test utils
+
+    function _setInitializableStorage(
+        uint64 _initializedVersion,
+        bool _initializing
+    ) internal {
+        // Write it to a slot, and then copy over the slot contents to the implementation address
+        // There might be a better way to do this
+        InitializableStorage storage $;
+        assembly {
+            $.slot := INITIALIZABLE_STORAGE
+        }
+        $._initialized = _initializedVersion;
+        $._initializing = _initializing;
+
+        // Copy over slot contents to implementation
+        vm.store(
+            address(impl),
+            INITIALIZABLE_STORAGE,
+            vm.load(address(this), INITIALIZABLE_STORAGE)
+        );
     }
 }
