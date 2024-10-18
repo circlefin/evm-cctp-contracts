@@ -32,11 +32,17 @@ contract MockInitializableImplementation is Initializable {
 
     function initializeV3() external reinitializer(3) {}
 
+    function supportingInitializer() public view onlyInitializing {}
+
     function disableInitializers() external {
         _disableInitializers();
     }
 
     function initializedVersion() external view returns (uint64) {
         return _getInitializedVersion();
+    }
+
+    function initializing() external view returns (bool) {
+        return _isInitializing();
     }
 }
