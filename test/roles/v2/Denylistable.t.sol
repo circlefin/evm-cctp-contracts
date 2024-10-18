@@ -23,7 +23,10 @@ import {Test} from "forge-std/Test.sol";
 
 contract DenylistableTest is Test {
     // Test events
-    event DenylisterChanged(address indexed newDenylister);
+    event DenylisterChanged(
+        address indexed oldDenylister,
+        address indexed newDenylister
+    );
     event Denylisted(address indexed account);
     event UnDenylisted(address indexed account);
 
@@ -68,7 +71,7 @@ contract DenylistableTest is Test {
         vm.assume(_newDenylister != address(0));
 
         vm.expectEmit(true, true, true, true);
-        emit DenylisterChanged(_newDenylister);
+        emit DenylisterChanged(denylister, _newDenylister);
 
         vm.prank(owner);
         denylistable.updateDenylister(_newDenylister);
