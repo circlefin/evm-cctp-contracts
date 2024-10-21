@@ -112,8 +112,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         require(owner_ != address(0), "Owner is the zero address");
         require(tokenMinter_ != address(0), "TokenMinter is the zero address");
         require(
-            remoteDomains_.length == remoteTokenMessengers_.length &&
-                remoteDomains_.length > 0,
+            remoteDomains_.length == remoteTokenMessengers_.length,
             "Invalid remote domain configuration"
         );
 
