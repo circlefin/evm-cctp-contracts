@@ -334,7 +334,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         );
     }
 
-    function testInitialize_revertsIfRemoteDomainsIsEmpty() public {
+    function testInitialize_succeedsIfRemoteDomainsIsEmpty() public {
         AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
             address(tokenMessengerImpl),
             proxyAdmin,
@@ -344,7 +344,6 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint32[] memory _remoteDomains = new uint32[](0);
         bytes32[] memory _remoteTokenMessengers = new bytes32[](0);
 
-        vm.expectRevert("Invalid remote domain configuration");
         TokenMessengerV2(address(_proxy)).initialize(
             owner,
             rescuer,
