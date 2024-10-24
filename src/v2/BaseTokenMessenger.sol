@@ -209,7 +209,7 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
     }
 
     /**
-     * @dev Returns the current initialized version
+     * @notice Returns the current initialized version
      */
     function initializedVersion() public view returns (uint64) {
         return _getInitializedVersion();

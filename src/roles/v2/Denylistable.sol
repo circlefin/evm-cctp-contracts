@@ -21,14 +21,14 @@ import {Ownable2Step} from "../Ownable2Step.sol";
 
 /**
  * @title Denylistable
- * @notice Base contract that allows management of a denylist
+ * @notice Contract that allows the management and application of a denylist
  */
 abstract contract Denylistable is Ownable2Step {
     // ============ Events ============
     /**
-     * @notice Emitted when the Denylister is updated
-     * @param oldDenylister address of the previous Denylister
-     * @param newDenylister address of new Denylister
+     * @notice Emitted when the denylister is updated
+     * @param oldDenylister Address of the previous Denylister
+     * @param newDenylister Address of the new Denylister
      */
     event DenylisterChanged(
         address indexed oldDenylister,
@@ -56,11 +56,11 @@ abstract contract Denylistable is Ownable2Step {
 
     // ============ State Variables ============
     // The currently set denylister
-    address private _denylister;
+    address internal _denylister;
 
     // A mapping indicating whether an account is on the denylist. 1 indicates that an
     // address is on the denylist; 0 otherwise.
-    mapping(address => uint256) private _denylist;
+    mapping(address => uint256) internal _denylist;
 
     // ============ Modifiers ============
     /**

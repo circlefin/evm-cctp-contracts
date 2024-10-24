@@ -21,12 +21,12 @@ import {ITokenMinter} from "../ITokenMinter.sol";
 
 /**
  * @title ITokenMinterV2
- * @notice interface for minter of tokens that are mintable, burnable, and interchangeable
+ * @notice Interface for a minter of tokens that are mintable, burnable, and interchangeable
  * across domains.
  */
 interface ITokenMinterV2 is ITokenMinter {
     /**
-     * @notice Mints to multiple recipients amounts of local tokens corresponding to the
+     * @notice Mints to multiple recipients amounts of tokens corresponding to the
      * given (`sourceDomain`, `burnToken`) pair.
      * @param sourceDomain Source domain where `burnToken` was burned.
      * @param burnToken Burned token address as bytes32.
@@ -34,7 +34,7 @@ interface ITokenMinterV2 is ITokenMinter {
      * @param recipientTwo Address to receive `amountTwo` of minted tokens
      * @param amountOne Amount of tokens to mint to `recipientOne`
      * @param amountTwo Amount of tokens to mint to `recipientTwo`
-     * @return mintToken token minted.
+     * @return mintToken Address of the token that was minted, corresponding to the (`sourceDomain`, `burnToken`) pair
      */
     function mint(
         uint32 sourceDomain,

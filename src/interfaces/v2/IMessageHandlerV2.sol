@@ -19,18 +19,18 @@ pragma solidity 0.7.6;
 
 /**
  * @title IMessageHandlerV2
- * @notice Handles messages on destination domain forwarded from
- * an IReceiverV2
+ * @notice Handles messages on the destination domain, forwarded from
+ * an IReceiverV2.
  */
 interface IMessageHandlerV2 {
     /**
-     * @notice handles an incoming finalized message from a Receiver
+     * @notice Handles an incoming finalized message from an IReceiverV2
      * @dev Finalized messages have finality threshold values greater than or equal to 2000
-     * @param sourceDomain the source domain of the message
-     * @param sender the sender of the message
+     * @param sourceDomain The source domain of the message
+     * @param sender The sender of the message
      * @param finalityThresholdExecuted the finality threshold at which the message was attested to
-     * @param messageBody The message raw bytes
-     * @return success bool, true if successful
+     * @param messageBody The raw bytes of the message body
+     * @return success True, if successful; false, if not.
      */
     function handleReceiveFinalizedMessage(
         uint32 sourceDomain,
@@ -40,13 +40,13 @@ interface IMessageHandlerV2 {
     ) external returns (bool);
 
     /**
-     * @notice handles an incoming unfinalized message from a Receiver
+     * @notice Handles an incoming unfinalized message from an IReceiverV2
      * @dev Unfinalized messages have finality threshold values less than 2000
-     * @param sourceDomain the source domain of the message
-     * @param sender the sender of the message
-     * @param finalityThresholdExecuted the (sub)finality threshold at which the message was attested to
-     * @param messageBody The message raw bytes
-     * @return success bool, true if successful
+     * @param sourceDomain The source domain of the message
+     * @param sender The sender of the message
+     * @param finalityThresholdExecuted The finality threshold at which the message was attested to
+     * @param messageBody The raw bytes of the message body
+     * @return success True, if successful; false, if not.
      */
     function handleReceiveUnfinalizedMessage(
         uint32 sourceDomain,

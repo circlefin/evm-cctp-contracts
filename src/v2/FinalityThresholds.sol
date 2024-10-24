@@ -17,6 +17,11 @@
  */
 pragma solidity 0.7.6;
 
-// Finality Thresholds
-
+// The threshold at which (and above) messages are considered finalized.
 uint32 constant FINALITY_THRESHOLD_FINALIZED = 2000;
+
+// The threshold at which (and above) messages are considered finalized.
+uint32 constant FINALITY_THRESHOLD_CONFIRMED = 1000;
+
+// The minimum allowed level of finality accepted by TokenMessenger
+uint32 constant TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD = 500;

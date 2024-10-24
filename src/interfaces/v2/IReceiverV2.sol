@@ -21,7 +21,8 @@ import {IReceiver} from "../IReceiver.sol";
 
 /**
  * @title IReceiverV2
- * @notice Receives messages on destination chain and forwards them to IMessageDestinationHandler
+ * @notice Receives messages on the destination chain and forwards them to contracts implementing
+ * IMessageHandlerV2.
  */
 interface IReceiverV2 is IReceiver {
 

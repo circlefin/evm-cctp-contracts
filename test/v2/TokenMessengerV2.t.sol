@@ -29,6 +29,7 @@ import {BurnMessageV2} from "../../src/messages/v2/BurnMessageV2.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {AdminUpgradableProxy} from "../../src/proxy/AdminUpgradableProxy.sol";
 import {MockTokenMessengerV3} from "../mocks/v2/MockTokenMessengerV3.sol";
+import {TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD, FINALITY_THRESHOLD_FINALIZED, FINALITY_THRESHOLD_CONFIRMED} from "../../src/v2/FinalityThresholds.sol";
 
 contract TokenMessengerV2Test is BaseTokenMessengerTest {
     // Events
@@ -62,7 +63,6 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     // Constants
     uint32 remoteDomain = 1;
     uint32 messageBodyVersion = 2;
-    uint32 confirmedFinalityThreshold = 1000;
 
     address localMessageTransmitter = address(10);
     address remoteMessageTransmitter = address(20);
@@ -1507,7 +1507,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         bytes calldata _hookData,
         uint32 _finalityThresholdExecuted
     ) public {
-        vm.assume(_finalityThresholdExecuted >= 2000);
+        vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
 
         bytes memory _messageBody = BurnMessageV2._formatMessageForRelay(
             localTokenMessenger.messageBodyVersion(),
@@ -1603,8 +1603,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         bytes calldata _messageBody
     ) public {
         vm.assume(
-            _finalityThresholdExecuted <
-                localTokenMessenger.minFinalityThresholdSupported()
+            _finalityThresholdExecuted < TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
         );
 
         vm.prank(localMessageTransmitter);
@@ -1624,8 +1623,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         // See: BurnMessageV2#HOOK_DATA_INDEX
         vm.assume(_messageBody.length < 228);
         vm.assume(
-            _finalityThresholdExecuted >=
-                localTokenMessenger.minFinalityThresholdSupported()
+            _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
         );
 
         vm.prank(localMessageTransmitter);
@@ -1650,8 +1648,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     ) public {
         vm.assume(_version != localTokenMessenger.messageBodyVersion());
         vm.assume(
-            _finalityThresholdExecuted >=
-                localTokenMessenger.minFinalityThresholdSupported()
+            _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
         );
 
         bytes memory _messageBody = BurnMessageV2._formatMessageForRelay(
@@ -1708,7 +1705,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         localTokenMessenger.handleReceiveUnfinalizedMessage(
             remoteDomain,
             remoteTokenMessengerAddr,
-            confirmedFinalityThreshold,
+            FINALITY_THRESHOLD_CONFIRMED,
             _messageBody
         );
     }
@@ -1746,7 +1743,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         localTokenMessenger.handleReceiveUnfinalizedMessage(
             remoteDomain,
             remoteTokenMessengerAddr,
-            confirmedFinalityThreshold,
+            FINALITY_THRESHOLD_CONFIRMED,
             _messageBody
         );
     }
@@ -1762,8 +1759,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint32 _finalityThresholdExecuted
     ) public {
         vm.assume(
-            _finalityThresholdExecuted >=
-                localTokenMessenger.minFinalityThresholdSupported()
+            _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
         );
         vm.assume(_feeExecuted > _amount);
 
@@ -1799,8 +1795,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint32 _finalityThresholdExecuted
     ) public {
         vm.assume(
-            _finalityThresholdExecuted >=
-                localTokenMessenger.minFinalityThresholdSupported()
+            _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
         );
         vm.assume(_amount > 0);
 
@@ -1837,8 +1832,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint32 _finalityThresholdExecuted
     ) public {
         vm.assume(
-            _finalityThresholdExecuted >=
-                localTokenMessenger.minFinalityThresholdSupported()
+            _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
         );
         vm.assume(_feeExecuted < _amount);
 
@@ -1882,8 +1876,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint32 _finalityThresholdExecuted
     ) public {
         vm.assume(
-            _finalityThresholdExecuted >=
-                localTokenMessenger.minFinalityThresholdSupported()
+            _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
         );
 
         bytes memory _messageBody = _formatBurnMessageForReceive(
@@ -1933,8 +1926,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         uint32 _finalityThresholdExecuted
     ) public {
         vm.assume(
-            _finalityThresholdExecuted >=
-                localTokenMessenger.minFinalityThresholdSupported()
+            _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
         );
         vm.assume(_feeExecuted < _amount);
         vm.assume(_feeExecuted > 0);
@@ -2003,7 +1995,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         _handleReceiveMessage(
             remoteDomain,
             remoteTokenMessengerAddr,
-            confirmedFinalityThreshold,
+            FINALITY_THRESHOLD_CONFIRMED,
             _messageBody
         );
     }
@@ -2039,7 +2031,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         _handleReceiveMessage(
             remoteDomain,
             remoteTokenMessengerAddr,
-            confirmedFinalityThreshold,
+            FINALITY_THRESHOLD_CONFIRMED,
             _messageBody
         );
     }
@@ -2070,7 +2062,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         _handleReceiveMessage(
             remoteDomain,
             remoteTokenMessengerAddr,
-            confirmedFinalityThreshold,
+            FINALITY_THRESHOLD_CONFIRMED,
             _messageBody
         );
     }
@@ -2106,7 +2098,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         _handleReceiveMessage(
             remoteDomain,
             remoteTokenMessengerAddr,
-            confirmedFinalityThreshold,
+            FINALITY_THRESHOLD_CONFIRMED,
             _messageBody
         );
     }
@@ -2141,7 +2133,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         _handleReceiveMessage(
             remoteDomain,
             remoteTokenMessengerAddr,
-            confirmedFinalityThreshold,
+            FINALITY_THRESHOLD_CONFIRMED,
             _messageBody
         );
     }
@@ -2365,7 +2357,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         vm.prank(localMessageTransmitter);
 
         bool _result;
-        if (_finalityThresholdExecuted >= 2000) {
+        if (_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED) {
             _result = localTokenMessenger.handleReceiveFinalizedMessage(
                 _remoteDomain,
                 _sender,
