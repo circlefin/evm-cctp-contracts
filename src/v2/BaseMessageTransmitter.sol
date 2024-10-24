@@ -29,7 +29,7 @@ import {Initializable} from "../proxy/Initializable.sol";
 
 /**
  * @title BaseMessageTransmitter
- * @notice Base MessageTransmitter implementation, focused on administrative actions.
+ * @notice A base type containing administrative and configuration functionality for message transmitters.
  */
 contract BaseMessageTransmitter is
     Initializable,
@@ -83,7 +83,7 @@ contract BaseMessageTransmitter is
     }
 
     /**
-     * @dev Returns the current initialized version
+     * @notice Returns the current initialized version
      */
     function initializedVersion() public view returns (uint64) {
         return _getInitializedVersion();

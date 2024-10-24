@@ -19,7 +19,7 @@ pragma solidity 0.7.6;
 
 /**
  * @title IRelayerV2
- * @notice Sends messages from source domain to destination domain
+ * @notice Sends messages from the source domain to the destination domain
  */
 interface IRelayerV2 {
     /**
@@ -30,9 +30,9 @@ interface IRelayerV2 {
      * This is an advanced feature, and using bytes32(0) should be preferred for use cases where a specific destination caller is not required.
      * @param destinationDomain Domain of destination chain
      * @param recipient Address of message recipient on destination domain as bytes32
-     * @param destinationCaller Caller on destination domain.
-     * @param minFinalityThreshold Minimum finality threshold requested.
-     * @param messageBody Raw bytes content of message
+     * @param destinationCaller Allowed caller on destination domain (see above WARNING).
+     * @param minFinalityThreshold Minimum finality threshold at which the message must be attested to.
+     * @param messageBody Content of the message, as raw bytes
      */
     function sendMessage(
         uint32 destinationDomain,

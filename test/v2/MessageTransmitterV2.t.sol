@@ -27,7 +27,7 @@ import {IMessageHandlerV2} from "../../src/interfaces/v2/IMessageHandlerV2.sol";
 import {MockReentrantCallerV2} from "../mocks/v2/MockReentrantCallerV2.sol";
 import {AdminUpgradableProxy} from "../../src/proxy/AdminUpgradableProxy.sol";
 import {MockMessageTransmitterV3} from "../mocks/v2/MockMessageTransmitterV3.sol";
-import {FINALITY_THRESHOLD_FINALIZED} from "../../src/v2/Constants.sol";
+import {FINALITY_THRESHOLD_FINALIZED} from "../../src/v2/FinalityThresholds.sol";
 
 contract MessageTransmitterV2Test is TestUtils {
     event MessageSent(bytes message);

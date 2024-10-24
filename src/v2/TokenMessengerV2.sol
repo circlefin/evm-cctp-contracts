@@ -25,11 +25,12 @@ import {IMessageHandlerV2} from "../interfaces/v2/IMessageHandlerV2.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {BurnMessageV2} from "../messages/v2/BurnMessageV2.sol";
 import {Initializable} from "../proxy/Initializable.sol";
+import {TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD} from "./FinalityThresholds.sol";
 
 /**
  * @title TokenMessengerV2
- * @notice Sends messages and receives messages to/from MessageTransmitters
- * and to/from TokenMinters
+ * @notice Sends and receives messages to/from MessageTransmitters
+ * and to/from TokenMinters.
  */
 contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     // ============ Events ============
@@ -65,9 +66,6 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     using TypedMemView for bytes29;
     using BurnMessageV2 for bytes29;
 
-    // ============ State Variables ============
-    uint32 public constant minFinalityThresholdSupported = 500;
-
     // ============ Constructor ============
     /**
      * @param _messageTransmitter Message transmitter address
@@ -88,7 +86,6 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * @dev Reverts if `feeRecipient_` is the zero address
      * @dev Reverts if `denylister_` is the zero address
      * @dev Reverts if `tokenMinter_` is the zero address
-     * @dev Reverts if `remoteDomains_` is zero-length
      * @dev Reverts if `remoteDomains_` and `remoteTokenMessengers_` are unequal length
      * @dev Each remoteTokenMessenger address must correspond to the remote domain at the same
      * index in respective arrays.
@@ -146,12 +143,12 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * - transferFrom() reverts. For example, if sender's burnToken balance or approved allowance
      * to this contract is less than `amount`.
      * - burn() reverts. For example, if `amount` is 0.
-     * - maxFee is greater than or equal to the amount.
-     * - MessageTransmitter#sendMessage reverts.
+     * - maxFee is greater than or equal to `amount`.
+     * - MessageTransmitterV2#sendMessage reverts.
      * @param amount amount of tokens to burn
-     * @param destinationDomain destination domain
+     * @param destinationDomain destination domain to receive message on
      * @param mintRecipient address of mint recipient on destination domain
-     * @param burnToken address of contract to burn deposited tokens, on local domain
+     * @param burnToken token to burn `amount` of, on local domain
      * @param destinationCaller authorized caller on the destination domain, as bytes32. If equal to bytes32(0),
      * any address can broadcast the message.
      * @param maxFee maximum fee to pay on the destination domain, specified in units of burnToken
@@ -183,22 +180,21 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * @notice Deposits and burns tokens from sender to be minted on destination domain.
      * Emits a `DepositForBurn` event.
      * @dev reverts if:
-     * - hookData is zero-length
-     * - given burnToken is not supported
-     * - given destinationDomain has no TokenMessenger registered
+     * - `hookData` is zero-length
+     * - `burnToken` is not supported
+     * - `destinationDomain` has no TokenMessenger registered
      * - transferFrom() reverts. For example, if sender's burnToken balance or approved allowance
      * to this contract is less than `amount`.
      * - burn() reverts. For example, if `amount` is 0.
-     * - fee is greater than or equal to the amount.
-     * - MessageTransmitter#sendMessage reverts.
+     * - maxFee is greater than or equal to `amount`.
+     * - MessageTransmitterV2#sendMessage reverts.
      * @param amount amount of tokens to burn
-     * @param destinationDomain destination domain
-     * @param mintRecipient address of mint recipient on destination domain
-     * @param burnToken address of contract to burn deposited tokens, on local domain
+     * @param destinationDomain destination domain to receive message on
+     * @param mintRecipient address of mint recipient on destination domain, as bytes32
+     * @param burnToken token to burn `amount` of, on local domain
      * @param destinationCaller authorized caller on the destination domain, as bytes32. If equal to bytes32(0),
      * any address can broadcast the message.
      * @param maxFee maximum fee to pay on the destination domain, specified in units of burnToken
-     * @param minFinalityThreshold the minimum finality at which a burn message will be attested to.
      * @param hookData hook data to append to burn message for interpretation on destination domain
      */
     function depositForBurnWithHook(
@@ -268,9 +264,10 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * Fees are separately minted to the currently set `feeRecipient` address.
      * @dev Validates the local sender is the local MessageTransmitter, and the
      * remote sender is a registered remote TokenMessenger for `remoteDomain`.
-     * @dev Validates that `finalityThresholdExecuted` is at least 1000.
+     * @dev Validates that `finalityThresholdExecuted` is at least 500.
      * @param remoteDomain The domain where the message originated from.
      * @param sender The sender of the message (remote TokenMessenger).
+     * @param finalityThresholdExecuted The level of finality at which the message was attested to
      * @param messageBody The message body bytes.
      * @return success Bool, true if successful.
      */
@@ -287,7 +284,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         returns (bool)
     {
         require(
-            finalityThresholdExecuted >= minFinalityThresholdSupported,
+            finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD,
             "Unsupported finality threshold"
         );
 
@@ -318,10 +315,10 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * @param _amount amount of tokens to burn (must be non-zero)
      * @param _destinationDomain destination domain
      * @param _mintRecipient address of mint recipient on destination domain
-     * @param _burnToken address of contract to burn deposited tokens, on local domain
+     * @param _burnToken address of the token burned on the source chain
      * @param _destinationCaller caller on the destination domain, as bytes32
      * @param _maxFee maximum fee to pay on destination chain
-     * @param _hookData optional hook data for execution on destination chain
+     * @param _hookData optional hook data for interpretation on destination chain
      */
     function _depositForBurn(
         uint256 _amount,
@@ -384,7 +381,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * @dev Reverts if the BurnMessage version isn't supported
      * @param _msg Finalized message
      * @return _mintRecipient The recipient of the mint, as bytes32
-     * @return _burnToken The token address burned on the source chain
+     * @return _burnToken The address of the token burned on the source chain
      * @return _amount The amount of burnToken burned
      */
     function _validateFinalizedMessage(
@@ -415,7 +412,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * @dev Reverts if the fee executed exceeds the amount
      * @param _msg Finalized message
      * @return _mintRecipient The recipient of the mint, as bytes32
-     * @return _burnToken The token address burned on the source chain
+     * @return _burnToken The address of the token burned on the source chain
      * @return _amount The amount of burnToken burned
      */
     function _validateUnfinalizedMessage(

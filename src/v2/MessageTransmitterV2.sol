@@ -23,7 +23,7 @@ import {MessageV2} from "../messages/v2/MessageV2.sol";
 import {AddressUtils} from "../messages/v2/AddressUtils.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {IMessageHandlerV2} from "../interfaces/v2/IMessageHandlerV2.sol";
-import {FINALITY_THRESHOLD_FINALIZED} from "./Constants.sol";
+import {FINALITY_THRESHOLD_FINALIZED} from "./FinalityThresholds.sol";
 
 /**
  * @title MessageTransmitterV2
@@ -125,12 +125,12 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
     // ============ External Functions  ============
     /**
      * @notice Send the message to the destination domain and recipient
-     * @dev Formats the message, and emit `MessageSent` event with message information.
+     * @dev Formats the message, and emits a `MessageSent` event with message information.
      * @param destinationDomain Domain of destination chain
      * @param recipient Address of message recipient on destination chain as bytes32
-     * @param destinationCaller caller on the destination domain, as bytes32
-     * @param minFinalityThreshold the minimum finality at which the message should be attested to
-     * @param messageBody raw bytes content of message
+     * @param destinationCaller Caller on the destination domain, as bytes32
+     * @param minFinalityThreshold The minimum finality at which the message should be attested to
+     * @param messageBody Contents of the message (bytes)
      */
     function sendMessage(
         uint32 destinationDomain,
@@ -167,8 +167,7 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
 
     /**
      * @notice Receive a message. Messages can only be broadcast once for a given nonce.
-     * The message body of a valid message is passed to the
-     * specified recipient for further processing.
+     * The message body of a valid message is passed to the specified recipient for further processing.
      *
      * @dev Attestation format:
      * A valid attestation is the concatenated 65-byte signature(s) of exactly
@@ -194,7 +193,7 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
      * @param message Message bytes
      * @param attestation Concatenated 65-byte signature(s) of `message`, in increasing order
      * of the attester address recovered from signatures.
-     * @return success bool, true if successful
+     * @return success True, if successful; false, if not
      */
     function receiveMessage(
         bytes calldata message,
@@ -259,7 +258,7 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
      * @return _sender Sender of the message
      * @return _recipient Recipient of the message
      * @return _finalityThresholdExecuted The level of finality at which the message was attested to
-     * @return _messageBody The messagebody
+     * @return _messageBody The message body bytes
      */
     function _validateReceivedMessage(
         bytes calldata _message,

@@ -22,7 +22,7 @@ import {IRelayerV2} from "./IRelayerV2.sol";
 
 /**
  * @title IMessageTransmitterV2
- * @notice Interface for message transmitters, which both relay and receive messages.
+ * @notice Interface for V2 message transmitters, which both relay and receive messages.
  */
 interface IMessageTransmitterV2 is IRelayerV2, IReceiverV2 {
 

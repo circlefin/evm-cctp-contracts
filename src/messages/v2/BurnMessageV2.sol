@@ -22,7 +22,7 @@ import {BurnMessage} from "../BurnMessage.sol";
 
 /**
  * @title BurnMessageV2 Library
- * @notice Library for formatted BurnMessages used by TokenMessengerV2.
+ * @notice Library for formatted V2 BurnMessages used by TokenMessengerV2.
  * @dev BurnMessageV2 format:
  * Field                 Bytes      Type       Index
  * version               4          uint32     0
@@ -34,11 +34,11 @@ import {BurnMessage} from "../BurnMessage.sol";
  * feeExecuted           32         uint256    164
  * expirationBlock       32         uint256    196
  * hookData              dynamic    bytes      228
- * @dev Differences from v1:
- * - maxFee is added
- * - feeExecuted is added
- * - expirationBlock is added
- * - hookData is added
+ * @dev Additions from v1:
+ * - maxFee
+ * - feeExecuted
+ * - expirationBlock
+ * - hookData
  **/
 library BurnMessageV2 {
     using TypedMemView for bytes;
@@ -55,15 +55,15 @@ library BurnMessageV2 {
     uint256 private constant EMPTY_EXPIRATION_BLOCK = 0;
 
     /**
-     * @notice Formats a burn message
+     * @notice Formats a V2 burn message
      * @param _version The message body version
-     * @param _burnToken The burn token address on source domain as bytes32
+     * @param _burnToken The burn token address on the source domain, as bytes32
      * @param _mintRecipient The mint recipient address as bytes32
      * @param _amount The burn amount
      * @param _messageSender The message sender
      * @param _maxFee The maximum fee to be paid on destination domain
-     * @param _hookData Optional hook to execute on destination domain
-     * @return Formatted message.
+     * @param _hookData Optional hook data for processing on the destination domain
+     * @return Formatted message bytes.
      */
     function _formatMessageForRelay(
         uint32 _version,
@@ -93,7 +93,7 @@ library BurnMessageV2 {
         return _message._getVersion();
     }
 
-    // @notice Returns _message's burn token field
+    // @notice Returns _message's burnToken field
     function _getBurnToken(bytes29 _message) internal pure returns (bytes32) {
         return _message._getBurnToken();
     }
