@@ -35,6 +35,9 @@ jobs:
       - name: Run Integration Tests
         run: make anvil-test
 
+      - name: Run v2 Integration Tests
+        run: make anvil-test-v2
+
       - name: Run Slither
         uses: crytic/slither-action@v0.3.0
         with:

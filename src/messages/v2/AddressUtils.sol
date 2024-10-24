@@ -26,7 +26,7 @@ library AddressUtils {
      * @notice converts address to bytes32 (alignment preserving cast.)
      * @param addr the address to convert to bytes32
      */
-    function addressToBytes32(address addr) external pure returns (bytes32) {
+    function addressToBytes32(address addr) internal pure returns (bytes32) {
         return bytes32(uint256(uint160(addr)));
     }
 
@@ -36,7 +36,7 @@ library AddressUtils {
      * For use cases where this is not acceptable, validate that the first 12 bytes of _buf are zero-padding.
      * @param _buf the bytes32 to convert to address
      */
-    function bytes32ToAddress(bytes32 _buf) public pure returns (address) {
+    function bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
         return address(uint160(uint256(_buf)));
     }
 }
