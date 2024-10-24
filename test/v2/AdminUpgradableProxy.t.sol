@@ -18,7 +18,7 @@
 pragma solidity 0.7.6;
 pragma abicoder v2;
 
-import {AdminUpgradableProxy} from "../../src/v2/AdminUpgradableProxy.sol";
+import {AdminUpgradableProxy} from "../../src/proxy/AdminUpgradableProxy.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {MockInitializableImplementation} from "../mocks/MockInitializableImplementation.sol";
 import {MockProxyImplementation, MockAlternateProxyImplementation} from "../mocks/v2/MockProxyImplementation.sol";

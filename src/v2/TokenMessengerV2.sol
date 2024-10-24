@@ -24,7 +24,7 @@ import {IRelayerV2} from "../interfaces/v2/IRelayerV2.sol";
 import {IMessageHandlerV2} from "../interfaces/v2/IMessageHandlerV2.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {BurnMessageV2} from "../messages/v2/BurnMessageV2.sol";
-import {Initializable} from "./Initializable.sol";
+import {Initializable} from "../proxy/Initializable.sol";
 
 /**
  * @title TokenMessengerV2
@@ -66,7 +66,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     using BurnMessageV2 for bytes29;
 
     // ============ State Variables ============
-    uint32 public immutable MINIMUM_SUPPORTED_FINALITY_THRESHOLD = 1000;
+    uint32 public constant minFinalityThresholdSupported = 500;
 
     // ============ Constructor ============
     /**
@@ -286,9 +286,8 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         onlyRemoteTokenMessenger(remoteDomain, sender)
         returns (bool)
     {
-        // Require minimum supported finality threshold
         require(
-            finalityThresholdExecuted >= MINIMUM_SUPPORTED_FINALITY_THRESHOLD,
+            finalityThresholdExecuted >= minFinalityThresholdSupported,
             "Unsupported finality threshold"
         );
 

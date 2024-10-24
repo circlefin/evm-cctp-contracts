@@ -18,26 +18,18 @@
 pragma solidity 0.7.6;
 
 import {IMessageTransmitterV2} from "../interfaces/v2/IMessageTransmitterV2.sol";
-import {Attestable} from "../roles/Attestable.sol";
-import {Pausable} from "../roles/Pausable.sol";
-import {Rescuable} from "../roles/Rescuable.sol";
+import {BaseMessageTransmitter} from "./BaseMessageTransmitter.sol";
 import {MessageV2} from "../messages/v2/MessageV2.sol";
 import {AddressUtils} from "../messages/v2/AddressUtils.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {IMessageHandlerV2} from "../interfaces/v2/IMessageHandlerV2.sol";
-import {Initializable} from "./Initializable.sol";
+import {FINALITY_THRESHOLD_FINALIZED} from "./Constants.sol";
 
 /**
  * @title MessageTransmitterV2
  * @notice Contract responsible for sending and receiving messages across chains.
  */
-contract MessageTransmitterV2 is
-    IMessageTransmitterV2,
-    Initializable,
-    Pausable,
-    Rescuable,
-    Attestable
-{
+contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
     // ============ Events ============
     /**
      * @notice Emitted when a new message is dispatched
@@ -63,43 +55,20 @@ contract MessageTransmitterV2 is
         bytes messageBody
     );
 
-    /**
-     * @notice Emitted when max message body size is updated
-     * @param newMaxMessageBodySize new maximum message body size, in bytes
-     */
-    event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
-
     // ============ Libraries ============
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using MessageV2 for bytes29;
-
-    // ============ State Variables ============
-    // Domain of chain on which the contract is deployed
-    uint32 public immutable localDomain;
-
-    // Message Format version
-    uint32 public immutable version;
-
-    // The threshold at which messages are considered finalized
-    uint32 public immutable finalizedMessageThreshold = 2000;
-
-    // Maximum size of message body, in bytes.
-    // This value is set by owner.
-    uint256 public maxMessageBodySize;
-
-    // Maps a bytes32 nonce -> uint256 (0 if unused, 1 if used)
-    mapping(bytes32 => uint256) public usedNonces;
 
     // ============ Constructor ============
     /**
      * @param _localDomain Domain of chain on which the contract is deployed
      * @param _version Message Format version
      */
-    constructor(uint32 _localDomain, uint32 _version) Attestable(msg.sender) {
-        localDomain = _localDomain;
-        version = _version;
-
+    constructor(
+        uint32 _localDomain,
+        uint32 _version
+    ) BaseMessageTransmitter(_localDomain, _version) {
         _disableInitializers();
     }
 
@@ -231,50 +200,21 @@ contract MessageTransmitterV2 is
         bytes calldata message,
         bytes calldata attestation
     ) external override whenNotPaused returns (bool success) {
-        // Validate each signature in the attestation
-        _verifyAttestationSignatures(message, attestation);
+        // Validate message
+        (
+            bytes32 _nonce,
+            uint32 _sourceDomain,
+            bytes32 _sender,
+            address _recipient,
+            uint32 _finalityThresholdExecuted,
+            bytes memory _messageBody
+        ) = _validateReceivedMessage(message, attestation);
 
-        bytes29 _msg = message.ref(0);
-
-        // Validate message format
-        _msg._validateMessageFormat();
-
-        // Validate domain
-        require(
-            _msg._getDestinationDomain() == localDomain,
-            "Invalid destination domain"
-        );
-
-        // Validate destination caller
-        if (_msg._getDestinationCaller() != bytes32(0)) {
-            require(
-                _msg._getDestinationCaller() ==
-                    AddressUtils.addressToBytes32(msg.sender),
-                "Invalid caller for message"
-            );
-        }
-
-        // Validate version
-        require(_msg._getVersion() == version, "Invalid message version");
-
-        // Validate nonce is available
-        bytes32 _nonce = _msg._getNonce();
-        require(usedNonces[_nonce] == 0, "Nonce already used");
-        // Mark nonce used
+        // Mark nonce as used
         usedNonces[_nonce] = 1;
 
-        // Unpack remaining values
-        uint32 _sourceDomain = _msg._getSourceDomain();
-        bytes32 _sender = _msg._getSender();
-        address _recipient = AddressUtils.bytes32ToAddress(
-            _msg._getRecipient()
-        );
-        uint32 _finalityThresholdExecuted = _msg
-            ._getFinalityThresholdExecuted();
-        bytes memory _messageBody = _msg._getMessageBody().clone();
-
         // Handle receive message
-        if (_finalityThresholdExecuted < finalizedMessageThreshold) {
+        if (_finalityThresholdExecuted < FINALITY_THRESHOLD_FINALIZED) {
             require(
                 IMessageHandlerV2(_recipient).handleReceiveUnfinalizedMessage(
                     _sourceDomain,
@@ -310,22 +250,67 @@ contract MessageTransmitterV2 is
     }
 
     /**
-     * @notice Sets the max message body size
-     * @dev This value should not be reduced without good reason,
-     * to avoid impacting users who rely on large messages.
-     * @param newMaxMessageBodySize new max message body size, in bytes
+     * @notice Validates a received message, including the attestation signatures as well
+     * as the message contents.
+     * @param _message Message bytes
+     * @param _attestation Concatenated 65-byte signature(s) of `message`
+     * @return _nonce Message nonce, as bytes32
+     * @return _sourceDomain Domain where message originated from
+     * @return _sender Sender of the message
+     * @return _recipient Recipient of the message
+     * @return _finalityThresholdExecuted The level of finality at which the message was attested to
+     * @return _messageBody The messagebody
      */
-    function setMaxMessageBodySize(
-        uint256 newMaxMessageBodySize
-    ) external onlyOwner {
-        maxMessageBodySize = newMaxMessageBodySize;
-        emit MaxMessageBodySizeUpdated(maxMessageBodySize);
-    }
+    function _validateReceivedMessage(
+        bytes calldata _message,
+        bytes calldata _attestation
+    )
+        internal
+        view
+        returns (
+            bytes32 _nonce,
+            uint32 _sourceDomain,
+            bytes32 _sender,
+            address _recipient,
+            uint32 _finalityThresholdExecuted,
+            bytes memory _messageBody
+        )
+    {
+        // Validate each signature in the attestation
+        _verifyAttestationSignatures(_message, _attestation);
 
-    /**
-     * @dev Returns the current initialized version
-     */
-    function initializedVersion() public view returns (uint64) {
-        return _getInitializedVersion();
+        bytes29 _msg = _message.ref(0);
+
+        // Validate message format
+        _msg._validateMessageFormat();
+
+        // Validate domain
+        require(
+            _msg._getDestinationDomain() == localDomain,
+            "Invalid destination domain"
+        );
+
+        // Validate destination caller
+        if (_msg._getDestinationCaller() != bytes32(0)) {
+            require(
+                _msg._getDestinationCaller() ==
+                    AddressUtils.addressToBytes32(msg.sender),
+                "Invalid caller for message"
+            );
+        }
+
+        // Validate version
+        require(_msg._getVersion() == version, "Invalid message version");
+
+        // Validate nonce is available
+        _nonce = _msg._getNonce();
+        require(usedNonces[_nonce] == 0, "Nonce already used");
+
+        // Unpack remaining values
+        _sourceDomain = _msg._getSourceDomain();
+        _sender = _msg._getSender();
+        _recipient = AddressUtils.bytes32ToAddress(_msg._getRecipient());
+        _finalityThresholdExecuted = _msg._getFinalityThresholdExecuted();
+        _messageBody = _msg._getMessageBody().clone();
     }
 }
