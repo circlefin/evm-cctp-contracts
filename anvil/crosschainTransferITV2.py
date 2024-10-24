@@ -196,7 +196,7 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
         # Then, deploy TokenMinterV2 
         eth_message_transmitter_impl = self.deploy_contract_from_source('src/v2/MessageTransmitterV2.sol', 'MessageTransmitterV2', 
             constructor_args = [eth_domain, message_version], caller="eth_message_transmitter_deployer")        
-        eth_message_transmitter_proxy = self.deploy_contract_from_source('src/v2/AdminUpgradableProxy.sol', 'AdminUpgradableProxy', 
+        eth_message_transmitter_proxy = self.deploy_contract_from_source('src/proxy/AdminUpgradableProxy.sol', 'AdminUpgradableProxy', 
             constructor_args = [eth_message_transmitter_impl.address, addresses["eth_message_transmitter_deployer"], b''], caller="eth_message_transmitter_deployer")
         self.eth_message_transmitter = self.w3.eth.contract(
             address=eth_message_transmitter_proxy.address,
@@ -219,7 +219,7 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
         # TokenMessengerV2 ETH
         eth_token_messenger_impl = self.deploy_contract_from_source('src/v2/TokenMessengerV2.sol', 'TokenMessengerV2', 
             constructor_args = [eth_message_transmitter_proxy.address, message_body_version], caller="eth_token_messenger_deployer")        
-        eth_token_messenger_proxy = self.deploy_contract_from_source('src/v2/AdminUpgradableProxy.sol', 'AdminUpgradableProxy', 
+        eth_token_messenger_proxy = self.deploy_contract_from_source('src/proxy/AdminUpgradableProxy.sol', 'AdminUpgradableProxy', 
             constructor_args = [eth_token_messenger_impl.address, addresses["eth_token_messenger_deployer"], b''], caller="eth_token_messenger_deployer")
         self.eth_token_messenger = self.w3.eth.contract(
             address=eth_token_messenger_proxy.address,
@@ -238,7 +238,7 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
         # Repeat the above on AVAX
         avax_message_transmitter_impl = self.deploy_contract_from_source('src/v2/MessageTransmitterV2.sol', 'MessageTransmitterV2', 
             constructor_args = [avax_domain, message_version], caller="avax_message_transmitter_deployer")        
-        avax_message_transmitter_proxy = self.deploy_contract_from_source('src/v2/AdminUpgradableProxy.sol', 'AdminUpgradableProxy', 
+        avax_message_transmitter_proxy = self.deploy_contract_from_source('src/proxy/AdminUpgradableProxy.sol', 'AdminUpgradableProxy', 
             constructor_args = [avax_message_transmitter_impl.address, addresses["avax_message_transmitter_deployer"], b''], caller="avax_message_transmitter_deployer")
         self.avax_message_transmitter = self.w3.eth.contract(
             address=avax_message_transmitter_proxy.address,
@@ -257,7 +257,7 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
             constructor_args = [addresses["avax_token_controller"]], caller="avax_token_minter_deployer")
         avax_token_messenger_impl = self.deploy_contract_from_source('src/v2/TokenMessengerV2.sol', 'TokenMessengerV2', 
             constructor_args = [avax_message_transmitter_proxy.address, message_body_version], caller="avax_token_messenger_deployer")        
-        avax_token_messenger_proxy = self.deploy_contract_from_source('src/v2/AdminUpgradableProxy.sol', 'AdminUpgradableProxy', 
+        avax_token_messenger_proxy = self.deploy_contract_from_source('src/proxy/AdminUpgradableProxy.sol', 'AdminUpgradableProxy', 
             constructor_args = [avax_token_messenger_impl.address, addresses["avax_token_messenger_deployer"], b''], caller="avax_token_messenger_deployer")
         self.avax_token_messenger = self.w3.eth.contract(
             address=avax_token_messenger_proxy.address,
