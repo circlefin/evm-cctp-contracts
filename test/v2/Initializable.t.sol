@@ -18,7 +18,7 @@
 pragma solidity 0.7.6;
 pragma abicoder v2;
 
-import {Initializable} from "../../src/v2/Initializable.sol";
+import {Initializable} from "../../src/proxy/Initializable.sol";
 import {MockInitializableImplementation} from "../mocks/MockInitializableImplementation.sol";
 import {Test} from "forge-std/Test.sol";
 

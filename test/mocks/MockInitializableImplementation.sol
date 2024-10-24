@@ -17,7 +17,7 @@
  */
 pragma solidity 0.7.6;
 
-import {Initializable} from "../../src/v2/Initializable.sol";
+import {Initializable} from "../../src/proxy/Initializable.sol";
 
 contract MockInitializableImplementation is Initializable {
     address public addr;

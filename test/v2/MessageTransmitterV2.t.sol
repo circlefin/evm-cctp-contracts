@@ -25,8 +25,9 @@ import {AddressUtils} from "../../src/messages/v2/AddressUtils.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {IMessageHandlerV2} from "../../src/interfaces/v2/IMessageHandlerV2.sol";
 import {MockReentrantCallerV2} from "../mocks/v2/MockReentrantCallerV2.sol";
-import {AdminUpgradableProxy} from "../../src/v2/AdminUpgradableProxy.sol";
+import {AdminUpgradableProxy} from "../../src/proxy/AdminUpgradableProxy.sol";
 import {MockMessageTransmitterV3} from "../mocks/v2/MockMessageTransmitterV3.sol";
+import {FINALITY_THRESHOLD_FINALIZED} from "../../src/v2/Constants.sol";
 
 contract MessageTransmitterV2Test is TestUtils {
     event MessageSent(bytes message);
@@ -724,10 +725,7 @@ contract MessageTransmitterV2Test is TestUtils {
         uint32 _finalityThresholdExecuted,
         bytes calldata _messageBody
     ) public {
-        vm.assume(
-            _finalityThresholdExecuted >=
-                messageTransmitter.finalizedMessageThreshold()
-        );
+        vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
 
         bytes memory _message = _formatMessageForReceive(
             version,
@@ -768,10 +766,7 @@ contract MessageTransmitterV2Test is TestUtils {
         uint32 _finalityThresholdExecuted,
         bytes calldata _messageBody
     ) public {
-        vm.assume(
-            _finalityThresholdExecuted <
-                messageTransmitter.finalizedMessageThreshold()
-        );
+        vm.assume(_finalityThresholdExecuted < FINALITY_THRESHOLD_FINALIZED);
 
         bytes memory _message = _formatMessageForReceive(
             version,
@@ -812,10 +807,7 @@ contract MessageTransmitterV2Test is TestUtils {
         uint32 _finalityThresholdExecuted,
         bytes calldata _messageBody
     ) public {
-        vm.assume(
-            _finalityThresholdExecuted >=
-                messageTransmitter.finalizedMessageThreshold()
-        );
+        vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
         vm.assume(_recipient != foundryCheatCodeAddr);
 
         bytes memory _message = _formatMessageForReceive(
@@ -858,10 +850,7 @@ contract MessageTransmitterV2Test is TestUtils {
         uint32 _finalityThresholdExecuted,
         bytes calldata _messageBody
     ) public {
-        vm.assume(
-            _finalityThresholdExecuted <
-                messageTransmitter.finalizedMessageThreshold()
-        );
+        vm.assume(_finalityThresholdExecuted < FINALITY_THRESHOLD_FINALIZED);
         vm.assume(_recipient != foundryCheatCodeAddr);
 
         bytes memory _message = _formatMessageForReceive(
@@ -1055,10 +1044,7 @@ contract MessageTransmitterV2Test is TestUtils {
         bytes calldata _messageBody,
         address _randomCaller
     ) public {
-        vm.assume(
-            _finalityThresholdExecuted >=
-                messageTransmitter.finalizedMessageThreshold()
-        );
+        vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
         bytes memory _message = _formatMessageForReceive(
             version,
             _sourceDomain,
@@ -1086,10 +1072,7 @@ contract MessageTransmitterV2Test is TestUtils {
         bytes calldata _messageBody,
         address _randomCaller
     ) public {
-        vm.assume(
-            _finalityThresholdExecuted <
-                messageTransmitter.finalizedMessageThreshold()
-        );
+        vm.assume(_finalityThresholdExecuted < FINALITY_THRESHOLD_FINALIZED);
         bytes memory _message = _formatMessageForReceive(
             version,
             _sourceDomain,
@@ -1311,8 +1294,7 @@ contract MessageTransmitterV2Test is TestUtils {
         // Mock a successful response from IMessageHandlerV2 to message.recipient,
         // and expect it to be called once.
         bytes memory _encodedMessageHandlerCall = abi.encodeWithSelector(
-            _msg._getFinalityThresholdExecuted() >=
-                messageTransmitter.finalizedMessageThreshold()
+            _msg._getFinalityThresholdExecuted() >= FINALITY_THRESHOLD_FINALIZED
                 ? IMessageHandlerV2.handleReceiveFinalizedMessage.selector
                 : IMessageHandlerV2.handleReceiveUnfinalizedMessage.selector,
             _msg._getSourceDomain(),

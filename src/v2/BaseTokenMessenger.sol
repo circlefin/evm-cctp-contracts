@@ -21,7 +21,7 @@ import {ITokenMinterV2} from "../interfaces/v2/ITokenMinterV2.sol";
 import {Rescuable} from "../roles/Rescuable.sol";
 import {Denylistable} from "../roles/v2/Denylistable.sol";
 import {IMintBurnToken} from "../interfaces/IMintBurnToken.sol";
-import {Initializable} from "./Initializable.sol";
+import {Initializable} from "../proxy/Initializable.sol";
 
 /**
  * @title BaseTokenMessenger
