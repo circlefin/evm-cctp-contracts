@@ -35,7 +35,7 @@ contract BurnMessageV2Test is Test {
         bytes32 _messageSender,
         uint256 _maxFee,
         bytes calldata _hookData
-    ) public pure {
+    ) public view {
         bytes memory _expectedMessageBody = abi.encodePacked(
             _version,
             _burnToken,
@@ -67,6 +67,7 @@ contract BurnMessageV2Test is Test {
         assertEq(_m._getMaxFee(), _maxFee);
         assertEq(_m._getFeeExecuted(), 0);
         assertEq(_m._getExpirationBlock(), 0);
+        assertEq(_m._getHookData().clone(), _hookData);
 
         _m._validateBurnMessageFormat();
 

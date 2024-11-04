@@ -134,6 +134,16 @@ library BurnMessageV2 {
         return _message.indexUint(EXPIRATION_BLOCK_INDEX, 32);
     }
 
+    // @notice Returns _message's hookData field
+    function _getHookData(bytes29 _message) internal pure returns (bytes29) {
+        return
+            _message.slice(
+                HOOK_DATA_INDEX,
+                _message.len() - HOOK_DATA_INDEX,
+                0
+            );
+    }
+
     /**
      * @notice Reverts if burn message is malformed or invalid length
      * @param _message The burn message as bytes29
