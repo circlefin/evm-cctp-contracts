@@ -23,13 +23,13 @@ import {AddressUtils} from "../../../src/messages/v2/AddressUtils.sol";
 
 contract AddressUtilsTest is Test {
     function testAddressToBytes32Conversion(address _addr) public pure {
-        bytes32 _addrAsBytes32 = AddressUtils.addressToBytes32(_addr);
-        address _recoveredAddr = AddressUtils.bytes32ToAddress(_addrAsBytes32);
+        bytes32 _addrAsBytes32 = AddressUtils.toBytes32(_addr);
+        address _recoveredAddr = AddressUtils.toAddress(_addrAsBytes32);
         assertEq(_recoveredAddr, _addr);
     }
 
     function testAddressToBytes32LeftPads(address _addr) public pure {
-        bytes32 _addrAsBytes32 = AddressUtils.addressToBytes32(_addr);
+        bytes32 _addrAsBytes32 = AddressUtils.toBytes32(_addr);
 
         // addresses are 20 bytes, so the first 12 bytes should be 0 (left-padded)
         for (uint8 i; i < 12; i++) {

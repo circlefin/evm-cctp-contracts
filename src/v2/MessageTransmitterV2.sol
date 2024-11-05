@@ -56,9 +56,12 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
     );
 
     // ============ Libraries ============
+    using AddressUtils for address;
+    using AddressUtils for address payable;
+    using AddressUtils for bytes32;
+    using MessageV2 for bytes29;
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
-    using MessageV2 for bytes29;
 
     // ============ Constructor ============
     /**
@@ -117,9 +120,13 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
         maxMessageBodySize = maxMessageBodySize_;
 
         // Attester configuration
-        for (uint256 i; i < attesters_.length; i++) {
+        uint256 _attestersLength = attesters_.length;
+        for (uint256 i; i < _attestersLength; ++i) {
             _enableAttester(attesters_[i]);
         }
+
+        // Claim 0-nonce
+        usedNonces[bytes32(0)] = 1;
     }
 
     // ============ External Functions  ============
@@ -147,7 +154,7 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
         );
         require(recipient != bytes32(0), "Recipient must be nonzero");
 
-        bytes32 _messageSender = AddressUtils.addressToBytes32(msg.sender);
+        bytes32 _messageSender = msg.sender.toBytes32();
 
         // serialize message
         bytes memory _message = MessageV2._formatMessageForRelay(
@@ -292,8 +299,7 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
         // Validate destination caller
         if (_msg._getDestinationCaller() != bytes32(0)) {
             require(
-                _msg._getDestinationCaller() ==
-                    AddressUtils.addressToBytes32(msg.sender),
+                _msg._getDestinationCaller() == msg.sender.toBytes32(),
                 "Invalid caller for message"
             );
         }
@@ -308,7 +314,7 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
         // Unpack remaining values
         _sourceDomain = _msg._getSourceDomain();
         _sender = _msg._getSender();
-        _recipient = AddressUtils.bytes32ToAddress(_msg._getRecipient());
+        _recipient = _msg._getRecipient().toAddress();
         _finalityThresholdExecuted = _msg._getFinalityThresholdExecuted();
         _messageBody = _msg._getMessageBody().clone();
     }

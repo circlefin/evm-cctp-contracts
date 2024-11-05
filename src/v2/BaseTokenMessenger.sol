@@ -211,7 +211,7 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
     /**
      * @notice Returns the current initialized version
      */
-    function initializedVersion() public view returns (uint64) {
+    function initializedVersion() external view returns (uint64) {
         return _getInitializedVersion();
     }
 
@@ -260,9 +260,7 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
      * @return true if message sender is the registered local message transmitter
      */
     function _isLocalMessageTransmitter() internal view returns (bool) {
-        return
-            address(localMessageTransmitter) != address(0) &&
-            msg.sender == address(localMessageTransmitter);
+        return msg.sender == address(localMessageTransmitter);
     }
 
     /**

@@ -35,7 +35,7 @@ contract MessageV2Test is Test {
         bytes32 _recipient,
         bytes32 _destinationCaller,
         uint32 _minFinalityThreshold,
-        bytes memory _messageBody
+        bytes calldata _messageBody
     ) public view {
         bytes memory _message = MessageV2._formatMessageForRelay(
             _version,
@@ -82,7 +82,7 @@ contract MessageV2Test is Test {
         bytes32 _recipient,
         bytes32 _destinationCaller,
         uint32 _minFinalityThreshold,
-        bytes memory _messageBody
+        bytes calldata _messageBody
     ) public {
         bytes memory _message = MessageV2._formatMessageForRelay(
             _version,

@@ -318,14 +318,16 @@ contract CCTPHookWrapperTest is Test {
         bytes memory _hookData
     ) internal pure returns (bytes memory) {
         return
-            MessageV2._formatMessageForRelay(
+            abi.encodePacked(
                 _messageVersion,
-                0,
-                0,
-                bytes32(0),
-                bytes32(0),
-                bytes32(0),
-                0,
+                uint32(0), // sourceDomain
+                uint32(0), // destinationDomain
+                bytes32(0), // nonce
+                bytes32(0), // sender
+                bytes32(0), // recipient
+                bytes32(0), // destinationCaller
+                uint32(0), // minFinalityThreshold
+                uint32(0), // finalityThresholdExecuted
                 _createBurnMessage(_messageBodyVersion, _hookData)
             );
     }

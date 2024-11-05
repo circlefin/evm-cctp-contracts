@@ -17,14 +17,9 @@
  */
 pragma solidity 0.7.6;
 
-import {IMessageTransmitterV2} from "../interfaces/v2/IMessageTransmitterV2.sol";
 import {Attestable} from "../roles/Attestable.sol";
 import {Pausable} from "../roles/Pausable.sol";
 import {Rescuable} from "../roles/Rescuable.sol";
-import {MessageV2} from "../messages/v2/MessageV2.sol";
-import {AddressUtils} from "../messages/v2/AddressUtils.sol";
-import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
-import {IMessageHandlerV2} from "../interfaces/v2/IMessageHandlerV2.sol";
 import {Initializable} from "../proxy/Initializable.sol";
 
 /**
@@ -85,7 +80,7 @@ contract BaseMessageTransmitter is
     /**
      * @notice Returns the current initialized version
      */
-    function initializedVersion() public view returns (uint64) {
+    function initializedVersion() external view returns (uint64) {
         return _getInitializedVersion();
     }
 }

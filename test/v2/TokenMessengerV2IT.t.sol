@@ -39,6 +39,7 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
     using TypedMemView for bytes29;
     using BurnMessageV2 for bytes29;
     using MessageV2 for bytes29;
+    using AddressUtils for address;
 
     // Constants
     uint32 localDomain = 0;
@@ -178,9 +179,8 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
         bytes32[] memory _remoteTokenMessengerAddresses = new bytes32[](1);
 
         _remoteDomains[0] = 0; // configure localDomain, on remoteDomain
-        _remoteTokenMessengerAddresses[0] = AddressUtils.addressToBytes32(
-            address(localTokenMessenger)
-        );
+        _remoteTokenMessengerAddresses[0] = address(localTokenMessenger)
+            .toBytes32();
 
         proxy = new AdminUpgradableProxy(
             address(remoteTokenMessengerImpl),
@@ -203,7 +203,7 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
         vm.startPrank(localDeployer);
         localTokenMessenger.addRemoteTokenMessenger(
             remoteDomain,
-            AddressUtils.addressToBytes32(address(remoteTokenMessenger))
+            address(remoteTokenMessenger).toBytes32()
         );
         vm.stopPrank();
 
@@ -212,7 +212,7 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
             localTokenMinter,
             address(localToken),
             remoteDomain,
-            AddressUtils.addressToBytes32(address(remoteToken))
+            address(remoteToken).toBytes32()
         );
 
         // Link token pair on remote domain
@@ -220,7 +220,7 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
             remoteTokenMinter,
             address(remoteToken),
             localDomain,
-            AddressUtils.addressToBytes32(address(localToken))
+            address(localToken).toBytes32()
         );
 
         // Set maxBurnAmountPerMessage
@@ -256,9 +256,9 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
         localTokenMessenger.depositForBurn(
             localDepositAmount,
             remoteDomain,
-            AddressUtils.addressToBytes32(remoteMintRecipient),
+            remoteMintRecipient.toBytes32(),
             address(localToken),
-            AddressUtils.addressToBytes32(remoteMintRecipient),
+            remoteMintRecipient.toBytes32(),
             localFeeExecuted,
             1000
         );
@@ -312,15 +312,15 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
         assertTrue(MessageV2._getNonce(_msg) > 0);
         assertEq(
             MessageV2._getSender(_msg),
-            AddressUtils.addressToBytes32(address(localTokenMessenger))
+            address(localTokenMessenger).toBytes32()
         );
         assertEq(
             MessageV2._getRecipient(_msg),
-            AddressUtils.addressToBytes32(address(remoteTokenMessenger))
+            address(remoteTokenMessenger).toBytes32()
         );
         assertEq(
             MessageV2._getDestinationCaller(_msg),
-            AddressUtils.addressToBytes32(remoteMintRecipient)
+            remoteMintRecipient.toBytes32()
         );
         assertEq(
             uint256(MessageV2._getMinFinalityThreshold(_msg)),
@@ -339,16 +339,16 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
         );
         assertEq(
             BurnMessageV2._getBurnToken(_burnMessageV2),
-            AddressUtils.addressToBytes32(address(localToken))
+            address(localToken).toBytes32()
         );
         assertEq(
             BurnMessageV2._getMintRecipient(_burnMessageV2),
-            AddressUtils.addressToBytes32(remoteMintRecipient)
+            remoteMintRecipient.toBytes32()
         );
         assertEq(BurnMessageV2._getAmount(_burnMessageV2), localDepositAmount);
         assertEq(
             BurnMessageV2._getMessageSender(_burnMessageV2),
-            AddressUtils.addressToBytes32(localDepositor)
+            localDepositor.toBytes32()
         );
         assertEq(BurnMessageV2._getMaxFee(_burnMessageV2), localFeeExecuted);
         assertEq(
