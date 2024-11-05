@@ -59,6 +59,8 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using BurnMessageV2 for bytes29;
+    using AddressUtils for address;
+    using AddressUtils for bytes32;
 
     // Constants
     uint32 remoteDomain = 1;
@@ -98,9 +100,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             bytes("")
         );
 
-        remoteTokenMessengerAddr = AddressUtils.addressToBytes32(
-            remoteTokenMessenger
-        );
+        remoteTokenMessengerAddr = remoteTokenMessenger.toBytes32();
 
         (
             uint32[] memory _remoteDomains,
@@ -122,7 +122,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             localTokenMinter,
             address(localToken),
             remoteDomain,
-            AddressUtils.addressToBytes32(remoteTokenAddr)
+            remoteTokenAddr.toBytes32()
         );
 
         localTokenMinter.addLocalTokenMessenger(address(localTokenMessenger));
@@ -1480,7 +1480,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             TokenMinter.mint.selector,
             remoteDomain,
             _burnToken,
-            AddressUtils.bytes32ToAddress(_mintRecipient),
+            _mintRecipient.toAddress(),
             _amount
         );
         vm.mockCallRevert(
@@ -1511,7 +1511,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
 
         bytes memory _messageBody = BurnMessageV2._formatMessageForRelay(
             localTokenMessenger.messageBodyVersion(),
-            AddressUtils.addressToBytes32(remoteTokenAddr),
+            remoteTokenAddr.toBytes32(),
             _mintRecipient,
             _amount,
             _burnMessageSender,
@@ -1821,12 +1821,48 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         );
     }
 
+    function testHandleReceiveUnfinalizedMessage_revertsIfFeeExecutedExceedsMaxFee(
+        bytes32 _mintRecipient,
+        bytes32 _burnMessageSender,
+        uint256 _maxFee,
+        uint256 _feeExecuted,
+        bytes calldata _hookData,
+        uint32 _finalityThresholdExecuted
+    ) public {
+        vm.assume(
+            _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
+        );
+        vm.assume(_maxFee > 0);
+        vm.assume(_feeExecuted > _maxFee);
+        vm.assume(_feeExecuted < type(uint256).max - 1);
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _feeExecuted + 1, // amount
+            _burnMessageSender,
+            _maxFee,
+            _feeExecuted,
+            0,
+            _hookData
+        );
+
+        vm.prank(localMessageTransmitter);
+        vm.expectRevert("Fee exceeds max fee");
+        localTokenMessenger.handleReceiveUnfinalizedMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            _finalityThresholdExecuted,
+            _messageBody
+        );
+    }
+
     function testHandleReceiveUnfinalizedMessage_revertsIfNoLocalMinterIsSet(
         bytes32 _burnToken,
         bytes32 _mintRecipient,
         uint256 _amount,
         bytes32 _burnMessageSender,
-        uint256 _maxFee,
         uint256 _feeExecuted,
         bytes calldata _hookData,
         uint32 _finalityThresholdExecuted
@@ -1842,7 +1878,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             _mintRecipient,
             _amount,
             _burnMessageSender,
-            _maxFee,
+            _feeExecuted, // maxFee
             _feeExecuted,
             0,
             _hookData
@@ -1896,7 +1932,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             TokenMinter.mint.selector,
             remoteDomain,
             _burnToken,
-            AddressUtils.bytes32ToAddress(_mintRecipient),
+            _mintRecipient.toAddress(),
             _amount
         );
         vm.mockCallRevert(
@@ -1920,7 +1956,6 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         bytes32 _mintRecipient,
         uint256 _amount,
         bytes32 _burnMessageSender,
-        uint256 _maxFee,
         uint256 _feeExecuted,
         bytes calldata _hookData,
         uint32 _finalityThresholdExecuted
@@ -1928,8 +1963,9 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         vm.assume(
             _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
         );
-        vm.assume(_feeExecuted < _amount);
+        vm.assume(_amount > 0);
         vm.assume(_feeExecuted > 0);
+        vm.assume(_feeExecuted < _amount);
 
         bytes memory _messageBody = _formatBurnMessageForReceive(
             localTokenMessenger.messageBodyVersion(),
@@ -1937,7 +1973,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             _mintRecipient,
             _amount,
             _burnMessageSender,
-            _maxFee,
+            _feeExecuted, // maxFee
             _feeExecuted, // non-zero fee, meaning we'll try to mint() on TokenMinterV2, passing in multiple recipients
             0,
             _hookData
@@ -1948,7 +1984,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             TokenMinterV2.mint.selector,
             remoteDomain,
             _burnToken,
-            AddressUtils.bytes32ToAddress(_mintRecipient),
+            _mintRecipient.toAddress(),
             feeRecipient,
             _amount - _feeExecuted,
             _feeExecuted
@@ -1979,10 +2015,11 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     ) public {
         vm.assume(_amount > 0);
         vm.assume(_feeExecuted < _amount);
+        vm.assume(_maxFee >= _feeExecuted);
 
         bytes memory _messageBody = _formatBurnMessageForReceive(
             localTokenMessenger.messageBodyVersion(),
-            AddressUtils.addressToBytes32(remoteTokenAddr),
+            remoteTokenAddr.toBytes32(),
             _mintRecipient,
             _amount,
             _burnMessageSender,
@@ -2004,7 +2041,6 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         bytes32 _mintRecipient,
         uint256 _amount,
         bytes32 _burnMessageSender,
-        uint256 _maxFee,
         uint256 _feeExecuted,
         uint256 _expirationBlock,
         bytes calldata _hookData
@@ -2015,11 +2051,11 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
 
         bytes memory _messageBody = _formatBurnMessageForReceive(
             localTokenMessenger.messageBodyVersion(),
-            AddressUtils.addressToBytes32(remoteTokenAddr),
+            remoteTokenAddr.toBytes32(),
             _mintRecipient,
             _amount,
             _burnMessageSender,
-            _maxFee,
+            _feeExecuted, // maxFee
             _feeExecuted,
             _expirationBlock,
             _hookData
@@ -2046,7 +2082,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     ) public {
         bytes memory _messageBody = _formatBurnMessageForReceive(
             localTokenMessenger.messageBodyVersion(),
-            AddressUtils.addressToBytes32(remoteTokenAddr),
+            remoteTokenAddr.toBytes32(),
             _mintRecipient,
             _amount,
             _burnMessageSender,
@@ -2071,7 +2107,6 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         bytes32 _mintRecipient,
         uint256 _amount,
         bytes32 _burnMessageSender,
-        uint256 _maxFee,
         uint256 _expirationBlock,
         uint256 _feeExecuted,
         bytes calldata _hookData
@@ -2082,11 +2117,11 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
 
         bytes memory _messageBody = _formatBurnMessageForReceive(
             localTokenMessenger.messageBodyVersion(),
-            AddressUtils.addressToBytes32(remoteTokenAddr),
+            remoteTokenAddr.toBytes32(),
             _mintRecipient,
             _amount,
             _burnMessageSender,
-            _maxFee,
+            _feeExecuted, // maxFee
             _feeExecuted,
             _expirationBlock,
             _hookData
@@ -2107,7 +2142,6 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         bytes32 _mintRecipient,
         uint256 _amount,
         bytes32 _burnMessageSender,
-        uint256 _maxFee,
         uint256 _expirationBlock,
         uint256 _feeExecuted,
         bytes calldata _hookData
@@ -2117,11 +2151,11 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
 
         bytes memory _messageBody = _formatBurnMessageForReceive(
             localTokenMessenger.messageBodyVersion(),
-            AddressUtils.addressToBytes32(remoteTokenAddr),
+            remoteTokenAddr.toBytes32(),
             _mintRecipient,
             _amount,
             _burnMessageSender,
-            _maxFee,
+            _feeExecuted, // maxFee
             _feeExecuted,
             _expirationBlock,
             _hookData
@@ -2209,10 +2243,10 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         bytes memory _expectedBurnMessage = BurnMessageV2
             ._formatMessageForRelay(
                 localTokenMessenger.messageBodyVersion(), // version
-                AddressUtils.addressToBytes32(address(localToken)), // burn token
+                address(localToken).toBytes32(), // burn token
                 _mintRecipient, // mint recipient
                 _amount, // amount
-                AddressUtils.addressToBytes32(_caller), // sender
+                _caller.toBytes32(), // sender
                 _maxFee, // max fee
                 _hookData
             );
@@ -2295,9 +2329,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         bytes memory _messageBody
     ) internal {
         bytes29 _msg = _messageBody.ref(0);
-        address _mintRecipient = AddressUtils.bytes32ToAddress(
-            _msg._getMintRecipient()
-        );
+        address _mintRecipient = _msg._getMintRecipient().toAddress();
         uint256 _amount = _msg._getAmount();
         uint256 _fee = _msg._getFeeExecuted();
 
@@ -2308,10 +2340,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         );
         assertEq(uint256(_remoteDomain), uint256(remoteDomain));
         assertEq(_sender, remoteTokenMessengerAddr);
-        assertEq(
-            AddressUtils.bytes32ToAddress(_msg._getBurnToken()),
-            remoteTokenAddr
-        );
+        assertEq(_msg._getBurnToken().toAddress(), remoteTokenAddr);
         assertTrue(_fee == 0 || _amount > _fee);
         assertTrue(feeRecipient != address(0));
         vm.assume(_mintRecipient != feeRecipient);

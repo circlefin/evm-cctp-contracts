@@ -24,7 +24,6 @@ import {IRelayerV2} from "../interfaces/v2/IRelayerV2.sol";
 import {IMessageHandlerV2} from "../interfaces/v2/IMessageHandlerV2.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {BurnMessageV2} from "../messages/v2/BurnMessageV2.sol";
-import {Initializable} from "../proxy/Initializable.sol";
 import {TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD} from "./FinalityThresholds.sol";
 
 /**
@@ -62,9 +61,12 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     );
 
     // ============ Libraries ============
+    using AddressUtils for address;
+    using AddressUtils for address payable;
+    using AddressUtils for bytes32;
+    using BurnMessageV2 for bytes29;
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
-    using BurnMessageV2 for bytes29;
 
     // ============ Constructor ============
     /**
@@ -122,7 +124,8 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         localMinter = ITokenMinterV2(tokenMinter_);
 
         // Remote messenger configuration
-        for (uint256 i; i < remoteDomains_.length; i++) {
+        uint256 _remoteDomainsLength = remoteDomains_.length;
+        for (uint256 i; i < _remoteDomainsLength; ++i) {
             require(
                 remoteTokenMessengers_[i] != bytes32(0),
                 "Invalid TokenMessenger"
@@ -344,10 +347,10 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         // Format message body
         bytes memory _burnMessage = BurnMessageV2._formatMessageForRelay(
             messageBodyVersion,
-            AddressUtils.addressToBytes32(_burnToken),
+            _burnToken.toBytes32(),
             _mintRecipient,
             _amount,
-            AddressUtils.addressToBytes32(msg.sender),
+            msg.sender.toBytes32(),
             _maxFee,
             _hookData
         );
@@ -398,7 +401,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         );
 
         return (
-            AddressUtils.bytes32ToAddress(_msg._getMintRecipient()),
+            _msg._getMintRecipient().toAddress(),
             _msg._getBurnToken(),
             _msg._getAmount()
         );
@@ -439,5 +442,6 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         // Validate fee
         _fee = _msg._getFeeExecuted();
         require(_fee == 0 || _fee < _amount, "Fee equals or exceeds amount");
+        require(_fee <= _msg._getMaxFee(), "Fee exceeds max fee");
     }
 }

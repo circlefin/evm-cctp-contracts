@@ -83,7 +83,7 @@ library MessageV2 {
         bytes32 _recipient,
         bytes32 _destinationCaller,
         uint32 _minFinalityThreshold,
-        bytes memory _messageBody
+        bytes calldata _messageBody
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(

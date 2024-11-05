@@ -49,6 +49,8 @@ contract MessageTransmitterV2Test is TestUtils {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using MessageV2 for bytes29;
+    using AddressUtils for address;
+    using AddressUtils for bytes32;
 
     // Test constants
     uint256 constant SIGNATURE_LENGTH = 65;
@@ -336,6 +338,76 @@ contract MessageTransmitterV2Test is TestUtils {
         assertTrue(MockMessageTransmitterV3(address(_proxy)).v3Function());
         // Check that the MessageTransmitter Message Format version has changed
         assertEq(uint256(messageTransmitter.version()), uint256(version + 1));
+    }
+
+    function testInitialize_setsTheOwner() public view {
+        assertEq(messageTransmitter.owner(), owner);
+    }
+
+    function testInitialize_setsThePauser() public view {
+        assertEq(messageTransmitter.pauser(), pauser);
+    }
+
+    function testInitialize_setsTheRescuer() public view {
+        assertEq(messageTransmitter.rescuer(), rescuer);
+    }
+
+    function testInitialize_setsTheAttesterManager() public view {
+        assertEq(messageTransmitter.attesterManager(), attesterManager);
+    }
+
+    function testInitialize_setsTheAttester() public view {
+        assertEq(messageTransmitter.getNumEnabledAttesters(), 1);
+        assertTrue(messageTransmitter.isEnabledAttester(attester));
+        address _enabledAttester = messageTransmitter.getEnabledAttester(0);
+        assertEq(_enabledAttester, attester);
+    }
+
+    function testInitialize_setsMultipleAttesters() public {
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            bytes("")
+        );
+        MessageTransmitterV2 _newMessageTransmitter = MessageTransmitterV2(
+            address(_proxy)
+        );
+
+        address _attesterOne = address(123);
+        address _attesterTwo = address(456);
+
+        address[] memory _attesters = new address[](2);
+        _attesters[0] = _attesterOne;
+        _attesters[1] = _attesterTwo;
+        _newMessageTransmitter.initialize(
+            owner,
+            pauser,
+            rescuer,
+            attesterManager,
+            _attesters,
+            1,
+            maxMessageBodySize
+        );
+
+        assertEq(_newMessageTransmitter.getNumEnabledAttesters(), 2);
+        assertTrue(_newMessageTransmitter.isEnabledAttester(_attesterOne));
+        assertTrue(_newMessageTransmitter.isEnabledAttester(_attesterTwo));
+        address _enabledAttester = _newMessageTransmitter.getEnabledAttester(0);
+        assertEq(_enabledAttester, _attesterOne);
+        _enabledAttester = _newMessageTransmitter.getEnabledAttester(1);
+        assertEq(_enabledAttester, _attesterTwo);
+    }
+
+    function testInitialize_setsTheSignatureThreshold() public view {
+        assertEq(messageTransmitter.signatureThreshold(), 1);
+    }
+
+    function testInitialize_setsTheMaxMessageBodySize() public view {
+        assertEq(messageTransmitter.maxMessageBodySize(), maxMessageBodySize);
+    }
+
+    function testInitialize_setsZeroNonceAsUsed() public view {
+        assertEq(messageTransmitter.usedNonces(bytes32(0)), 1);
     }
 
     function testSendMessage_revertsWhenPaused(
@@ -700,7 +772,7 @@ contract MessageTransmitterV2Test is TestUtils {
             _nonce,
             _sender,
             _recipient,
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -733,8 +805,8 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -774,8 +846,8 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -809,6 +881,7 @@ contract MessageTransmitterV2Test is TestUtils {
     ) public {
         vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
         vm.assume(_recipient != foundryCheatCodeAddr);
+        vm.assume(_nonce != bytes32(0));
 
         bytes memory _message = _formatMessageForReceive(
             version,
@@ -816,8 +889,8 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -850,6 +923,7 @@ contract MessageTransmitterV2Test is TestUtils {
         uint32 _finalityThresholdExecuted,
         bytes calldata _messageBody
     ) public {
+        vm.assume(_nonce != bytes32(0));
         vm.assume(_finalityThresholdExecuted < FINALITY_THRESHOLD_FINALIZED);
         vm.assume(_recipient != foundryCheatCodeAddr);
 
@@ -859,8 +933,8 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -883,6 +957,37 @@ contract MessageTransmitterV2Test is TestUtils {
         messageTransmitter.receiveMessage(_message, _signature);
     }
 
+    function testReceiveMessage_revertsIfNonceIsZero(
+        uint32 _sourceDomain,
+        bytes32 _sender,
+        bytes32 _recipient,
+        address _destinationCaller,
+        uint32 _minFinalityThreshold,
+        uint32 _finalityThresholdExecuted,
+        bytes calldata _messageBody
+    ) public {
+        bytes memory _message = _formatMessageForReceive(
+            version,
+            _sourceDomain,
+            destinationDomain,
+            bytes32(0), // nonce
+            _sender,
+            _recipient,
+            _destinationCaller.toBytes32(),
+            _minFinalityThreshold, // minFinalityThreshold
+            _finalityThresholdExecuted,
+            _messageBody
+        );
+
+        bytes memory _attestation = _sign1of1Message(_message);
+
+        if (_destinationCaller != address(0)) {
+            vm.prank(_destinationCaller);
+        }
+        vm.expectRevert("Nonce already used");
+        messageTransmitter.receiveMessage(_message, _attestation);
+    }
+
     function testReceiveMessage_revertsIfNonceIsAlreadyUsed(
         uint32 _sourceDomain,
         bytes32 _nonce,
@@ -894,14 +999,15 @@ contract MessageTransmitterV2Test is TestUtils {
         bytes calldata _messageBody,
         address _randomCaller
     ) public {
+        vm.assume(_nonce != bytes32(0));
         bytes memory _message = _formatMessageForReceive(
             version,
             _sourceDomain,
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -922,6 +1028,7 @@ contract MessageTransmitterV2Test is TestUtils {
         uint32 _minFinalityThreshold,
         uint32 _finalityThresholdExecuted
     ) public {
+        vm.assume(_nonce != bytes32(0));
         MockReentrantCallerV2 _mockReentrantCaller = new MockReentrantCallerV2();
 
         // Encode mockReentrantCaller as recipient
@@ -931,7 +1038,7 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(address(_mockReentrantCaller)),
+            address(_mockReentrantCaller).toBytes32(),
             bytes32(0),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
@@ -959,14 +1066,15 @@ contract MessageTransmitterV2Test is TestUtils {
         bytes calldata _messageBody,
         address _randomCaller
     ) public {
+        vm.assume(_nonce != bytes32(0));
         bytes memory _message = _formatMessageForReceive(
             version,
             _sourceDomain,
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -986,6 +1094,7 @@ contract MessageTransmitterV2Test is TestUtils {
         bytes calldata _messageBody,
         address _randomCaller
     ) public {
+        vm.assume(_nonce != bytes32(0));
         _setup2of2Multisig();
 
         bytes memory _message = _formatMessageForReceive(
@@ -994,8 +1103,8 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -1015,6 +1124,7 @@ contract MessageTransmitterV2Test is TestUtils {
         bytes calldata _messageBody,
         address _randomCaller
     ) public {
+        vm.assume(_nonce != bytes32(0));
         _setup2of3Multisig();
 
         bytes memory _message = _formatMessageForReceive(
@@ -1023,8 +1133,8 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -1044,6 +1154,7 @@ contract MessageTransmitterV2Test is TestUtils {
         bytes calldata _messageBody,
         address _randomCaller
     ) public {
+        vm.assume(_nonce != bytes32(0));
         vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
         bytes memory _message = _formatMessageForReceive(
             version,
@@ -1051,8 +1162,8 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -1072,6 +1183,7 @@ contract MessageTransmitterV2Test is TestUtils {
         bytes calldata _messageBody,
         address _randomCaller
     ) public {
+        vm.assume(_nonce != bytes32(0));
         vm.assume(_finalityThresholdExecuted < FINALITY_THRESHOLD_FINALIZED);
         bytes memory _message = _formatMessageForReceive(
             version,
@@ -1079,8 +1191,8 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -1099,6 +1211,7 @@ contract MessageTransmitterV2Test is TestUtils {
         uint32 _finalityThresholdExecuted,
         bytes calldata _messageBody
     ) public {
+        vm.assume(_nonce != bytes32(0));
         vm.assume(_destinationCaller != address(0));
         bytes memory _message = _formatMessageForReceive(
             version,
@@ -1106,8 +1219,8 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
-            AddressUtils.addressToBytes32(_destinationCaller),
+            _recipient.toBytes32(),
+            _destinationCaller.toBytes32(),
             _minFinalityThreshold,
             _finalityThresholdExecuted,
             _messageBody
@@ -1126,6 +1239,7 @@ contract MessageTransmitterV2Test is TestUtils {
         bytes calldata _messageBody,
         address _randomCaller
     ) public {
+        vm.assume(_nonce != bytes32(0));
         vm.assume(_randomCaller != address(0));
         bytes memory _message = _formatMessageForReceive(
             version,
@@ -1133,7 +1247,7 @@ contract MessageTransmitterV2Test is TestUtils {
             localDomain,
             _nonce,
             _sender,
-            AddressUtils.addressToBytes32(_recipient),
+            _recipient.toBytes32(),
             bytes32(0), // destinationCaller
             _minFinalityThreshold,
             _finalityThresholdExecuted,
@@ -1248,14 +1362,14 @@ contract MessageTransmitterV2Test is TestUtils {
         bytes32 _recipient,
         bytes32 _destinationCaller,
         uint32 _minFinalityThreshold,
-        bytes memory _messageBody,
+        bytes calldata _messageBody,
         address _sender
     ) internal {
         bytes memory _expectedMessage = MessageV2._formatMessageForRelay(
             version,
             localDomain,
             _destinationDomain,
-            AddressUtils.addressToBytes32(_sender),
+            _sender.toBytes32(),
             _recipient,
             _destinationCaller,
             _minFinalityThreshold,
@@ -1286,9 +1400,7 @@ contract MessageTransmitterV2Test is TestUtils {
         address _randomCaller
     ) internal {
         bytes29 _msg = _message.ref(0);
-        address _recipient = AddressUtils.bytes32ToAddress(
-            _msg._getRecipient()
-        );
+        address _recipient = _msg._getRecipient().toAddress();
         vm.assume(_recipient != foundryCheatCodeAddr);
 
         // Mock a successful response from IMessageHandlerV2 to message.recipient,
@@ -1312,9 +1424,7 @@ contract MessageTransmitterV2Test is TestUtils {
             vm.assume(_randomCaller != address(0));
             _caller = _randomCaller;
         } else {
-            _caller = AddressUtils.bytes32ToAddress(
-                _msg._getDestinationCaller()
-            );
+            _caller = _msg._getDestinationCaller().toAddress();
         }
 
         // assert that a MessageReceive event was logged with expected message bytes

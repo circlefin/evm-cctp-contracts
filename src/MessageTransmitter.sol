@@ -247,12 +247,10 @@ contract MessageTransmitter is
      * of the attester address recovered from signatures.
      * @return success bool, true if successful
      */
-    function receiveMessage(bytes calldata message, bytes calldata attestation)
-        external
-        override
-        whenNotPaused
-        returns (bool success)
-    {
+    function receiveMessage(
+        bytes calldata message,
+        bytes calldata attestation
+    ) external override whenNotPaused returns (bool success) {
         // Validate each signature in the attestation
         _verifyAttestationSignatures(message, attestation);
 
@@ -313,10 +311,9 @@ contract MessageTransmitter is
      * to avoid impacting users who rely on large messages.
      * @param newMaxMessageBodySize new max message body size, in bytes
      */
-    function setMaxMessageBodySize(uint256 newMaxMessageBodySize)
-        external
-        onlyOwner
-    {
+    function setMaxMessageBodySize(
+        uint256 newMaxMessageBodySize
+    ) external onlyOwner {
         maxMessageBodySize = newMaxMessageBodySize;
         emit MaxMessageBodySizeUpdated(maxMessageBodySize);
     }
@@ -372,11 +369,10 @@ contract MessageTransmitter is
               destination
      * @return hash of source and nonce
      */
-    function _hashSourceAndNonce(uint32 _source, uint64 _nonce)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function _hashSourceAndNonce(
+        uint32 _source,
+        uint64 _nonce
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(_source, _nonce));
     }
 
