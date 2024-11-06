@@ -65,18 +65,24 @@ contract Create2FactoryTest is Test {
         assertEq(MockInitializableImplementation(proxyAddr).num(), num);
     }
 
-    function testDeployAndCall(
+    function testDeployAndMultiCall(
         address addr,
         uint256 num,
         uint256 amount,
         bytes32 salt
     ) public {
-        // Construct initializer
-        bytes memory initializer = abi.encodeWithSelector(
+        // Construct initializers
+        bytes memory initializer1 = abi.encodeWithSelector(
             MockInitializableImplementation.initialize.selector,
             addr,
             num
         );
+        bytes memory initializer2 = abi.encodeWithSelector(
+            MockInitializableImplementation.initializeV2.selector
+        );
+        bytes[] memory data = new bytes[](2);
+        data[0] = initializer1;
+        data[1] = initializer2;
         // Construct bytecode
         bytes memory bytecode = abi.encodePacked(
             type(UpgradeableProxy).creationCode,
@@ -88,11 +94,16 @@ contract Create2FactoryTest is Test {
             keccak256(bytecode)
         );
         vm.deal(address(this), amount);
-        address proxyAddr = create2Factory.deployAndCall{value: amount}(
+
+        // Expect calls
+        vm.expectCall(expectedAddr, initializer1);
+        vm.expectCall(expectedAddr, initializer2);
+
+        address proxyAddr = create2Factory.deployAndMultiCall{value: amount}(
             amount,
             salt,
             bytecode,
-            initializer
+            data
         );
 
         // Verify deterministic

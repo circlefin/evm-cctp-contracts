@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 pragma solidity 0.7.6;
+pragma abicoder v2;
 
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -48,16 +49,19 @@ contract Create2Factory is Ownable {
      * @param data The data to call the implementation with
      * @return addr The deployed address
      */
-    function deployAndCall(
+    function deployAndMultiCall(
         uint256 amount,
         bytes32 salt,
         bytes calldata bytecode,
-        bytes calldata data
+        bytes[] calldata data
     ) external payable onlyOwner returns (address addr) {
         // Deploy deterministically
         addr = Create2.deploy(amount, salt, bytecode);
 
-        Address.functionCall(addr, data);
+        uint256 dataLength = data.length;
+        for (uint256 i = 0; i < dataLength; ++i) {
+            Address.functionCall(addr, data[i]);
+        }
     }
 
     /**
