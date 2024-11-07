@@ -97,6 +97,25 @@ contract MessageTransmitterV2Test is TestUtils {
         vm.stopPrank();
     }
 
+    function testStorageSlots_hasAGapForAttestableV2Additions() public view {
+        // AttestableV2 slots are arranged at slots 4-8
+        // Sanity check this by reading from an AttestableV2 storage var
+        // attesterManager is stored at slot 7
+        address _attesterManager = vm
+            .load(address(messageTransmitter), bytes32(uint256(7)))
+            .toAddress();
+
+        assertEq(_attesterManager, messageTransmitter.attesterManager());
+
+        // Check that the next storage vars, defined in BaseMessageTransmitter, are gapped
+        // by 20 slots
+        //
+        uint256 _maxMessageBodySize = uint256(
+            vm.load(address(messageTransmitter), bytes32(uint256(28)))
+        );
+        assertEq(_maxMessageBodySize, messageTransmitter.maxMessageBodySize());
+    }
+
     function testInitialize_revertsIfOwnerIsZero() public {
         AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
             address(messageTransmitterImpl),

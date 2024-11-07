@@ -62,6 +62,13 @@ abstract contract Denylistable is Ownable2Step {
     // address is on the denylist; 0 otherwise.
     mapping(address => uint256) internal _denylist;
 
+    /**
+     * @dev This empty reserved space is put in place to allow future versions to add new
+     * variables without shifting down storage in the inheritance chain.
+     * See https://docs.openzeppelin.com/contracts/4.x/upgradeable#storage_gaps
+     */
+    uint256[20] private __gap;
+
     // ============ Modifiers ============
     /**
      * @dev Throws if called by any account other than the denylister.

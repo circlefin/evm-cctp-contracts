@@ -153,6 +153,25 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
 
     // Tests
 
+    function testStorageSlots_hasAGapForDenylistableAdditions() public view {
+        // Denylistable slots are arranged at slots 3-5
+        // Sanity check this by reading from a Denylistable storage var
+        // the denylister is stored at slot 3
+        address _denylister = vm
+            .load(address(localTokenMessenger), bytes32(uint256(3)))
+            .toAddress();
+        assertEq(_denylister, localTokenMessenger.denylister());
+
+        // Check that the next storage vars, defined in BaseTokenMessenger, are gapped
+        // by 20 slots
+        // The localMinter is stored at slot 55
+        address _localMinter = vm
+            .load(address(localTokenMessenger), bytes32(uint256(25)))
+            .toAddress();
+
+        assertEq(_localMinter, address(localTokenMessenger.localMinter()));
+    }
+
     function testInitialize_revertsIfOwnerIsZeroAddress() public {
         AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
             address(tokenMessengerImpl),
