@@ -17,7 +17,7 @@
  */
 pragma solidity 0.7.6;
 
-import {Attestable} from "../roles/Attestable.sol";
+import {AttestableV2} from "../roles/v2/AttestableV2.sol";
 import {Pausable} from "../roles/Pausable.sol";
 import {Rescuable} from "../roles/Rescuable.sol";
 import {Initializable} from "../proxy/Initializable.sol";
@@ -30,7 +30,7 @@ contract BaseMessageTransmitter is
     Initializable,
     Pausable,
     Rescuable,
-    Attestable
+    AttestableV2
 {
     // ============ Events ============
     /**
@@ -58,7 +58,7 @@ contract BaseMessageTransmitter is
      * @param _localDomain Domain of chain on which the contract is deployed
      * @param _version Message Format version
      */
-    constructor(uint32 _localDomain, uint32 _version) Attestable(msg.sender) {
+    constructor(uint32 _localDomain, uint32 _version) AttestableV2() {
         localDomain = _localDomain;
         version = _version;
     }
