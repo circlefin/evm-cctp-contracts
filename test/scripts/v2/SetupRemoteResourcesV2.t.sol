@@ -18,24 +18,28 @@ pragma abicoder v2;
 
 import {ScriptV2TestUtils} from "./ScriptV2TestUtils.sol";
 
-contract RotateKeysTest is ScriptV2TestUtils {
+contract SetupRemoteResourcesTest is ScriptV2TestUtils {
     function setUp() public {
-        _deploy();
-        _setupSecondAttester();
+        _deployCreate2Factory();
+        _deployImplementations();
+        _deployProxies();
         _setupRemoteResources();
-        _rotateKeys();
     }
 
-    function testRotateMessageTransmitterOwner() public {
-        assertEq(messageTransmitter.pendingOwner(), newOwner);
+    function testLinkTokenPair() public {
+        bytes32 remoteKey = keccak256(
+            abi.encodePacked(
+                anotherRemoteDomain,
+                bytes32(uint256(uint160(anotherRemoteToken)))
+            )
+        );
+        assertEq(tokenMinterV2.remoteTokensToLocalTokens(remoteKey), token);
     }
 
-    function testRotateTokenMessengerOwner() public {
-        assertEq(tokenMessenger.pendingOwner(), newOwner);
-    }
-
-    function testRotateTokenControllerThenTokenMinterOwner() public {
-        assertEq(tokenMinter.tokenController(), newOwner);
-        assertEq(tokenMinter.pendingOwner(), newOwner);
+    function testAddRemoteTokenMessenger() public {
+        assertEq(
+            tokenMessengerV2.remoteTokenMessengers(anotherRemoteDomain),
+            bytes32(uint256(uint160(address(tokenMessengerV2))))
+        );
     }
 }

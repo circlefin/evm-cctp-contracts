@@ -15,35 +15,41 @@ simulate-deploy:
 deploy:
 	forge script scripts/v1/deploy.s.sol:DeployScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
-simulate-deploy-proxy-factory:
-	forge script scripts/DeployProxyFactory.s.sol:DeployProxyFactoryScript --rpc-url ${RPC_URL} --sender ${SENDER}
+simulate-deploy-implementations-v2:
+	forge script scripts/v2/DeployImplementationsV2.s.sol:DeployImplementationsV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
 
-deploy-proxy-factory:
-	forge script scripts/DeployProxyFactory.s.sol:DeployProxyFactoryScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+deploy-implementations-v2:
+	forge script scripts/v2/DeployImplementationsV2.s.sol:DeployImplementationsV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
-simulate-deployv2:
-	forge script scripts/v2/1_deploy.s.sol:DeployV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
+simulate-deploy-create2-factory:
+	forge script scripts/DeployCreate2Factory.s.sol:DeployCreate2FactoryScript --rpc-url ${RPC_URL} --sender ${SENDER}
 
-deployv2:
-	forge script scripts/v2/1_deploy.s.sol:DeployV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+deploy-create2-factory:
+	forge script scripts/DeployCreate2Factory.s.sol:DeployCreate2FactoryScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
-simulate-setup-second-attester:
-	forge script scripts/v2/2_setupSecondAttester.s.sol:SetupSecondAttesterScript --rpc-url ${RPC_URL} --sender ${SENDER}
+simulate-deploy-proxies-v2:
+	forge script scripts/v2/DeployProxiesV2.s.sol:DeployProxiesV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
 
-setup-second-attester:
-	forge script scripts/v2/2_setupSecondAttester.s.sol:SetupSecondAttesterScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+deploy-proxies-v2:
+	forge script scripts/v2/DeployProxiesV2.s.sol:DeployProxiesV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
-simulate-setup-remote-resources:
-	forge script scripts/v2/3_setupRemoteResources.s.sol:SetupRemoteResourcesScript --rpc-url ${RPC_URL} --sender ${SENDER}
+simulate-setup-remote-resources-v2:
+	forge script scripts/v2/SetupRemoteResourcesV2.s.sol:SetupRemoteResourcesV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
 
-setup-remote-resources:
-	forge script scripts/v2/3_setupRemoteResources.s.sol:SetupRemoteResourcesScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+setup-remote-resources-v2:
+	forge script scripts/v2/SetupRemoteResourcesV2.s.sol:SetupRemoteResourcesV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
-simulate-rotate-keys:
-	forge script scripts/v2/4_rotateKeys.s.sol:RotateKeysScript --rpc-url ${RPC_URL} --sender ${SENDER}
+simulate-rotate-keys-v2:
+	forge script scripts/v2/RotateKeysV2.s.sol:RotateKeysV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
 
-rotate-keys:
-	forge script scripts/v2/4_rotateKeys.s.sol:RotateKeysScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+rotate-keys-v2:
+	forge script scripts/v2/RotateKeysV2.s.sol:RotateKeysV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+
+simulate-deploy-address-utils-external:
+	forge script scripts/v2/DeployAddressUtilsExternal.s.sol:DeployAddressUtilsExternalScript --rpc-url ${RPC_URL} --sender ${SENDER}
+
+deploy-address-utils-external:
+	forge script scripts/v2/DeployAddressUtilsExternal.s.sol:DeployAddressUtilsExternalScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
 anvil:
 	docker rm -f anvil || true
