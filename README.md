@@ -96,117 +96,128 @@ The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tuto
 
 ### V2
 
+#### Create2Factory
+
 Deploy Create2Factory first if not yet deployed.
 
-<ol type="a">
-  <li>
-  
-  Add the below environment variable to your [env](.env) file:
-   - `CREATE2_FACTORY_DEPLOYER_KEY`</li>
-  <li>
-  
-  Run `make simulate-deploy-create2-factory RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.</li>
-  <li>
-
-  Run
+1. Add the environment variable `CREATE2_FACTORY_DEPLOYER_KEY` to your [env](.env) file.
+2. Run `make simulate-deploy-create2-factory RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.
+3. Run
     ```make deploy-create2-factory RPC_URL=<RPC_URL> SENDER=<SENDER>```
-  to deploy the Create2Factory.</li>
-</ol>
+  to deploy the Create2Factory.
 
-The contracts are deployed via `CREATE2` through Create2Factory. Follow the below steps to deploy the contracts:
+#### V2 Implementation Contracts
+
+Deploy the implementation contracts.
+
+1. Add the following [env](.env) variables
+
+    - `CREATE2_FACTORY_CONTRACT_ADDRESS`
+    - `TOKEN_CONTROLLER_ADDRESS`
+    - `DOMAIN`
+    - `MESSAGE_BODY_VERSION`
+    - `VERSION`
+    - `IMPLEMENTATION_DEPLOYER_PRIVATE_KEY`
+
+2. Run `make simulate-deploy-implementations-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.
+
+3. Run
+    ```make deploy-implementations-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>```
+  to deploy MessageTransmitterV2, TokenMinterV2, and TokenMessengerV2.
+
+#### V2 Proxies
+
+The proxies are deployed via `CREATE2` through Create2Factory. The scripts assumes the remote chains are EVM compatible and predicts that remote contracts will be deployed at the same addresses. Follow the below steps to deploy the contracts:
 
 1. Replace the environment variables in your [env](.env) file with the following:
 
-   - `MESSAGE_TRANSMITTER_DEPLOYER_KEY`
-   - `TOKEN_MESSENGER_DEPLOYER_KEY`
-   - `TOKEN_MINTER_DEPLOYER_KEY`
-   - `TOKEN_CONTROLLER_DEPLOYER_KEY`
-   - `ATTESTER_ADDRESS`
-   - `USDC_CONTRACT_ADDRESS`
-   - `REMOTE_USDC_CONTRACT_ADDRESS`
-   - `MESSAGE_TRANSMITTER_PAUSER_ADDRESS`
-   - `TOKEN_MINTER_PAUSER_ADDRESS`
-   - `MESSAGE_TRANSMITTER_RESCUER_ADDRESS`
-   - `TOKEN_MESSENGER_RESCUER_ADDRESS`
-   - `TOKEN_MINTER_RESCUER_ADDRESS`
-   - `TOKEN_CONTROLLER_ADDRESS`
-   - `DOMAIN`
-   - `REMOTE_DOMAIN`
-   - `BURN_LIMIT_PER_MESSAGE`
-   - `CREATE2_FACTORY_ADDRESS`
+    Note: `REMOTE_DOMAINS`, `REMOTE_USDC_CONTRACT_ADDRESSES`, and `REMOTE_TOKEN_MESSENGER_V2_ADDRESSES` must all correspond 1:1:1 in order.
 
-   In addition, to link the remote bridge, one of two steps needs to be followed:
-
-   - Add the `REMOTE_TOKEN_MESSENGER_DEPLOYER` address to your [env](.env) file and run [scripts/precomputeRemoteMessengerAddress.py](/scripts/precomputeRemoteMessengerAddress.py) with argument `--REMOTE_RPC_URL` for the remote chain, which will automatically add the `REMOTE_TOKEN_MESSENGER_ADDRESS` to the .env file
-   - Manually add the `REMOTE_TOKEN_MESSENGER_ADDRESS` to your .env file.
-
-2. Run `make simulate-deployv2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run. _Note: Use address from one of the private keys (used for deploying) above as `sender`. It is used to deploy the shared libraries that contracts use_
-3. Run `make deployv2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to deploy the contracts
-
-4. Replace the environment variables in your [env](.env) file with:
-
-   - `MESSAGE_TRANSMITTER_CONTRACT_ADDRESS`
-   - `MESSAGE_TRANSMITTER_DEPLOYER_KEY`
-   - `NEW_ATTESTER_MANAGER_ADDRESS`
-   - `SECOND_ATTESTER_ADDRESS`
-
-5. Run `make simulate-setup-second-attester RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run of setting up the second attester.
-
-6. Run `make setup-second-attester RPC_URL=<RPC_URL> SENDER=<SENDER>` to setup the second attester.
-
-7. Replace the environment variables in your [env](.env) file with the following. We'll just add one remote resource (e.g. adding remote token messenger and remote usdc contract addresses) at a time, so just pick any and then repeat these steps. This will need to be repeated for each remote chain:
-
-   - `TOKEN_MESSENGER_DEPLOYER_KEY`
-   - `TOKEN_CONTROLLER_KEY`
-   - `REMOTE_TOKEN_MESSENGER_ADDRESS`
-   - `TOKEN_MINTER_CONTRACT_ADDRESS`
-   - `TOKEN_MESSENGER_CONTRACT_ADDRESS`
-   - `REMOTE_USDC_CONTRACT_ADDRESS`
-   - `USDC_CONTRACT_ADDRESS`
-   - `REMOTE_DOMAIN`
-
-8. Run `make simulate-setup-remote-resources RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run of adding remote resources.
-
-9. Run `make setup-remote-resources RPC_URL=<RPC_URL> SENDER=<SENDER>` to setup the remote resources.
-
-10. Repeat steps 7-9 for all remote resources. This needs to be done for all existing remote chains at
-    contract setup except for the initial remote chain used in `1_deploy.s.sol`.
-
-**[Only execute the following if replacing remote resources for an existing chain]**
-
-11. Replace the environment variables in your [env](.env) file with the following. We'll replace one set of remote resources for a given chain (e.g. changing the remote token messenger and remote usdc contract addresses) at a time so it will need to be repeated for each applicable chain.
-    - `TOKEN_MESSENGER_DEPLOYER_KEY`
-    - `TOKEN_CONTROLLER_KEY`
-    - `REMOTE_TOKEN_MESSENGER_ADDRESS`
-    - `REMOTE_TOKEN_MESSENGER_ADDRESS_DEPRECATED`
-    - `TOKEN_MINTER_CONTRACT_ADDRESS`
-    - `TOKEN_MESSENGER_CONTRACT_ADDRESS`
-    - `REMOTE_USDC_CONTRACT_ADDRESS`
-    - `REMOTE_USDC_CONTRACT_ADDRESS_DEPRECATED`
     - `USDC_CONTRACT_ADDRESS`
-    - `REMOTE_DOMAIN`
-12. Run `make simulate-replace-remote-resources RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run of replacing remote resources.
+    - `TOKEN_CONTROLLER_ADDRESS`
+    - `REMOTE_DOMAINS`
+    - `REMOTE_USDC_CONTRACT_ADDRESSES`
+    - `REMOTE_TOKEN_MESSENGER_V2_ADDRESSES`
+    - `CREATE2_FACTORY_CONTRACT_ADDRESS`
 
-13. Run `make replace-remote-resources RPC_URL=<RPC_URL> SENDER=<SENDER>` to replace the remote resources.
+    - `MESSAGE_TRANSMITTER_V2_IMPLEMENTATION_ADDRESS`
+    - `MESSAGE_TRANSMITTER_V2_OWNER_ADDRESS`
+    - `MESSAGE_TRANSMITTER_V2_PAUSER_ADDRESS`
+    - `MESSAGE_TRANSMITTER_V2_RESCUER_ADDRESS`
+    - `MESSAGE_TRANSMITTER_V2_ATTESTER_MANAGER_ADDRESS`
+    - `MESSAGE_TRANSMITTER_V2_ATTESTER_1_ADDRESS`
+    - `MESSAGE_TRANSMITTER_V2_ATTESTER_2_ADDRESS`
+    - `MESSAGE_TRANSMITTER_V2_PROXY_ADMIN_ADDRESS`
+
+    - `TOKEN_MINTER_V2_CONTRACT_ADDRESS`
+    - `TOKEN_MINTER_V2_PAUSER_ADDRESS`
+    - `TOKEN_MINTER_V2_RESCUER_ADDRESS`
+
+    - `TOKEN_MESSENGER_V2_IMPLEMENTATION_ADDRESS`
+    - `TOKEN_MESSENGER_V2_OWNER_ADDRESS`
+    - `TOKEN_MESSENGER_V2_RESCUER_ADDRESS`
+    - `TOKEN_MESSENGER_V2_FEE_RECIPIENT_ADDRESS`
+    - `TOKEN_MESSENGER_V2_DENYLISTER_ADDRESS`
+    - `TOKEN_MESSENGER_V2_PROXY_ADMIN_ADDRESS`
+
+    - `DOMAIN`
+    - `BURN_LIMIT_PER_MESSAGE`
+
+    - `CREATE2_FACTORY_OWNER_KEY`
+    - `TOKEN_MINTER_V2_DEPLOYER_KEY`
+    - `TOKEN_CONTROLLER_KEY`
+
+2. Run `make simulate-deploy-proxies-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.
+
+3. Run `make deploy-proxies-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to deploy the contracts
+
+4. ONLY perform steps 5-7 for additional remote resources NOT already configured above.
+
+5. Replace the environment variables in your [env](.env) file with the following. We'll just add one remote resource (e.g. adding remote token messenger and remote usdc contract addresses) at a time, so just pick any and then repeat these steps. This will need to be repeated for each remote chain:
+
+   - `TOKEN_MESSENGER_V2_OWNER_KEY`
+   - `TOKEN_CONTROLLER_KEY`
+   - `TOKEN_MESSENGER_V2_CONTRACT_ADDRESS`
+   - `TOKEN_MINTER_V2_CONTRACT_ADDRESS`
+   - `USDC_CONTRACT_ADDRESS`
+   - `REMOTE_USDC_CONTRACT_ADDRESS`
+   - `REMOTE_DOMAIN`
+
+6. Run `make simulate-setup-remote-resources-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run of adding remote resources.
+
+7. Run `make setup-remote-resources-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to setup the remote resources.
 
 **[Remaining steps are only for mainnet]**
 
-14. Replace the environment variables in your [env](.env) file with:
+8. Replace the environment variables in your [env](.env) file with:
 
-    - `MESSAGE_TRANSMITTER_CONTRACT_ADDRESS`
-    - `TOKEN_MESSENGER_CONTRACT_ADDRESS`
-    - `TOKEN_MINTER_CONTRACT_ADDRESS`
-    - `MESSAGE_TRANSMITTER_DEPLOYER_KEY`
-    - `TOKEN_MESSENGER_DEPLOYER_KEY`
-    - `TOKEN_MINTER_DEPLOYER_KEY`
-    - `MESSAGE_TRANSMITTER_NEW_OWNER_ADDRESS`
-    - `TOKEN_MESSENGER_NEW_OWNER_ADDRESS`
-    - `TOKEN_MINTER_NEW_OWNER_ADDRESS`
+    - `MESSAGE_TRANSMITTER_V2_CONTRACT_ADDRESS`
+    - `TOKEN_MESSENGER_V2_CONTRACT_ADDRESS`
+    - `TOKEN_MINTER_V2_CONTRACT_ADDRESS`
+    - `MESSAGE_TRANSMITTER_V2_OWNER_KEY`
+    - `TOKEN_MESSENGER_V2_OWNER_KEY`
+    - `TOKEN_MINTER_V2_OWNER_KEY`
+    - `MESSAGE_TRANSMITTER_V2_NEW_OWNER_ADDRESS`
+    - `TOKEN_MESSENGER_V2_NEW_OWNER_ADDRESS`
+    - `TOKEN_MINTER_V2_NEW_OWNER_ADDRESS`
     - `NEW_TOKEN_CONTROLLER_ADDRESS`
 
-15. Run `make simulate-rotate-keys RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run of rotating the keys.
+9. Run `make simulate-rotate-keys-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run of rotating the keys.
 
-16. Run `make rotate-keys RPC_URL=<RPC_URL> SENDER=<SENDER>` to rotate keys.
+10. Run `make rotate-keys-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to rotate keys.
+
+#### AddressUtilsExternal
+
+Use Create2Factory to deploy the helper library to a deterministic address for easy integration.
+
+1. Set the following [env](.env) variables:
+
+    - `CREATE2_FACTORY_CONTRACT_ADDRESS`
+    - `CREATE2_FACTORY_OWNER_KEY`
+
+2. Run `make simulate-deploy-address-utils-external RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.
+
+3. Run `make deploy-address-utils-external RPC_URL=<RPC_URL> SENDER=<SENDER>` to deploy.
 
 ## License
 

@@ -18,20 +18,25 @@ pragma abicoder v2;
 
 import {ScriptV2TestUtils} from "./ScriptV2TestUtils.sol";
 
-contract SetupSecondAttesterTest is ScriptV2TestUtils {
+contract RotateKeysTest is ScriptV2TestUtils {
     function setUp() public {
-        _deploy();
-        _setupSecondAttester();
+        _deployCreate2Factory();
+        _deployImplementations();
+        _deployProxies();
+        _setupRemoteResources();
+        _rotateKeys();
     }
 
-    function testConfigureSecondAttester() public {
-        // second attester enabled
-        assertTrue(messageTransmitter.isEnabledAttester(secondAttester));
+    function testRotateMessageTransmitterV2Owner() public {
+        assertEq(messageTransmitterV2.pendingOwner(), newOwner);
+    }
 
-        // sig threshold
-        assertEq(messageTransmitter.signatureThreshold(), 2);
+    function testRotateTokenMessengerV2Owner() public {
+        assertEq(tokenMessengerV2.pendingOwner(), newOwner);
+    }
 
-        // attester manager, didn't change
-        assertEq(messageTransmitter.attesterManager(), deployer);
+    function testRotateTokenControllerThenTokenMinterV2Owner() public {
+        assertEq(tokenMinterV2.tokenController(), newOwner);
+        assertEq(tokenMinterV2.pendingOwner(), newOwner);
     }
 }
