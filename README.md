@@ -47,7 +47,7 @@ Run `yarn lint` to lint all `.sol` files in the `src` and `test` directories.
 
 ### Static analysis
 
-Run `make analyze` to set up Python dependencies from `requirements.txt` and run Slither on all source files, requiring the foundry cli to be installed locally. If all dependencies have been installed, alternatively run `slither .` to run static analysis on all `.sol` files in the `src` directory.
+Run `make analyze-{message-transmitter | message-transmitter-v2 | token-messenger-minter}` to set up Mythril dependency and run Mythril on all source files. If Mythril dependency has been installed, alternatively run `myth -v4 analyze $FILE_PATH --solc-json mythril.config.json --solv 0.7.6` to run static analysis on a `.sol` file at the given `$FILE_PATH`. Please note that this can take several minutes.
 
 ### Continuous Integration using Github Actions
 
