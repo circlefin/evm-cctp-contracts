@@ -35,8 +35,11 @@ cast-send:
 clean:
 	@${FOUNDRY} "forge clean"
 
-analyze:
+analyze-message-transmitter:
 	pip3 install mythril==0.24.8
 	myth -v4 analyze src/MessageTransmitter.sol --solc-json mythril.config.json --solv 0.7.6
+
+analyze-token-messenger-minter:
+	pip3 install mythril==0.24.8
 	myth -v4 analyze src/TokenMessenger.sol --solc-json mythril.config.json --solv 0.7.6
 	myth -v4 analyze src/TokenMinter.sol --solc-json mythril.config.json --solv 0.7.6

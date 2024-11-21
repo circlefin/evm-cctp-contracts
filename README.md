@@ -38,7 +38,7 @@ Run `make anvil-test` to setup `anvil` test node in docker container and run int
 Run `yarn lint` to lint all `.sol` files in the `src` and `test` directories.
 
 ### Static analysis
-Run `make analyze` to set up Mythril dependency and run Mythril on all source files. If Mythril dependency has been installed, alternatively run `myth -v4 analyze $FILE_PATH --solc-json mythril.config.json --solv 0.7.6` to run static analysis on a `.sol` file at the given `$FILE_PATH`. Please note that this can take several minutes.
+Run `make analyze-{message-transmitter | token-messenger-minter}` to set up Mythril dependency and run Mythril on all source files. If Mythril dependency has been installed, alternatively run `myth -v4 analyze $FILE_PATH --solc-json mythril.config.json --solv 0.7.6` to run static analysis on a `.sol` file at the given `$FILE_PATH`. Please note that this can take several minutes.
 
 ### Continuous Integration using Github Actions
 We use Github actions to run linter and all the tests. The workflow configuration can be found in [.github/workflows/ci.yml](.github/workflows/ci.yml)
