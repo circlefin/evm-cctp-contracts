@@ -53,7 +53,7 @@ deploy-address-utils-external:
 
 anvil:
 	docker rm -f anvil || true
-	@${ANVIL} "anvil --host 0.0.0.0 -a 13 --code-size-limit 250000"	
+	@${ANVIL} "anvil --host 0.0.0.0 -a 13 --code-size-limit 250000"
 
 anvil-test: anvil
 	pip3 install -r requirements.txt
@@ -71,10 +71,21 @@ cast-call:
 
 cast-send:
 	@docker exec anvil cast send ${contract_address} "${function}" --rpc-url http://localhost:8545 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-	
+
 clean:
 	@${FOUNDRY} "forge clean"
 
-analyze:
-	pip3 install -r requirements.txt
-	slither .
+analyze-message-transmitter:
+	pip3 install mythril==0.24.8
+	myth -v4 analyze src/MessageTransmitter.sol --solc-json mythril.config.json --solv 0.7.6
+
+analyze-message-transmitter-v2:
+	pip3 install mythril==0.24.8
+	myth -v4 analyze src/v2/MessageTransmitterV2.sol --solc-json mythril.config.json --solv 0.7.6
+
+analyze-token-messenger-minter:
+	pip3 install mythril==0.24.8
+	myth -v4 analyze src/TokenMessenger.sol --solc-json mythril.config.json --solv 0.7.6
+	myth -v4 analyze src/TokenMinter.sol --solc-json mythril.config.json --solv 0.7.6
+	myth -v4 analyze src/v2/TokenMessengerV2.sol --solc-json mythril.config.json --solv 0.7.6
+	myth -v4 analyze src/v2/TokenMinterV2.sol --solc-json mythril.config.json --solv 0.7.6
