@@ -53,6 +53,12 @@ Run `make analyze-{message-transmitter | message-transmitter-v2 | token-messenge
 
 We use Github actions to run linter and all the tests. The workflow configuration can be found in [.github/workflows/ci.yml](.github/workflows/ci.yml)
 
+### Manual Triggering of the Olympix CI Workflow for Security Alerts
+You can manually trigger the Olympix.ai Code Scanning workflow using the `workflow_dispatch` feature of GitHub Actions.
+1. Click on the `Actions` tab.
+2. In the left sidebar, select `Olympix Scan`.
+3. Select the branch & click on the `Run workflow` button.
+
 ### Alternative Installations
 
 #### Docker + Foundry
