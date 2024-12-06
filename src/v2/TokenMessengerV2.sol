@@ -247,17 +247,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         onlyRemoteTokenMessenger(remoteDomain, sender)
         returns (bool)
     {
-        // Validate finalized message
-        bytes29 _msg = messageBody.ref(0);
-        (
-            address _mintRecipient,
-            bytes32 _burnToken,
-            uint256 _amount
-        ) = _validateFinalizedMessage(_msg);
-
-        _mintAndWithdraw(remoteDomain, _burnToken, _mintRecipient, _amount, 0);
-
-        return true;
+        return _handleReceiveMessage(messageBody.ref(0), remoteDomain);
     }
 
     /**
@@ -291,24 +281,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
             "Unsupported finality threshold"
         );
 
-        // Validate message
-        bytes29 _msg = messageBody.ref(0);
-        (
-            address _mintRecipient,
-            bytes32 _burnToken,
-            uint256 _amount,
-            uint256 _fee
-        ) = _validateUnfinalizedMessage(_msg);
-
-        _mintAndWithdraw(
-            remoteDomain,
-            _burnToken,
-            _mintRecipient,
-            _amount - _fee,
-            _fee
-        );
-
-        return true;
+        return _handleReceiveMessage(messageBody.ref(0), remoteDomain);
     }
 
     // ============ Internal Utils ============
@@ -379,46 +352,51 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     }
 
     /**
-     * @notice Validates a finalized BurnMessage and unpacks relevant message fields.
-     * @dev Reverts if the BurnMessage is malformed
-     * @dev Reverts if the BurnMessage version isn't supported
-     * @param _msg Finalized message
-     * @return _mintRecipient The recipient of the mint, as bytes32
-     * @return _burnToken The address of the token burned on the source chain
-     * @return _amount The amount of burnToken burned
+     * @notice Validates a received message and mints the token to the mintRecipient, less fees.
+     * @dev Reverts if _validatedReceivedMessage fails to validate the message.
+     * @dev Reverts if the mint operation fails.
+     * @param _msg Received message
+     * @param _remoteDomain The domain where the message originated from
+     * @return success Bool, true if successful.
      */
-    function _validateFinalizedMessage(
-        bytes29 _msg
-    )
-        internal
-        view
-        returns (address _mintRecipient, bytes32 _burnToken, uint256 _amount)
-    {
-        _msg._validateBurnMessageFormat();
-        require(
-            _msg._getVersion() == messageBodyVersion,
-            "Invalid message body version"
+    function _handleReceiveMessage(
+        bytes29 _msg,
+        uint32 _remoteDomain
+    ) internal returns (bool) {
+        // Validate message and unpack fields
+        (
+            address _mintRecipient,
+            bytes32 _burnToken,
+            uint256 _amount,
+            uint256 _fee
+        ) = _validatedReceivedMessage(_msg);
+
+        // Mint tokens
+        _mintAndWithdraw(
+            _remoteDomain,
+            _burnToken,
+            _mintRecipient,
+            _amount - _fee,
+            _fee
         );
 
-        return (
-            _msg._getMintRecipient().toAddress(),
-            _msg._getBurnToken(),
-            _msg._getAmount()
-        );
+        return true;
     }
 
     /**
-     * @notice Validates a finalized BurnMessage and unpacks relevant message fields.
+     * @notice Validates a BurnMessage and unpacks relevant fields.
      * @dev Reverts if the BurnMessage is malformed
      * @dev Reverts if the BurnMessage version isn't supported
-     * @dev Reverts if the message is expired
-     * @dev Reverts if the fee executed exceeds the amount
+     * @dev Reverts if the BurnMessage has expired
+     * @dev Reverts if the fee equals or exceeds the amount
+     * @dev Reverts if the fee exceeds the max fee specified on the source chain
      * @param _msg Finalized message
      * @return _mintRecipient The recipient of the mint, as bytes32
      * @return _burnToken The address of the token burned on the source chain
      * @return _amount The amount of burnToken burned
+     * @return _fee The fee executed
      */
-    function _validateUnfinalizedMessage(
+    function _validatedReceivedMessage(
         bytes29 _msg
     )
         internal
@@ -430,7 +408,11 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
             uint256 _fee
         )
     {
-        (_mintRecipient, _burnToken, _amount) = _validateFinalizedMessage(_msg);
+        _msg._validateBurnMessageFormat();
+        require(
+            _msg._getVersion() == messageBodyVersion,
+            "Invalid message body version"
+        );
 
         // Enforce message expiration
         uint256 _expirationBlock = _msg._getExpirationBlock();
@@ -440,8 +422,12 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         );
 
         // Validate fee
+        _amount = _msg._getAmount();
         _fee = _msg._getFeeExecuted();
         require(_fee == 0 || _fee < _amount, "Fee equals or exceeds amount");
         require(_fee <= _msg._getMaxFee(), "Fee exceeds max fee");
+
+        _mintRecipient = _msg._getMintRecipient().toAddress();
+        _burnToken = _msg._getBurnToken();
     }
 }
