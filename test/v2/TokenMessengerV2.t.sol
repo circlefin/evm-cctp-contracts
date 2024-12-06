@@ -1438,6 +1438,187 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         );
     }
 
+    function testHandleReceiveFinalizedMessage_revertsIfNonZeroExpirationBlockIsLessThanCurrentBlock(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _maxFee,
+        uint256 _feeExecuted,
+        uint256 _expirationBlock,
+        uint32 _finalityThresholdExecuted,
+        bytes calldata _hookData
+    ) public {
+        vm.assume(_expirationBlock > 0);
+        vm.assume(_expirationBlock < type(uint256).max - 1);
+        vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _maxFee,
+            _feeExecuted,
+            _expirationBlock,
+            _hookData
+        );
+
+        // Overwrite current block number to be greater than expirationBlock
+        vm.roll(_expirationBlock + 1);
+        assertTrue(vm.getBlockNumber() > _expirationBlock);
+
+        vm.prank(localMessageTransmitter);
+        vm.expectRevert("Message expired and must be re-signed");
+        localTokenMessenger.handleReceiveFinalizedMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            _finalityThresholdExecuted,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveFinalizedMessage_revertsIfNonZeroExpirationBlockEqualsCurrentBlock(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _maxFee,
+        uint256 _feeExecuted,
+        uint256 _expirationBlock,
+        uint32 _finalityThresholdExecuted,
+        bytes calldata _hookData
+    ) public {
+        vm.assume(_expirationBlock > 0);
+        vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _maxFee,
+            _feeExecuted,
+            _expirationBlock,
+            _hookData
+        );
+
+        // Overwrite current block number to equal expirationBlock
+        vm.roll(_expirationBlock);
+        assertEq(vm.getBlockNumber(), _expirationBlock);
+
+        vm.prank(localMessageTransmitter);
+        vm.expectRevert("Message expired and must be re-signed");
+        localTokenMessenger.handleReceiveFinalizedMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            _finalityThresholdExecuted,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveFinalizedMessage_revertsIfFeeIsGreaterThanAmount(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _maxFee,
+        uint256 _feeExecuted,
+        bytes calldata _hookData,
+        uint32 _finalityThresholdExecuted
+    ) public {
+        vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
+        vm.assume(_feeExecuted > _amount);
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _maxFee,
+            _feeExecuted,
+            0,
+            _hookData
+        );
+
+        vm.prank(localMessageTransmitter);
+        vm.expectRevert("Fee equals or exceeds amount");
+        localTokenMessenger.handleReceiveFinalizedMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            _finalityThresholdExecuted,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveFinalizedMessage_revertsIfFeeEqualsAmount(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _maxFee,
+        bytes calldata _hookData,
+        uint32 _finalityThresholdExecuted
+    ) public {
+        vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
+        vm.assume(_amount > 0);
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _maxFee,
+            _amount, // feeExecuted == amount
+            0,
+            _hookData
+        );
+
+        vm.prank(localMessageTransmitter);
+        vm.expectRevert("Fee equals or exceeds amount");
+        localTokenMessenger.handleReceiveFinalizedMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            _finalityThresholdExecuted,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveFinalizedMessage_revertsIfFeeExecutedExceedsMaxFee(
+        bytes32 _mintRecipient,
+        bytes32 _burnMessageSender,
+        uint256 _maxFee,
+        uint256 _feeExecuted,
+        bytes calldata _hookData,
+        uint32 _finalityThresholdExecuted
+    ) public {
+        vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
+        vm.assume(_maxFee > 0);
+        vm.assume(_feeExecuted > _maxFee);
+        vm.assume(_feeExecuted < type(uint256).max - 1);
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _feeExecuted + 1, // amount
+            _burnMessageSender,
+            _maxFee,
+            _feeExecuted,
+            0,
+            _hookData
+        );
+
+        vm.prank(localMessageTransmitter);
+        vm.expectRevert("Fee exceeds max fee");
+        localTokenMessenger.handleReceiveFinalizedMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            _finalityThresholdExecuted,
+            _messageBody
+        );
+    }
+
     function testHandleReceiveFinalizedMessage_revertsIfNoLocalMinterIsSet(
         bytes32 _burnToken,
         bytes32 _mintRecipient,
@@ -1475,50 +1656,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         );
     }
 
-    function testHandleReceiveFinalizedMessage_revertsIfMintReverts(
-        bytes32 _burnToken,
-        bytes32 _mintRecipient,
-        uint256 _amount,
-        bytes32 _burnMessageSender,
-        uint256 _maxFee,
-        bytes calldata _hookData,
-        uint32 _finalityThresholdExecuted
-    ) public {
-        bytes memory _messageBody = BurnMessageV2._formatMessageForRelay(
-            localTokenMessenger.messageBodyVersion(),
-            _burnToken,
-            _mintRecipient,
-            _amount,
-            _burnMessageSender,
-            _maxFee,
-            _hookData
-        );
-
-        // Mock a failing call to TokenMinter mint()
-        bytes memory _call = abi.encodeWithSelector(
-            TokenMinter.mint.selector,
-            remoteDomain,
-            _burnToken,
-            _mintRecipient.toAddress(),
-            _amount
-        );
-        vm.mockCallRevert(
-            address(localTokenMinter),
-            _call,
-            "Testing: token minter failed"
-        );
-
-        vm.prank(localMessageTransmitter);
-        vm.expectRevert("Testing: token minter failed");
-        localTokenMessenger.handleReceiveFinalizedMessage(
-            remoteDomain,
-            remoteTokenMessengerAddr,
-            _finalityThresholdExecuted,
-            _messageBody
-        );
-    }
-
-    function testHandleReceiveFinalizedMessage_succeeds(
+    function testHandleReceiveFinalizedMessage_revertsIfMintRevertsWithZeroFees(
         bytes32 _mintRecipient,
         uint256 _amount,
         bytes32 _burnMessageSender,
@@ -1528,13 +1666,254 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
     ) public {
         vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
 
-        bytes memory _messageBody = BurnMessageV2._formatMessageForRelay(
+        bytes memory _messageBody = _formatBurnMessageForReceive(
             localTokenMessenger.messageBodyVersion(),
             remoteTokenAddr.toBytes32(),
             _mintRecipient,
             _amount,
             _burnMessageSender,
             _maxFee,
+            0, // 0 fee executed, meaning that we'll use the regular mint() on TokenMinter
+            0,
+            _hookData
+        );
+
+        // Mock a failing call to TokenMinter mint() for amount
+        bytes memory _call = abi.encodeWithSelector(
+            TokenMinter.mint.selector,
+            remoteDomain,
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient.toAddress(),
+            _amount
+        );
+        vm.mockCallRevert(
+            address(localTokenMinter),
+            _call,
+            "Testing: mint() failed"
+        );
+
+        vm.prank(localMessageTransmitter);
+        vm.expectRevert("Testing: mint() failed");
+        localTokenMessenger.handleReceiveFinalizedMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            _finalityThresholdExecuted,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveFinalizedMessage_revertsIfMintRevertsWithNonZeroFees(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _feeExecuted,
+        bytes calldata _hookData,
+        uint32 _finalityThresholdExecuted
+    ) public {
+        vm.assume(
+            _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
+        );
+        vm.assume(_amount > 0);
+        vm.assume(_feeExecuted > 0);
+        vm.assume(_feeExecuted < _amount);
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _feeExecuted, // maxFee
+            _feeExecuted, // non-zero fee, meaning we'll try to mint() on TokenMinterV2, passing in multiple recipients
+            0,
+            _hookData
+        );
+
+        // Mock a failing call to TokenMinter mint() for amount, less fees
+        bytes memory _call = abi.encodeWithSelector(
+            TokenMinterV2.mint.selector,
+            remoteDomain,
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient.toAddress(),
+            feeRecipient,
+            _amount - _feeExecuted,
+            _feeExecuted
+        );
+        vm.mockCallRevert(
+            address(localTokenMinter),
+            _call,
+            "Testing: mint() failed"
+        );
+
+        vm.prank(localMessageTransmitter);
+        vm.expectRevert("Testing: mint() failed");
+        localTokenMessenger.handleReceiveFinalizedMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            _finalityThresholdExecuted,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveFinalizedMessage_succeedsForZeroExpirationBlock(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _maxFee,
+        uint256 _feeExecuted,
+        bytes calldata _hookData
+    ) public {
+        vm.assume(_amount > 0);
+        vm.assume(_feeExecuted < _amount);
+        vm.assume(_maxFee >= _feeExecuted);
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _maxFee,
+            _feeExecuted,
+            0, // expiration
+            _hookData
+        );
+
+        _handleReceiveMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            FINALITY_THRESHOLD_FINALIZED,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveFinalizedMessage_succeedsForNonZeroExpirationBlock(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _feeExecuted,
+        uint256 _expirationBlock,
+        bytes calldata _hookData
+    ) public {
+        vm.assume(_amount > 0);
+        vm.assume(_feeExecuted < _amount);
+        vm.assume(_expirationBlock > 0);
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _feeExecuted, // maxFee
+            _feeExecuted,
+            _expirationBlock,
+            _hookData
+        );
+
+        // Jump to a block height lower than the expiration block
+        vm.roll(_expirationBlock - 1);
+
+        _handleReceiveMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            FINALITY_THRESHOLD_FINALIZED,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveFinalizedMessage_succeedsForZeroFee(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _maxFee,
+        uint256 _expirationBlock,
+        bytes calldata _hookData
+    ) public {
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _maxFee,
+            0, // feeExecuted
+            _expirationBlock,
+            _hookData
+        );
+
+        // Jump to a block height lower than the expiration block
+        vm.roll(_expirationBlock - 1);
+
+        _handleReceiveMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            FINALITY_THRESHOLD_FINALIZED,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveFinalizedMessage_succeedsForNonZeroFee(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _expirationBlock,
+        uint256 _feeExecuted,
+        bytes calldata _hookData
+    ) public {
+        vm.assume(_feeExecuted < _amount);
+        vm.assume(_feeExecuted > 0);
+        vm.assume(_expirationBlock > 0);
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _feeExecuted, // maxFee
+            _feeExecuted,
+            _expirationBlock,
+            _hookData
+        );
+
+        // Jump to a block height lower than the expiration block
+        vm.roll(_expirationBlock - 1);
+
+        _handleReceiveMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            FINALITY_THRESHOLD_FINALIZED,
+            _messageBody
+        );
+    }
+
+    function testHandleReceiveFinalizedMessage_succeeds(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _maxFee,
+        uint256 _expirationBlock,
+        bytes calldata _hookData,
+        uint32 _finalityThresholdExecuted
+    ) public {
+        vm.assume(_finalityThresholdExecuted >= FINALITY_THRESHOLD_FINALIZED);
+        vm.assume(_maxFee < _amount);
+        vm.assume(_expirationBlock > 0);
+
+        // Jump to a block height lower than the expiration block
+        vm.roll(_expirationBlock - 1);
+
+        uint256 _feeExecuted = _maxFee;
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _maxFee,
+            _feeExecuted,
+            _expirationBlock,
             _hookData
         );
 
@@ -2187,6 +2566,45 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             remoteDomain,
             remoteTokenMessengerAddr,
             FINALITY_THRESHOLD_CONFIRMED,
+            _messageBody
+        );
+    }
+
+    // Overall fuzz test for both finalized and unfinalized messages
+    function testHandleReceivedMessage_succeeds(
+        bytes32 _mintRecipient,
+        uint256 _amount,
+        bytes32 _burnMessageSender,
+        uint256 _expirationBlock,
+        uint256 _feeExecuted,
+        uint32 _finalityThresholdExecuted,
+        bytes calldata _hookData
+    ) public {
+        vm.assume(_feeExecuted < _amount);
+        vm.assume(_expirationBlock > 0);
+        vm.assume(
+            _finalityThresholdExecuted >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD
+        );
+
+        bytes memory _messageBody = _formatBurnMessageForReceive(
+            localTokenMessenger.messageBodyVersion(),
+            remoteTokenAddr.toBytes32(),
+            _mintRecipient,
+            _amount,
+            _burnMessageSender,
+            _feeExecuted, // maxFee
+            _feeExecuted,
+            _expirationBlock,
+            _hookData
+        );
+
+        // Jump to a block height lower than the expiration block
+        vm.roll(_expirationBlock - 1);
+
+        _handleReceiveMessage(
+            remoteDomain,
+            remoteTokenMessengerAddr,
+            _finalityThresholdExecuted,
             _messageBody
         );
     }
