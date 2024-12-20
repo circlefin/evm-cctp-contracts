@@ -1,5 +1,5 @@
 # Use fixed foundry image
-ARG FOUNDRY_VERSION=nightly-3fa02706ca732c994715ba42d923605692062375
+ARG FOUNDRY_VERSION=nightly-4a8c7d0e26a1befa526222e22737740f80a7f1c5
 
 FROM ghcr.io/foundry-rs/foundry:${FOUNDRY_VERSION}
 
