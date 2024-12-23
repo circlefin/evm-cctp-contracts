@@ -91,6 +91,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * @dev Reverts if `remoteDomains_` and `remoteTokenMessengers_` are unequal length
      * @dev Each remoteTokenMessenger address must correspond to the remote domain at the same
      * index in respective arrays.
+     * @dev Reverts if any `remoteTokenMessengers_` entry equals bytes32(0)
      * @param owner_ Owner address
      * @param rescuer_ Rescuer address
      * @param feeRecipient_ FeeRecipient address
@@ -109,7 +110,6 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         bytes32[] calldata remoteTokenMessengers_
     ) external initializer {
         require(owner_ != address(0), "Owner is the zero address");
-        require(tokenMinter_ != address(0), "TokenMinter is the zero address");
         require(
             remoteDomains_.length == remoteTokenMessengers_.length,
             "Invalid remote domain configuration"
@@ -121,18 +121,16 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         _updateDenylister(denylister_);
         _setFeeRecipient(feeRecipient_);
 
-        localMinter = ITokenMinterV2(tokenMinter_);
+        // Local minter configuration
+        _setLocalMinter(tokenMinter_);
 
-        // Remote messenger configuration
+        // Remote token messenger configuration
         uint256 _remoteDomainsLength = remoteDomains_.length;
         for (uint256 i; i < _remoteDomainsLength; ++i) {
-            require(
-                remoteTokenMessengers_[i] != bytes32(0),
-                "Invalid TokenMessenger"
+            _addRemoteTokenMessenger(
+                remoteDomains_[i],
+                remoteTokenMessengers_[i]
             );
-            uint32 _remoteDomain = remoteDomains_[i];
-            bytes32 _remoteTokenMessenger = remoteTokenMessengers_[i];
-            remoteTokenMessengers[_remoteDomain] = _remoteTokenMessenger;
         }
     }
 

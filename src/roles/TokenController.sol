@@ -121,7 +121,7 @@ abstract contract TokenController {
      * Note:
      * - A remote token (on a certain remote domain) can only map to one local token, but many remote tokens
      * can map to the same local token.
-     * - Setting a token pair does not enable the `localToken` (that requires calling setLocalTokenEnabledStatus.)
+     * - Setting a token pair does not enable the `localToken` for deposits (that requires calling setMaxBurnAmountPerMessage.)
      */
     function linkTokenPair(
         address localToken,
@@ -214,11 +214,10 @@ abstract contract TokenController {
      * @param remoteToken Remote token
      * @return Local token address
      */
-    function _getLocalToken(uint32 remoteDomain, bytes32 remoteToken)
-        internal
-        view
-        returns (address)
-    {
+    function _getLocalToken(
+        uint32 remoteDomain,
+        bytes32 remoteToken
+    ) internal view returns (address) {
         bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
             remoteDomain,
             remoteToken
@@ -233,11 +232,10 @@ abstract contract TokenController {
      * @param remoteToken Address of remote token as bytes32
      * @return keccak hash of packed remote domain and token
      */
-    function _hashRemoteDomainAndToken(uint32 remoteDomain, bytes32 remoteToken)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function _hashRemoteDomainAndToken(
+        uint32 remoteDomain,
+        bytes32 remoteToken
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(remoteDomain, remoteToken));
     }
 }

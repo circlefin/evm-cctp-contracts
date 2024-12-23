@@ -55,6 +55,11 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
 
     event Upgraded(address indexed implementation);
 
+    event DenylisterChanged(
+        address indexed oldDenylister,
+        address indexed newDenylister
+    );
+
     // Libraries
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
@@ -280,7 +285,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
             bytes32[] memory _remoteTokenMessengers
         ) = _defaultRemoteTokenMessengers();
 
-        vm.expectRevert("TokenMinter is the zero address");
+        vm.expectRevert("Zero address not allowed");
         TokenMessengerV2(address(_proxy)).initialize(
             owner,
             rescuer,
@@ -340,7 +345,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         _remoteDomains[0] = 1;
         _remoteDomains[1] = 2;
 
-        vm.expectRevert("Invalid TokenMessenger");
+        vm.expectRevert("bytes32(0) not allowed");
         TokenMessengerV2(address(_proxy)).initialize(
             owner,
             rescuer,
@@ -499,6 +504,49 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
                 remoteDomain
             ),
             remoteTokenMessengerAddr
+        );
+    }
+
+    function testInitialize_emitsEvents() public {
+        (
+            uint32[] memory _remoteDomains,
+            bytes32[] memory _remoteTokenMessengers
+        ) = _defaultRemoteTokenMessengers();
+
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(tokenMessengerImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        TokenMessengerV2 _tokenMessenger = TokenMessengerV2(address(_proxy));
+
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(address(0), owner);
+
+        vm.expectEmit(true, true, true, true);
+        emit RescuerChanged(rescuer);
+
+        vm.expectEmit(true, true, true, true);
+        emit DenylisterChanged(address(0), denylister);
+
+        vm.expectEmit(true, true, true, true);
+        emit FeeRecipientSet(feeRecipient);
+
+        vm.expectEmit(true, true, true, true);
+        emit LocalMinterAdded(address(localTokenMinter));
+
+        vm.expectEmit(true, true, true, true);
+        emit RemoteTokenMessengerAdded(remoteDomain, remoteTokenMessengerAddr);
+
+        _tokenMessenger.initialize(
+            owner,
+            rescuer,
+            feeRecipient,
+            denylister,
+            address(localTokenMinter),
+            _remoteDomains,
+            _remoteTokenMessengers
         );
     }
 

@@ -140,15 +140,7 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
         uint32 domain,
         bytes32 tokenMessenger
     ) external onlyOwner {
-        require(tokenMessenger != bytes32(0), "bytes32(0) not allowed");
-
-        require(
-            remoteTokenMessengers[domain] == bytes32(0),
-            "TokenMessenger already set"
-        );
-
-        remoteTokenMessengers[domain] = tokenMessenger;
-        emit RemoteTokenMessengerAdded(domain, tokenMessenger);
+        _addRemoteTokenMessenger(domain, tokenMessenger);
     }
 
     /**
@@ -174,16 +166,7 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
      * @param newLocalMinter The address of the minter on the local domain.
      */
     function addLocalMinter(address newLocalMinter) external onlyOwner {
-        require(newLocalMinter != address(0), "Zero address not allowed");
-
-        require(
-            address(localMinter) == address(0),
-            "Local minter is already set."
-        );
-
-        localMinter = ITokenMinterV2(newLocalMinter);
-
-        emit LocalMinterAdded(newLocalMinter);
+        _setLocalMinter(newLocalMinter);
     }
 
     /**
@@ -260,7 +243,7 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
      * @return true if message sender is the registered local message transmitter
      */
     function _isLocalMessageTransmitter() internal view returns (bool) {
-        return msg.sender == address(localMessageTransmitter);
+        return msg.sender == localMessageTransmitter;
     }
 
     /**
@@ -332,5 +315,44 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
         require(_feeRecipient != address(0), "Zero address not allowed");
         feeRecipient = _feeRecipient;
         emit FeeRecipientSet(_feeRecipient);
+    }
+
+    /**
+     * @notice Sets the local minter for the local domain.
+     * @dev Reverts if a minter is already set for the local domain.
+     * @param _newLocalMinter The address of the minter on the local domain.
+     */
+    function _setLocalMinter(address _newLocalMinter) internal {
+        require(_newLocalMinter != address(0), "Zero address not allowed");
+
+        require(
+            address(localMinter) == address(0),
+            "Local minter is already set."
+        );
+
+        localMinter = ITokenMinterV2(_newLocalMinter);
+
+        emit LocalMinterAdded(_newLocalMinter);
+    }
+
+    /**
+     * @notice Add the TokenMessenger for a remote domain.
+     * @dev Reverts if there is already a TokenMessenger set for domain.
+     * @param _domain Domain of remote TokenMessenger.
+     * @param _tokenMessenger Address of remote TokenMessenger as bytes32.
+     */
+    function _addRemoteTokenMessenger(
+        uint32 _domain,
+        bytes32 _tokenMessenger
+    ) internal {
+        require(_tokenMessenger != bytes32(0), "bytes32(0) not allowed");
+
+        require(
+            remoteTokenMessengers[_domain] == bytes32(0),
+            "TokenMessenger already set"
+        );
+
+        remoteTokenMessengers[_domain] = _tokenMessenger;
+        emit RemoteTokenMessengerAdded(_domain, _tokenMessenger);
     }
 }

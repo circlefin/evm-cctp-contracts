@@ -125,13 +125,7 @@ contract Attestable is Ownable2Step {
     function updateAttesterManager(
         address newAttesterManager
     ) external onlyOwner {
-        require(
-            newAttesterManager != address(0),
-            "Invalid attester manager address"
-        );
-        address _oldAttesterManager = _attesterManager;
         _setAttesterManager(newAttesterManager);
-        emit AttesterManagerUpdated(_oldAttesterManager, newAttesterManager);
     }
 
     /**
@@ -167,25 +161,7 @@ contract Attestable is Ownable2Step {
     function setSignatureThreshold(
         uint256 newSignatureThreshold
     ) external onlyAttesterManager {
-        require(newSignatureThreshold != 0, "Invalid signature threshold");
-
-        // New signature threshold cannot exceed the number of enabled attesters
-        require(
-            newSignatureThreshold <= enabledAttesters.length(),
-            "New signature threshold too high"
-        );
-
-        require(
-            newSignatureThreshold != signatureThreshold,
-            "Signature threshold already set"
-        );
-
-        uint256 _oldSignatureThreshold = signatureThreshold;
-        signatureThreshold = newSignatureThreshold;
-        emit SignatureThresholdUpdated(
-            _oldSignatureThreshold,
-            signatureThreshold
-        );
+        _setSignatureThreshold(newSignatureThreshold);
     }
 
     /**
@@ -208,10 +184,18 @@ contract Attestable is Ownable2Step {
     // ============ Internal Utils ============
     /**
      * @dev Sets a new attester manager address
+     * @dev Emits an {AttesterManagerUpdated} event
+     * @dev Reverts if _newAttesterManager is the zero address
      * @param _newAttesterManager attester manager address to set
      */
     function _setAttesterManager(address _newAttesterManager) internal {
+        require(
+            _newAttesterManager != address(0),
+            "Invalid attester manager address"
+        );
+        address _oldAttesterManager = _attesterManager;
         _attesterManager = _newAttesterManager;
+        emit AttesterManagerUpdated(_oldAttesterManager, _newAttesterManager);
     }
 
     /**
@@ -289,5 +273,34 @@ contract Attestable is Ownable2Step {
         bytes memory _signature
     ) internal pure returns (address) {
         return (ECDSA.recover(_digest, _signature));
+    }
+
+    /**
+     * @notice Sets the threshold of signatures required to attest to a message.
+     * (This is the m in m/n multisig.)
+     * @dev New signature threshold must be nonzero, and must not exceed number
+     * of enabled attesters.
+     * @param _newSignatureThreshold new signature threshold
+     */
+    function _setSignatureThreshold(uint256 _newSignatureThreshold) internal {
+        require(_newSignatureThreshold != 0, "Invalid signature threshold");
+
+        // New signature threshold cannot exceed the number of enabled attesters
+        require(
+            _newSignatureThreshold <= enabledAttesters.length(),
+            "New signature threshold too high"
+        );
+
+        require(
+            _newSignatureThreshold != signatureThreshold,
+            "Signature threshold already set"
+        );
+
+        uint256 _oldSignatureThreshold = signatureThreshold;
+        signatureThreshold = _newSignatureThreshold;
+        emit SignatureThresholdUpdated(
+            _oldSignatureThreshold,
+            _newSignatureThreshold
+        );
     }
 }
