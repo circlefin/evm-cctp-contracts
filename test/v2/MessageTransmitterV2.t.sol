@@ -45,6 +45,18 @@ contract MessageTransmitterV2Test is TestUtils {
 
     event Upgraded(address indexed implementation);
 
+    event AttesterEnabled(address indexed attester);
+
+    event AttesterManagerUpdated(
+        address indexed previousAttesterManager,
+        address indexed newAttesterManager
+    );
+
+    event SignatureThresholdUpdated(
+        uint256 oldSignatureThreshold,
+        uint256 newSignatureThreshold
+    );
+
     // ============ Libraries ============
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
@@ -208,7 +220,7 @@ contract MessageTransmitterV2Test is TestUtils {
         address[] memory _attesters = new address[](1);
         _attesters[0] = attester;
 
-        vm.expectRevert("Signature threshold is zero");
+        vm.expectRevert("Invalid signature threshold");
         MessageTransmitterV2(address(_proxy)).initialize(
             owner,
             pauser,
@@ -289,6 +301,59 @@ contract MessageTransmitterV2Test is TestUtils {
 
         MessageTransmitterV2 _messageTransmitter = MessageTransmitterV2(
             address(_proxy)
+        );
+        assertEq(_messageTransmitter.owner(), owner);
+        assertEq(_messageTransmitter.pauser(), pauser);
+        assertEq(_messageTransmitter.rescuer(), rescuer);
+        assertEq(_messageTransmitter.attesterManager(), attesterManager);
+        assertTrue(_messageTransmitter.isEnabledAttester(attester));
+        assertEq(_messageTransmitter.maxMessageBodySize(), maxMessageBodySize);
+        assertEq(_messageTransmitter.signatureThreshold(), 1);
+    }
+
+    function testInitialize_emitsEvents() public {
+        // Deploy proxy and initialize it atomically
+        address[] memory _attesters = new address[](1);
+        _attesters[0] = attester;
+
+        AdminUpgradableProxy _proxy = new AdminUpgradableProxy(
+            address(messageTransmitterImpl),
+            proxyAdmin,
+            bytes("")
+        );
+
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(address(0), owner);
+
+        vm.expectEmit(true, true, true, true);
+        emit RescuerChanged(rescuer);
+
+        vm.expectEmit(true, true, true, true);
+        emit PauserChanged(pauser);
+
+        vm.expectEmit(true, true, true, true);
+        emit AttesterManagerUpdated(address(0), attesterManager);
+
+        vm.expectEmit(true, true, true, true);
+        emit MaxMessageBodySizeUpdated(maxMessageBodySize);
+
+        vm.expectEmit(true, true, true, true);
+        emit AttesterEnabled(attester);
+
+        vm.expectEmit(true, true, true, true);
+        emit SignatureThresholdUpdated(0, 1);
+
+        MessageTransmitterV2 _messageTransmitter = MessageTransmitterV2(
+            address(_proxy)
+        );
+        _messageTransmitter.initialize(
+            owner,
+            pauser,
+            rescuer,
+            attesterManager,
+            _attesters,
+            1,
+            maxMessageBodySize
         );
         assertEq(_messageTransmitter.owner(), owner);
         assertEq(_messageTransmitter.pauser(), pauser);
@@ -426,7 +491,10 @@ contract MessageTransmitterV2Test is TestUtils {
     }
 
     function testInitialize_setsZeroNonceAsUsed() public view {
-        assertEq(messageTransmitter.usedNonces(bytes32(0)), 1);
+        assertEq(
+            messageTransmitter.usedNonces(bytes32(0)),
+            messageTransmitter.NONCE_USED()
+        );
     }
 
     function testSendMessage_revertsWhenPaused(
@@ -1463,7 +1531,10 @@ contract MessageTransmitterV2Test is TestUtils {
         vm.stopPrank();
 
         // Check that the nonce is now used
-        assertEq(messageTransmitter.usedNonces(_msg._getNonce()), 1);
+        assertEq(
+            messageTransmitter.usedNonces(_msg._getNonce()),
+            messageTransmitter.NONCE_USED()
+        );
     }
 
     // setup second and third attester (first set in setUp()); set sig threshold at 2

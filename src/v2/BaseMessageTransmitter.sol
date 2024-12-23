@@ -39,6 +39,10 @@ contract BaseMessageTransmitter is
      */
     event MaxMessageBodySizeUpdated(uint256 newMaxMessageBodySize);
 
+    // ============ Constants ============
+    // A constant value indicating that a nonce has been used
+    uint256 public constant NONCE_USED = 1;
+
     // ============ State Variables ============
     // Domain of chain on which the contract is deployed
     uint32 public immutable localDomain;
@@ -73,8 +77,7 @@ contract BaseMessageTransmitter is
     function setMaxMessageBodySize(
         uint256 newMaxMessageBodySize
     ) external onlyOwner {
-        maxMessageBodySize = newMaxMessageBodySize;
-        emit MaxMessageBodySizeUpdated(maxMessageBodySize);
+        _setMaxMessageBodySize(newMaxMessageBodySize);
     }
 
     /**
@@ -82,5 +85,15 @@ contract BaseMessageTransmitter is
      */
     function initializedVersion() external view returns (uint64) {
         return _getInitializedVersion();
+    }
+
+    // ============ Internal Utils ============
+    /**
+     * @notice Sets the max message body size
+     * @param _newMaxMessageBodySize new max message body size, in bytes
+     */
+    function _setMaxMessageBodySize(uint256 _newMaxMessageBodySize) internal {
+        maxMessageBodySize = _newMaxMessageBodySize;
+        emit MaxMessageBodySizeUpdated(maxMessageBodySize);
     }
 }

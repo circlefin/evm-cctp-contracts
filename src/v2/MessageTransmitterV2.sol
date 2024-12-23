@@ -78,8 +78,8 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
     // ============ Initializers ============
     /**
      * @notice Initializes the contract
-     * @dev Addresses must be non-zero
-     * @dev Signature threshold must be greater than zero
+     * @dev Owner, pauser, rescuer, attesterManager, and attesters must be non-zero.
+     * @dev Signature threshold must be non-zero, but not exceed the number of enabled attesters
      * @param owner_ Owner address
      * @param pauser_ Pauser address
      * @param rescuer_ Rescuer address
@@ -102,7 +102,6 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
             attesterManager_ != address(0),
             "AttesterManager is the zero address"
         );
-        require(signatureThreshold_ > 0, "Signature threshold is zero");
         require(
             signatureThreshold_ <= attesters_.length,
             "Signature threshold exceeds attesters"
@@ -115,9 +114,8 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
         _updatePauser(pauser_);
         _setAttesterManager(attesterManager_);
 
-        // Settings
-        signatureThreshold = signatureThreshold_;
-        maxMessageBodySize = maxMessageBodySize_;
+        // Max message body size
+        _setMaxMessageBodySize(maxMessageBodySize_);
 
         // Attester configuration
         uint256 _attestersLength = attesters_.length;
@@ -125,8 +123,11 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
             _enableAttester(attesters_[i]);
         }
 
+        // Signature threshold
+        _setSignatureThreshold(signatureThreshold_);
+
         // Claim 0-nonce
-        usedNonces[bytes32(0)] = 1;
+        usedNonces[bytes32(0)] = NONCE_USED;
     }
 
     // ============ External Functions  ============
@@ -217,7 +218,7 @@ contract MessageTransmitterV2 is IMessageTransmitterV2, BaseMessageTransmitter {
         ) = _validateReceivedMessage(message, attestation);
 
         // Mark nonce as used
-        usedNonces[_nonce] = 1;
+        usedNonces[_nonce] = NONCE_USED;
 
         // Handle receive message
         if (_finalityThresholdExecuted < FINALITY_THRESHOLD_FINALIZED) {
