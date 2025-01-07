@@ -152,7 +152,7 @@ library BurnMessageV2 {
         require(_message.isValid(), "Malformed message");
         require(
             _message.len() >= HOOK_DATA_INDEX,
-            "Invalid message: too short"
+            "Invalid burn message: too short"
         );
     }
 }

@@ -24,26 +24,32 @@ import {MessageV2} from "../../src/messages/v2/MessageV2.sol";
 import {BurnMessageV2} from "../../src/messages/v2/BurnMessageV2.sol";
 import {MockHookTarget} from "../mocks/v2/MockHookTarget.sol";
 import {Test} from "forge-std/Test.sol";
+import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 
 contract CCTPHookWrapperTest is Test {
+    // Libraries
+
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+
     // Test events
     event HookReceived(uint256 paramOne, uint256 paramTwo);
 
     // Test constants
 
-    uint32 messageVersion = 1;
-    uint32 messageBodyVersion = 1;
+    uint32 v2MessageVersion = 1;
+    uint32 v2MessageBodyVersion = 1;
+
+    address wrapperOwner = address(123);
 
     address localMessageTransmitter = address(10);
     MockHookTarget hookTarget;
     CCTPHookWrapper wrapper;
 
     function setUp() public {
-        wrapper = new CCTPHookWrapper(
-            localMessageTransmitter,
-            messageVersion,
-            messageBodyVersion
-        );
+        vm.prank(wrapperOwner);
+        wrapper = new CCTPHookWrapper(localMessageTransmitter);
+
         hookTarget = new MockHookTarget();
     }
 
@@ -51,81 +57,116 @@ contract CCTPHookWrapperTest is Test {
 
     function testInitialization__revertsIfMessageTransmitterIsZero() public {
         vm.expectRevert("Message transmitter is the zero address");
-        new CCTPHookWrapper(address(0), messageVersion, messageBodyVersion);
+        new CCTPHookWrapper(address(0));
     }
 
     function testInitialization__setsTheMessageTransmitter(
         address _messageTransmitter
     ) public {
         vm.assume(_messageTransmitter != address(0));
-        CCTPHookWrapper _wrapper = new CCTPHookWrapper(
-            _messageTransmitter,
-            messageVersion,
-            messageBodyVersion
-        );
+        CCTPHookWrapper _wrapper = new CCTPHookWrapper(_messageTransmitter);
         assertEq(address(_wrapper.messageTransmitter()), _messageTransmitter);
     }
 
-    function testInitialization__setsTheMessageVersion(
-        uint32 _messageVersion
-    ) public {
-        CCTPHookWrapper _wrapper = new CCTPHookWrapper(
-            localMessageTransmitter,
-            _messageVersion,
-            messageBodyVersion
-        );
+    function testInitialization__usesTheV2MessageVersion() public view {
         assertEq(
-            uint256(address(_wrapper.supportedMessageVersion())),
-            uint256(_messageVersion)
+            uint256(address(wrapper.supportedMessageVersion())),
+            uint256(v2MessageVersion)
         );
     }
 
-    function testInitialization__setsTheMessageBodyVersion(
-        uint32 _messageBodyVersion
-    ) public {
-        CCTPHookWrapper _wrapper = new CCTPHookWrapper(
-            localMessageTransmitter,
-            messageVersion,
-            _messageBodyVersion
-        );
+    function testInitialization__usesTheV2MessageBodyVersion() public view {
         assertEq(
-            uint256(address(_wrapper.supportedMessageBodyVersion())),
-            uint256(_messageBodyVersion)
+            uint256(address(wrapper.supportedMessageBodyVersion())),
+            uint256(v2MessageBodyVersion)
         );
+    }
+
+    function testRelay__revertsIfNotCalledByOwner(
+        address _randomAddress,
+        bytes calldata _randomBytes
+    ) public {
+        vm.assume(_randomAddress != wrapperOwner);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(_randomAddress);
+        wrapper.relay(_randomBytes, bytes(""));
     }
 
     function testRelay__revertsIfMessageFormatVersionIsInvalid(
         uint32 _messageVersion
     ) public {
-        vm.assume(_messageVersion != messageVersion);
+        vm.assume(_messageVersion != v2MessageVersion);
 
         vm.expectRevert("Invalid message version");
         bytes memory _message = _createMessage(
             _messageVersion,
-            messageBodyVersion,
+            v2MessageBodyVersion,
             bytes("")
         );
+
+        vm.prank(wrapperOwner);
         wrapper.relay(_message, bytes(""));
     }
 
     function testRelay__revertsIfMessageBodyVersionIsInvalid(
         uint32 _messageBodyVersion
     ) public {
-        vm.assume(_messageBodyVersion != messageBodyVersion);
+        vm.assume(_messageBodyVersion != v2MessageBodyVersion);
 
         vm.expectRevert("Invalid message body version");
         bytes memory _message = _createMessage(
-            messageVersion,
+            v2MessageVersion,
             _messageBodyVersion,
             bytes("")
         );
+
+        vm.prank(wrapperOwner);
         wrapper.relay(_message, bytes(""));
+    }
+
+    function testRelay__revertsIfMessageValidationFails() public {
+        bytes memory _message = _createMessage(
+            v2MessageVersion,
+            v2MessageBodyVersion,
+            bytes("")
+        );
+
+        // Slice the message to make it fail validation
+        bytes memory _truncatedMessage = _message
+            .ref(0)
+            .slice(0, 147, 0)
+            .clone(); // See: MessageV2#MESSAGE_BODY_INDEX
+
+        vm.expectRevert("Invalid message: too short");
+
+        vm.prank(wrapperOwner);
+        wrapper.relay(_truncatedMessage, bytes(""));
+    }
+
+    function testRelay__revertsIfMessageBodyValidationFails() public {
+        bytes memory _message = _createMessage(
+            v2MessageVersion,
+            v2MessageBodyVersion,
+            bytes("")
+        );
+
+        // Slice the message to make it fail validation
+        bytes memory _truncatedMessage = _message
+            .ref(0)
+            .slice(0, 375, 0)
+            .clone(); // See: BurnMessageV2#HOOK_DATA_INDEX (148 + 228 = 376)
+
+        vm.expectRevert("Invalid burn message: too short");
+
+        vm.prank(wrapperOwner);
+        wrapper.relay(_truncatedMessage, bytes(""));
     }
 
     function testRelay__revertsIfMessageTransmitterCallReverts() public {
         bytes memory _message = _createMessage(
-            messageVersion,
-            messageBodyVersion,
+            v2MessageVersion,
+            v2MessageBodyVersion,
             bytes("")
         );
 
@@ -137,17 +178,19 @@ contract CCTPHookWrapperTest is Test {
                 _message,
                 bytes("")
             ),
-            "Testing: token minter failed"
+            "Testing: message transmitter failed"
         );
 
         vm.expectRevert();
+
+        vm.prank(wrapperOwner);
         wrapper.relay(_message, bytes(""));
     }
 
     function testRelay__revertsIfMessageTransmitterReturnsFalse() public {
         bytes memory _message = _createMessage(
-            messageVersion,
-            messageBodyVersion,
+            v2MessageVersion,
+            v2MessageBodyVersion,
             bytes("")
         );
 
@@ -173,13 +216,15 @@ contract CCTPHookWrapperTest is Test {
         );
 
         vm.expectRevert("Receive message failed");
+
+        vm.prank(wrapperOwner);
         wrapper.relay(_message, bytes(""));
     }
 
     function testRelay__succeedsWithNoHook() public {
         bytes memory _message = _createMessage(
-            messageVersion,
-            messageBodyVersion,
+            v2MessageVersion,
+            v2MessageBodyVersion,
             bytes("")
         );
 
@@ -193,6 +238,7 @@ contract CCTPHookWrapperTest is Test {
             abi.encode(true)
         );
 
+        vm.prank(wrapperOwner);
         (
             bool _relaySuccess,
             bool _hookSuccess,
@@ -210,8 +256,8 @@ contract CCTPHookWrapperTest is Test {
             MockHookTarget.failingHook.selector
         );
         bytes memory _message = _createMessage(
-            messageVersion,
-            messageBodyVersion,
+            v2MessageVersion,
+            v2MessageBodyVersion,
             abi.encodePacked(address(hookTarget), _failingHookCalldata)
         );
 
@@ -227,6 +273,7 @@ contract CCTPHookWrapperTest is Test {
         );
 
         // Call wrapper
+        vm.prank(wrapperOwner);
         (
             bool _relaySuccess,
             bool _hookSuccess,
@@ -238,12 +285,48 @@ contract CCTPHookWrapperTest is Test {
         assertEq(_getRevertMsg(_returnData), "Hook failure");
     }
 
+    function testRelay__succeedsAndIgnoresHooksLessThanRequiredLength(
+        bytes calldata randomBytes
+    ) public {
+        vm.assume(randomBytes.length > 20);
+        // Prepare a message with hookData less than required length (20 bytes)
+        bytes memory _shortCallData = randomBytes[:19];
+        bytes memory _message = _createMessage(
+            v2MessageVersion,
+            v2MessageBodyVersion,
+            _shortCallData
+        );
+
+        // Mock successful call to MessageTransmitter
+        vm.mockCall(
+            localMessageTransmitter,
+            abi.encodeWithSelector(
+                IReceiver.receiveMessage.selector,
+                _message,
+                bytes("")
+            ),
+            abi.encode(true)
+        );
+
+        // Call wrapper
+        vm.prank(wrapperOwner);
+        (
+            bool _relaySuccess,
+            bool _hookSuccess,
+            bytes memory _returnData
+        ) = wrapper.relay(_message, bytes(""));
+
+        assertTrue(_relaySuccess);
+        assertFalse(_hookSuccess);
+        assertEq(_returnData.length, 0);
+    }
+
     function testRelay__succeedsWithCallToEOAHookTarget(
         bytes calldata _hookCalldata
     ) public {
         bytes memory _message = _createMessage(
-            messageVersion,
-            messageBodyVersion,
+            v2MessageVersion,
+            v2MessageBodyVersion,
             abi.encodePacked(address(12345), _hookCalldata)
         );
 
@@ -259,6 +342,7 @@ contract CCTPHookWrapperTest is Test {
         );
 
         // Call wrapper
+        vm.prank(wrapperOwner);
         (
             bool _relaySuccess,
             bool _hookSuccess,
@@ -271,7 +355,7 @@ contract CCTPHookWrapperTest is Test {
     }
 
     function testRelay__succeedsWithSucceedingHook() public {
-        // Prepare a message with hookCalldata that will fail
+        // Prepare a message with hookCalldata that will succeed
         uint256 _expectedReturnData = 12;
         bytes memory _succeedingHookCallData = abi.encodeWithSelector(
             MockHookTarget.succeedingHook.selector,
@@ -279,8 +363,8 @@ contract CCTPHookWrapperTest is Test {
             7
         );
         bytes memory _message = _createMessage(
-            messageVersion,
-            messageBodyVersion,
+            v2MessageVersion,
+            v2MessageBodyVersion,
             abi.encodePacked(address(hookTarget), _succeedingHookCallData)
         );
 
@@ -299,6 +383,7 @@ contract CCTPHookWrapperTest is Test {
         emit HookReceived(5, 7);
 
         // Call wrapper
+        vm.prank(wrapperOwner);
         (
             bool _relaySuccess,
             bool _hookSuccess,
@@ -319,7 +404,7 @@ contract CCTPHookWrapperTest is Test {
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
-                _messageVersion,
+                _messageVersion, // messageVersion
                 uint32(0), // sourceDomain
                 uint32(0), // destinationDomain
                 bytes32(0), // nonce
@@ -338,15 +423,15 @@ contract CCTPHookWrapperTest is Test {
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
-                _burnMessageVersion,
-                bytes32(0),
-                bytes32(0),
-                uint256(0),
-                bytes32(0),
-                uint256(0),
-                uint256(0),
-                uint256(0),
-                _hookData
+                _burnMessageVersion, // messageBodyVersion
+                bytes32(0), // burnToken
+                bytes32(0), // mintRecipient
+                uint256(0), // amount
+                bytes32(0), // messageSender
+                uint256(0), // maxFee
+                uint256(0), // feeExecuted
+                uint256(0), // expirationBlock
+                _hookData // hookData
             );
     }
 

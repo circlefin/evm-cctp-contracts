@@ -97,7 +97,7 @@ contract BurnMessageV2Test is Test {
         // Lop off the hookData bytes, and then one more
         _m = _m.slice(0, _m.len() - _hookData.length - 1, 0);
 
-        vm.expectRevert("Invalid message: too short");
+        vm.expectRevert("Invalid burn message: too short");
         _m._validateBurnMessageFormat();
     }
 
