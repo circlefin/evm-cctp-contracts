@@ -21,23 +21,24 @@ import {IReceiverV2} from "../interfaces/v2/IReceiverV2.sol";
 import {TypedMemView} from "@memview-sol/contracts/TypedMemView.sol";
 import {MessageV2} from "../messages/v2/MessageV2.sol";
 import {BurnMessageV2} from "../messages/v2/BurnMessageV2.sol";
+import {Ownable2Step} from "../roles/Ownable2Step.sol";
 
 /**
  * @title CCTPHookWrapper
  * @notice A sample wrapper around CCTP v2 that relays a message and
  * optionally executes the hook contained in the Burn Message.
- * @dev This is intended to only work with CCTP v2 message formats and interfaces.
+ * @dev Intended to only work with CCTP v2 message formats and interfaces.
  */
-contract CCTPHookWrapper {
-    // ============ State Variables ============
+contract CCTPHookWrapper is Ownable2Step {
+    // ============ Constants ============
     // Address of the local message transmitter
     IReceiverV2 public immutable messageTransmitter;
 
     // The supported Message Format version
-    uint32 public immutable supportedMessageVersion;
+    uint32 public constant supportedMessageVersion = 1;
 
     // The supported Message Body version
-    uint32 public immutable supportedMessageBodyVersion;
+    uint32 public constant supportedMessageBodyVersion = 1;
 
     // Byte-length of an address
     uint256 internal constant ADDRESS_BYTE_LENGTH = 20;
@@ -46,34 +47,17 @@ contract CCTPHookWrapper {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
 
-    // ============ Modifiers ============
-    /**
-     * @notice A modifier to enable access control
-     * @dev Can be overridden to customize the behavior
-     */
-    modifier onlyAllowed() virtual {
-        _;
-    }
-
     // ============ Constructor ============
     /**
      * @param _messageTransmitter The address of the local message transmitter
-     * @param _messageVersion The required CCTP message version. For CCTP v2, this is 1.
-     * @param _messageBodyVersion The required message body (Burn Message) version. For CCTP v2, this is 1.
      */
-    constructor(
-        address _messageTransmitter,
-        uint32 _messageVersion,
-        uint32 _messageBodyVersion
-    ) {
+    constructor(address _messageTransmitter) Ownable2Step() {
         require(
             _messageTransmitter != address(0),
             "Message transmitter is the zero address"
         );
 
         messageTransmitter = IReceiverV2(_messageTransmitter);
-        supportedMessageVersion = _messageVersion;
-        supportedMessageBodyVersion = _messageBodyVersion;
     }
 
     // ============ External Functions  ============
@@ -89,19 +73,12 @@ contract CCTPHookWrapper {
      * The hook handler will call the target address with the hookCallData, even if hookCallData
      * is zero-length. Additional data about the burn message is not passed in this call.
      *
-     * WARNING: this implementation does NOT enforce atomicity in the hook call. If atomicity is
-     * required, a new wrapper contract can be created, possibly by overriding this behavior in `_handleHook`,
-     * or by introducing a different format for the hook data that includes more information about
-     * the desired handling.
+     * @dev Reverts if not called by the Owner. Due to the lack of atomicity with the hook call, permissionless relay of messages containing hooks via
+     * an implementation like this contract should be carefully considered, as a malicious caller could use a low gas attack to consume
+     * the message's nonce without executing the hook.
      *
-     * WARNING: in a permissionless context, it is important not to view this wrapper implementation as a trusted
-     * caller of a hook, as others can craft messages containing hooks that look identical, that are
-     * similarly executed from this wrapper, either by setting this contract as the destination caller,
-     * or by setting the destination caller to be bytes32(0). Alternate implementations may extract more information
-     * from the burn message, such as the mintRecipient or the amount, to include in the hook call to allow recipients
-     * to further filter their receiving actions.
-     *
-     * WARNING: re-entrant behavior is allowed in this implementation. Relay() can be overridden to disable this.
+     * WARNING: this implementation does NOT enforce atomicity in the hook call. This is to prevent a failed hook call
+     * from preventing relay of a message if this contract is set as the destinationCaller.
      *
      * @dev Reverts if the receiveMessage() call to the local message transmitter reverts, or returns false.
      * @param message The message to relay, as bytes
@@ -118,73 +95,66 @@ contract CCTPHookWrapper {
     )
         external
         virtual
-        onlyAllowed
         returns (
             bool relaySuccess,
             bool hookSuccess,
             bytes memory hookReturnData
         )
     {
+        _checkOwner();
+
+        // Validate message
         bytes29 _msg = message.ref(0);
-        bytes29 _msgBody = MessageV2._getMessageBody(_msg);
-
-        // Perform message validation
-        _validateMessage(_msg, _msgBody);
-
-        // Relay message
+        MessageV2._validateMessageFormat(_msg);
         require(
-            messageTransmitter.receiveMessage(message, attestation),
-            "Receive message failed"
+            MessageV2._getVersion(_msg) == supportedMessageVersion,
+            "Invalid message version"
         );
 
-        relaySuccess = true;
+        // Validate burn message
+        bytes29 _msgBody = MessageV2._getMessageBody(_msg);
+        BurnMessageV2._validateBurnMessageFormat(_msgBody);
+        require(
+            BurnMessageV2._getVersion(_msgBody) == supportedMessageBodyVersion,
+            "Invalid message body version"
+        );
 
-        // Handle hook
+        // Relay message
+        relaySuccess = messageTransmitter.receiveMessage(message, attestation);
+        require(relaySuccess, "Receive message failed");
+
+        // Handle hook if present
         bytes29 _hookData = BurnMessageV2._getHookData(_msgBody);
-        (hookSuccess, hookReturnData) = _handleHook(_hookData);
+        if (_hookData.isValid()) {
+            uint256 _hookDataLength = _hookData.len();
+            if (_hookDataLength >= ADDRESS_BYTE_LENGTH) {
+                address _target = _hookData.indexAddress(0);
+                bytes memory _hookCalldata = _hookData
+                    .postfix(_hookDataLength - ADDRESS_BYTE_LENGTH, 0)
+                    .clone();
+
+                (hookSuccess, hookReturnData) = _executeHook(
+                    _target,
+                    _hookCalldata
+                );
+            }
+        }
     }
 
     // ============ Internal Functions  ============
     /**
-     * @notice Validates a message and its message body
-     * @dev Can be overridden to customize the validation
-     * @dev Reverts if the message format version or message body version
-     * do not match the supported versions.
-     */
-    function _validateMessage(
-        bytes29 _message,
-        bytes29 _messageBody
-    ) internal virtual {
-        require(
-            MessageV2._getVersion(_message) == supportedMessageVersion,
-            "Invalid message version"
-        );
-        require(
-            BurnMessageV2._getVersion(_messageBody) ==
-                supportedMessageBodyVersion,
-            "Invalid message body version"
-        );
-    }
-
-    /**
      * @notice Handles hook data by executing a call to a target address
-     * @dev Can be overridden to customize the execution behavior
-     * @param _hookData The hook data contained in the Burn Message
+     * @dev Can be overridden to customize execution behavior
+     * @dev Does not revert if the CALL to the hook target fails
+     * @param _hookTarget The target address of the hook
+     * @param _hookCalldata The hook calldata
      * @return _success True if the call to the encoded hook target succeeds
      * @return _returnData The data returned from the call to the hook target
      */
-    function _handleHook(
-        bytes29 _hookData
+    function _executeHook(
+        address _hookTarget,
+        bytes memory _hookCalldata
     ) internal virtual returns (bool _success, bytes memory _returnData) {
-        uint256 _hookDataLength = _hookData.len();
-
-        if (_hookDataLength >= ADDRESS_BYTE_LENGTH) {
-            address _target = _hookData.indexAddress(0);
-            bytes memory _hookCalldata = _hookData
-                .postfix(_hookDataLength - ADDRESS_BYTE_LENGTH, 0)
-                .clone();
-
-            (_success, _returnData) = address(_target).call(_hookCalldata);
-        }
+        (_success, _returnData) = address(_hookTarget).call(_hookCalldata);
     }
 }

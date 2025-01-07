@@ -1445,7 +1445,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         vm.assume(_messageBody.length < 228);
 
         vm.prank(localMessageTransmitter);
-        vm.expectRevert("Invalid message: too short");
+        vm.expectRevert("Invalid burn message: too short");
         localTokenMessenger.handleReceiveFinalizedMessage(
             remoteDomain,
             remoteTokenMessengerAddr,
@@ -2073,7 +2073,7 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         );
 
         vm.prank(localMessageTransmitter);
-        vm.expectRevert("Invalid message: too short");
+        vm.expectRevert("Invalid burn message: too short");
         localTokenMessenger.handleReceiveUnfinalizedMessage(
             remoteDomain,
             remoteTokenMessengerAddr,
