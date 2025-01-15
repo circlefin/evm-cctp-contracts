@@ -105,9 +105,13 @@ contract DeployProxiesV2Test is ScriptV2TestUtils {
         // remote token messengers
         for (uint256 i = 0; i < remoteDomains.length; i++) {
             uint32 remoteDomain = remoteDomains[i];
+            bytes32 remoteTokenMessengerAddress = bytes32(uint256(uint160(address(tokenMessengerV2))));
+            if (remoteTokenMessengerV2FromEnv) {
+                remoteTokenMessengerAddress = bytes32(uint256(uint160(address(remoteTokenMessengerV2s[i]))));
+            }
             assertEq(
                 tokenMessengerV2.remoteTokenMessengers(remoteDomain),
-                bytes32(uint256(uint160(address(remoteTokenMessengerV2s[i]))))
+                remoteTokenMessengerAddress
             );
         }
         // admin

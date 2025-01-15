@@ -24,6 +24,7 @@ import {AdminUpgradableProxy} from "../../src/proxy/AdminUpgradableProxy.sol";
 import {TokenMessengerV2} from "../../src/v2/TokenMessengerV2.sol";
 import {TokenMinterV2} from "../../src/v2/TokenMinterV2.sol";
 import {MessageTransmitterV2} from "../../src/v2/MessageTransmitterV2.sol";
+import {AddressUtils} from "../../src/messages/v2/AddressUtils.sol";
 
 contract DeployProxiesV2Script is Script {
     // Expose for tests
@@ -150,15 +151,28 @@ contract DeployProxiesV2Script is Script {
             ""
         );
 
+        // Calculate TokenMessengerV2 proxy address
+        address expectedTokenMessengerV2ProxyAddress = vm.computeCreate2Address(
+            keccak256(type(TokenMessengerV2).creationCode),
+            keccak256(
+                proxyCreateCode
+            ),
+            factory
+        );
+
+        bool remoteTokenMessengerV2FromEnv = remoteTokenMessengerV2Addresses.length > 0;
+
         // Construct initializer
         bytes32[] memory remoteTokenMessengerAddresses = new bytes32[](
             remoteDomains.length
         );
         uint256 remoteDomainsLength = remoteDomains.length;
         for (uint256 i = 0; i < remoteDomainsLength; ++i) {
-            remoteTokenMessengerAddresses[i] = remoteTokenMessengerV2Addresses[
-                i
-            ];
+            if (remoteTokenMessengerV2FromEnv) {
+                remoteTokenMessengerAddresses[i] = remoteTokenMessengerV2Addresses[i];
+            } else {
+                remoteTokenMessengerAddresses[i] = AddressUtils.toBytes32(expectedTokenMessengerV2ProxyAddress);
+            }
         }
         bytes memory initializer = abi.encodeWithSelector(
             TokenMessengerV2.initialize.selector,
@@ -199,7 +213,6 @@ contract DeployProxiesV2Script is Script {
                 proxyCreateCode,
                 multiCallData
             );
-
         // Stop recording transations
         vm.stopBroadcast();
 
@@ -333,9 +346,11 @@ contract DeployProxiesV2Script is Script {
         );
         tokenControllerPrivateKey = vm.envUint("TOKEN_CONTROLLER_KEY");
 
-        remoteTokenMessengerV2Addresses = vm.envBytes32(
+        bytes32[] memory emptyRemoteTokenMessengerV2Addresses = new bytes32[](0);
+        remoteTokenMessengerV2Addresses = vm.envOr(
             "REMOTE_TOKEN_MESSENGER_V2_ADDRESSES",
-            ","
+            ",",
+            emptyRemoteTokenMessengerV2Addresses
         );
     }
 
