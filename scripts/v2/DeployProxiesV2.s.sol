@@ -25,6 +25,7 @@ import {TokenMessengerV2} from "../../src/v2/TokenMessengerV2.sol";
 import {TokenMinterV2} from "../../src/v2/TokenMinterV2.sol";
 import {MessageTransmitterV2} from "../../src/v2/MessageTransmitterV2.sol";
 import {AddressUtils} from "../../src/messages/v2/AddressUtils.sol";
+import {SALT_TOKEN_MESSENGER, SALT_MESSAGE_TRANSMITTER} from "./Salts.sol";
 
 contract DeployProxiesV2Script is Script {
     // Expose for tests
@@ -64,7 +65,7 @@ contract DeployProxiesV2Script is Script {
     uint256 private burnLimitPerMessage;
 
     uint256 private create2FactoryOwnerPrivateKey;
-    uint256 private tokenMinterV2DeployerPrivateKey;
+    uint256 private tokenMinterV2OwnerPrivateKey;
     uint256 private tokenControllerPrivateKey;
 
     function getProxyCreationCode(
@@ -129,7 +130,7 @@ contract DeployProxiesV2Script is Script {
         address messageTransmitterV2ProxyAddress = Create2Factory(factory)
             .deployAndMultiCall(
                 0,
-                keccak256(type(MessageTransmitterV2).creationCode), // TODO: Verify salt
+                SALT_MESSAGE_TRANSMITTER,
                 proxyCreateCode,
                 multiCallData
             );
@@ -153,14 +154,13 @@ contract DeployProxiesV2Script is Script {
 
         // Calculate TokenMessengerV2 proxy address
         address expectedTokenMessengerV2ProxyAddress = vm.computeCreate2Address(
-            keccak256(type(TokenMessengerV2).creationCode),
-            keccak256(
-                proxyCreateCode
-            ),
+            SALT_TOKEN_MESSENGER,
+            keccak256(proxyCreateCode),
             factory
         );
 
-        bool remoteTokenMessengerV2FromEnv = remoteTokenMessengerV2Addresses.length > 0;
+        bool remoteTokenMessengerV2FromEnv = remoteTokenMessengerV2Addresses
+            .length > 0;
 
         // Construct initializer
         bytes32[] memory remoteTokenMessengerAddresses = new bytes32[](
@@ -169,9 +169,13 @@ contract DeployProxiesV2Script is Script {
         uint256 remoteDomainsLength = remoteDomains.length;
         for (uint256 i = 0; i < remoteDomainsLength; ++i) {
             if (remoteTokenMessengerV2FromEnv) {
-                remoteTokenMessengerAddresses[i] = remoteTokenMessengerV2Addresses[i];
+                remoteTokenMessengerAddresses[
+                    i
+                ] = remoteTokenMessengerV2Addresses[i];
             } else {
-                remoteTokenMessengerAddresses[i] = AddressUtils.toBytes32(expectedTokenMessengerV2ProxyAddress);
+                remoteTokenMessengerAddresses[i] = AddressUtils.toBytes32(
+                    expectedTokenMessengerV2ProxyAddress
+                );
             }
         }
         bytes memory initializer = abi.encodeWithSelector(
@@ -209,7 +213,7 @@ contract DeployProxiesV2Script is Script {
         address tokenMessengerV2ProxyAddress = Create2Factory(factory)
             .deployAndMultiCall(
                 0,
-                keccak256(type(TokenMessengerV2).creationCode), // TODO: Verify salt
+                SALT_TOKEN_MESSENGER,
                 proxyCreateCode,
                 multiCallData
             );
@@ -341,12 +345,12 @@ contract DeployProxiesV2Script is Script {
         burnLimitPerMessage = vm.envUint("BURN_LIMIT_PER_MESSAGE");
 
         create2FactoryOwnerPrivateKey = vm.envUint("CREATE2_FACTORY_OWNER_KEY");
-        tokenMinterV2DeployerPrivateKey = vm.envUint(
-            "TOKEN_MINTER_V2_DEPLOYER_KEY"
-        );
+        tokenMinterV2OwnerPrivateKey = vm.envUint("TOKEN_MINTER_V2_OWNER_KEY");
         tokenControllerPrivateKey = vm.envUint("TOKEN_CONTROLLER_KEY");
 
-        bytes32[] memory emptyRemoteTokenMessengerV2Addresses = new bytes32[](0);
+        bytes32[] memory emptyRemoteTokenMessengerV2Addresses = new bytes32[](
+            0
+        );
         remoteTokenMessengerV2Addresses = vm.envOr(
             "REMOTE_TOKEN_MESSENGER_V2_ADDRESSES",
             ",",
@@ -370,7 +374,7 @@ contract DeployProxiesV2Script is Script {
         );
 
         addMessengerPauserRescuerToTokenMinterV2(
-            tokenMinterV2DeployerPrivateKey,
+            tokenMinterV2OwnerPrivateKey,
             tokenControllerPrivateKey,
             tokenMinterV2,
             address(tokenMessengerV2)

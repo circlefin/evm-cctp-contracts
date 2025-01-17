@@ -20,6 +20,7 @@ pragma solidity 0.7.6;
 import {Script} from "forge-std/Script.sol";
 import {AddressUtilsExternal} from "../../src/messages/v2/AddressUtilsExternal.sol";
 import {Create2Factory} from "../../src/v2/Create2Factory.sol";
+import {SALT_ADDRESS_UTILS_EXTERNAL} from "./Salts.sol";
 
 contract DeployAddressUtilsExternalScript is Script {
     Create2Factory private create2Factory;
@@ -33,7 +34,7 @@ contract DeployAddressUtilsExternalScript is Script {
         _addressUtilsExternal = AddressUtilsExternal(
             create2Factory.deploy(
                 0,
-                bytes32(0),
+                SALT_ADDRESS_UTILS_EXTERNAL,
                 type(AddressUtilsExternal).creationCode
             )
         );

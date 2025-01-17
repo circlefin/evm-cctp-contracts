@@ -37,6 +37,7 @@ contract DeployImplementationsV2Test is ScriptV2TestUtils {
 
         // TokenMinterV2
         assertEq(tokenMinterV2.tokenController(), deployer);
+        assertEq(tokenMinterV2.owner(), deployer);
 
         // TokenMessengerV2
         assertEq(

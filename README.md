@@ -119,11 +119,13 @@ Deploy the implementation contracts.
 1. Add the following [env](.env) variables
 
     - `CREATE2_FACTORY_CONTRACT_ADDRESS`
+    - `CREATE2_FACTORY_OWNER_KEY`
+    - `TOKEN_MINTER_V2_OWNER_ADDRESS`
+    - `TOKEN_MINTER_V2_OWNER_KEY`
     - `TOKEN_CONTROLLER_ADDRESS`
     - `DOMAIN`
     - `MESSAGE_BODY_VERSION`
     - `VERSION`
-    - `IMPLEMENTATION_DEPLOYER_PRIVATE_KEY`
 
 2. Run `make simulate-deploy-implementations-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.
 
@@ -170,8 +172,8 @@ The proxies are deployed via `CREATE2` through Create2Factory. The scripts assum
     - `BURN_LIMIT_PER_MESSAGE`
 
     - `CREATE2_FACTORY_OWNER_KEY`
-    - `TOKEN_MINTER_V2_DEPLOYER_KEY`
     - `TOKEN_CONTROLLER_KEY`
+    - `TOKEN_MINTER_V2_OWNER_KEY`
 
 2. Run `make simulate-deploy-proxies-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.
 
