@@ -22,6 +22,7 @@ import {DeployImplementationsV2Script} from "../../../scripts/v2/DeployImplement
 import {DeployProxiesV2Script} from "../../../scripts/v2/DeployProxiesV2.s.sol";
 import {MessageTransmitterV2} from "../../../src/v2/MessageTransmitterV2.sol";
 import {TokenMessengerV2} from "../../../src/v2/TokenMessengerV2.sol";
+import {SALT_MESSAGE_TRANSMITTER, SALT_TOKEN_MESSENGER} from "../../../scripts/v2/Salts.sol";
 
 contract DeployProxiesV2Test is ScriptV2TestUtils {
     DeployProxiesV2Script deployProxiesV2Script;
@@ -36,7 +37,7 @@ contract DeployProxiesV2Test is ScriptV2TestUtils {
     function testDeployMessageTransmitterV2() public {
         // create2 address
         address predicted = create2Factory.computeAddress(
-            keccak256(type(MessageTransmitterV2).creationCode),
+            SALT_MESSAGE_TRANSMITTER,
             keccak256(
                 deployProxiesV2Script.getProxyCreationCode(
                     address(create2Factory),
@@ -74,7 +75,7 @@ contract DeployProxiesV2Test is ScriptV2TestUtils {
     function testDeployTokenMessengerV2() public {
         // create2 address
         address predicted = create2Factory.computeAddress(
-            keccak256(type(TokenMessengerV2).creationCode),
+            SALT_TOKEN_MESSENGER,
             keccak256(
                 deployProxiesV2Script.getProxyCreationCode(
                     address(create2Factory),
@@ -105,9 +106,13 @@ contract DeployProxiesV2Test is ScriptV2TestUtils {
         // remote token messengers
         for (uint256 i = 0; i < remoteDomains.length; i++) {
             uint32 remoteDomain = remoteDomains[i];
-            bytes32 remoteTokenMessengerAddress = bytes32(uint256(uint160(address(tokenMessengerV2))));
+            bytes32 remoteTokenMessengerAddress = bytes32(
+                uint256(uint160(address(tokenMessengerV2)))
+            );
             if (remoteTokenMessengerV2FromEnv) {
-                remoteTokenMessengerAddress = bytes32(uint256(uint160(address(remoteTokenMessengerV2s[i]))));
+                remoteTokenMessengerAddress = bytes32(
+                    uint256(uint160(address(remoteTokenMessengerV2s[i])))
+                );
             }
             assertEq(
                 tokenMessengerV2.remoteTokenMessengers(remoteDomain),

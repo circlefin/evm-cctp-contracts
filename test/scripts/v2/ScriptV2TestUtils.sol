@@ -32,7 +32,6 @@ contract ScriptV2TestUtils is TestUtils {
     uint32 _messageBodyVersion = 1;
     uint32 _version = 1;
     address token;
-    uint256 implDeployerPK;
     uint256 deployerPK;
     address deployer;
     address attester1;
@@ -72,12 +71,13 @@ contract ScriptV2TestUtils is TestUtils {
     }
 
     function _deployImplementations() internal {
-        implDeployerPK = uint256(keccak256("DEPLOYTEST_IMPL_DEPLOYER_PK"));
-
         vm.setEnv(
             "CREATE2_FACTORY_CONTRACT_ADDRESS",
             vm.toString(address(create2Factory))
         );
+        vm.setEnv("CREATE2_FACTORY_OWNER_KEY", vm.toString(deployerPK));
+        vm.setEnv("TOKEN_MINTER_V2_OWNER_ADDRESS", vm.toString(deployer));
+        vm.setEnv("TOKEN_MINTER_V2_OWNER_KEY", vm.toString(deployerPK));
         vm.setEnv("TOKEN_CONTROLLER_ADDRESS", vm.toString(deployer));
         vm.setEnv("DOMAIN", vm.toString(uint256(sourceDomain)));
         vm.setEnv(
@@ -85,10 +85,6 @@ contract ScriptV2TestUtils is TestUtils {
             vm.toString(uint256(_messageBodyVersion))
         );
         vm.setEnv("VERSION", vm.toString(uint256(_version)));
-        vm.setEnv(
-            "IMPLEMENTATION_DEPLOYER_PRIVATE_KEY",
-            vm.toString(implDeployerPK)
-        );
 
         DeployImplementationsV2Script deployImplScript = new DeployImplementationsV2Script();
         deployImplScript.setUp();
@@ -167,7 +163,8 @@ contract ScriptV2TestUtils is TestUtils {
                 )
             )
         );
-        if (remoteTokenMessengerV2FromEnv) { // TODO: Figure out if there is a way to dynamically set this before setUp()
+        if (remoteTokenMessengerV2FromEnv) {
+            // TODO: Figure out if there is a way to dynamically set this before setUp()
             vm.setEnv(
                 "REMOTE_TOKEN_MESSENGER_V2_ADDRESSES",
                 string(
@@ -251,7 +248,7 @@ contract ScriptV2TestUtils is TestUtils {
         );
 
         vm.setEnv("CREATE2_FACTORY_OWNER_KEY", vm.toString(deployerPK));
-        vm.setEnv("TOKEN_MINTER_V2_DEPLOYER_KEY", vm.toString(implDeployerPK));
+        vm.setEnv("TOKEN_MINTER_V2_OWNER_KEY", vm.toString(deployerPK));
         vm.setEnv("TOKEN_CONTROLLER_KEY", vm.toString(deployerPK));
 
         DeployProxiesV2Script deployProxiesV2Script = new DeployProxiesV2Script();
@@ -264,9 +261,6 @@ contract ScriptV2TestUtils is TestUtils {
 
     function _setupRemoteResources() internal {
         vm.setEnv("TOKEN_MESSENGER_V2_OWNER_KEY", vm.toString(deployerPK));
-
-        // Use same TOKEN_CONTROLLER_DEPLOYER_KEY as TOKEN_CONTROLLER_KEY
-        vm.setEnv("TOKEN_CONTROLLER_KEY", vm.toString(deployerPK));
         vm.setEnv(
             "TOKEN_MESSENGER_V2_CONTRACT_ADDRESS",
             vm.toString(address(tokenMessengerV2))
@@ -296,8 +290,7 @@ contract ScriptV2TestUtils is TestUtils {
         // [SKIP] Use same TOKEN_MESSENGER_CONTRACT_ADDRESS
         // [SKIP] Use same TOKEN_MINTER_CONTRACT_ADDRESS
         vm.setEnv("MESSAGE_TRANSMITTER_V2_OWNER_KEY", vm.toString(deployerPK));
-        vm.setEnv("TOKEN_MESSENGER_V2_OWNER_KEY", vm.toString(deployerPK));
-        vm.setEnv("TOKEN_MINTER_V2_OWNER_KEY", vm.toString(implDeployerPK));
+        vm.setEnv("TOKEN_MINTER_V2_OWNER_KEY", vm.toString(deployerPK));
 
         newOwnerPK = uint256(keccak256("ROTATEKEYSTEST_NEW_OWNER"));
         newOwner = vm.addr(newOwnerPK);
