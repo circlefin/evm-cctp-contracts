@@ -20,6 +20,8 @@ import {ScriptV2TestUtils} from "./ScriptV2TestUtils.sol";
 import {DeployImplementationsV2Script} from "../../../scripts/v2/DeployImplementationsV2.s.sol";
 import {MessageTransmitterV2} from "../../../src/v2/MessageTransmitterV2.sol";
 import {TokenMessengerV2} from "../../../src/v2/TokenMessengerV2.sol";
+import {SALT_TOKEN_MINTER} from "../../../scripts/v2/Salts.sol";
+import {TokenMinterV2} from "../../../src/v2/TokenMinterV2.sol";
 
 contract DeployImplementationsV2Test is ScriptV2TestUtils {
     DeployImplementationsV2Script deployImplementationsV2Script;
@@ -36,6 +38,16 @@ contract DeployImplementationsV2Test is ScriptV2TestUtils {
         assertEq(messageTransmitterV2Impl.version(), uint256(_version));
 
         // TokenMinterV2
+        address predictedTokenMinterAddress = create2Factory.computeAddress(
+            SALT_TOKEN_MINTER,
+            keccak256(
+                abi.encodePacked(
+                    type(TokenMinterV2).creationCode,
+                    abi.encode(create2Factory)
+                )
+            )
+        );
+        assertEq(address(tokenMinterV2), predictedTokenMinterAddress);
         assertEq(tokenMinterV2.tokenController(), deployer);
         assertEq(tokenMinterV2.owner(), deployer);
 

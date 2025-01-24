@@ -21,7 +21,7 @@ pragma abicoder v2;
 import {Script} from "forge-std/Script.sol";
 import {AdminUpgradableProxy} from "../../src/proxy/AdminUpgradableProxy.sol";
 import {TokenMessengerV2} from "../../src/v2/TokenMessengerV2.sol";
-import {TokenMinterV2} from "../../src/v2/TokenMinterV2.sol";
+import {TokenMinter, TokenMinterV2} from "../../src/v2/TokenMinterV2.sol";
 import {MessageTransmitterV2} from "../../src/v2/MessageTransmitterV2.sol";
 import {Create2Factory} from "../../src/v2/Create2Factory.sol";
 import {Ownable2Step} from "../../src/roles/Ownable2Step.sol";
@@ -93,12 +93,19 @@ contract DeployImplementationsV2Script is Script {
 
         // Since the TokenMinter sets the msg.sender of the deployment to be
         // the Owner, we'll need to rotate it from the Create2Factory atomically.
+        // But first we rotate the tokenController, since only the Owner can do that
+        bytes memory tokenMinterTokenControllerRotation = abi
+            .encodeWithSelector(
+                TokenMinter.setTokenController.selector,
+                tokenControllerAddress
+            );
         bytes memory tokenMinterOwnershipRotation = abi.encodeWithSelector(
             Ownable2Step.transferOwnership.selector,
             tokenMinterOwnerAddress
         );
-        bytes[] memory tokenMinterMultiCallData = new bytes[](1);
-        tokenMinterMultiCallData[0] = tokenMinterOwnershipRotation;
+        bytes[] memory tokenMinterMultiCallData = new bytes[](2);
+        tokenMinterMultiCallData[0] = tokenMinterTokenControllerRotation;
+        tokenMinterMultiCallData[1] = tokenMinterOwnershipRotation;
 
         // Deploy TokenMinter
         tokenMinterV2 = TokenMinterV2(
@@ -107,7 +114,7 @@ contract DeployImplementationsV2Script is Script {
                 SALT_TOKEN_MINTER,
                 abi.encodePacked(
                     type(TokenMinterV2).creationCode,
-                    abi.encode(tokenControllerAddress)
+                    abi.encode(address(factory))
                 ),
                 tokenMinterMultiCallData
             )
