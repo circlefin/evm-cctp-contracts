@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 pragma solidity 0.7.6;
+pragma abicoder v2;
 
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/math/Math.sol";
@@ -94,7 +95,7 @@ contract MessageTransmitterTest is Test, TestUtils {
 
     function testSendMessage_rejectsTooLargeMessage() public {
         bytes32 _recipient = bytes32(uint256(uint160(vm.addr(1505))));
-        bytes memory _messageBody = new bytes(8 * 2**10 + 1);
+        bytes memory _messageBody = new bytes(8 * 2 ** 10 + 1);
         vm.expectRevert("Message body exceeds max size");
         srcMessageTransmitter.sendMessage(
             destinationDomain,
@@ -430,9 +431,9 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
     }
 
-    function testReplaceMessage_succeeds(address _newDestinationCallerAddr)
-        public
-    {
+    function testReplaceMessage_succeeds(
+        address _newDestinationCallerAddr
+    ) public {
         bytes memory _originalMessage = _getMessage();
         bytes memory _expectedMessage = _replaceMessage(
             _originalMessage,
@@ -488,10 +489,10 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
 
         // assert that a MessageSent event was logged with expected message bytes
+        vm.prank(Message.bytes32ToAddress(sender));
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
 
-        vm.prank(Message.bytes32ToAddress(sender));
         srcMessageTransmitter.replaceMessage(
             _originalMessage,
             _signature,
@@ -843,7 +844,7 @@ contract MessageTransmitterTest is Test, TestUtils {
     }
 
     function testSetMaxMessageBodySize() public {
-        uint32 _newMaxMessageBodySize = 10000000;
+        uint32 _newMaxMessageBodySize = maxMessageBodySize + 1;
 
         MessageTransmitter _messageTransmitter = new MessageTransmitter(
             destinationDomain,
@@ -884,22 +885,25 @@ contract MessageTransmitterTest is Test, TestUtils {
     function testRescuable(
         address _rescuer,
         address _rescueRecipient,
-        uint256 _amount
+        uint256 _amount,
+        address _nonRescuer
     ) public {
         assertContractIsRescuable(
             address(srcMessageTransmitter),
             _rescuer,
             _rescueRecipient,
-            _amount
+            _amount,
+            _nonRescuer
         );
     }
 
-    function testPausable(address _newPauser) public {
+    function testPausable(address _newPauser, address _nonOwner) public {
         assertContractIsPausable(
             address(srcMessageTransmitter),
             pauser,
             _newPauser,
-            srcMessageTransmitter.owner()
+            srcMessageTransmitter.owner(),
+            _nonOwner
         );
     }
 
@@ -929,11 +933,10 @@ contract MessageTransmitterTest is Test, TestUtils {
               destination
      * @return Returns hash of source and nonce
      */
-    function _hashSourceAndNonce(uint32 _source, uint64 _nonce)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function _hashSourceAndNonce(
+        uint32 _source,
+        uint64 _nonce
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(_source, _nonce));
     }
 
@@ -1002,10 +1005,10 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
 
         // assert that a MessageSent event was logged with expected message bytes
+        vm.prank(Message.bytes32ToAddress(_sender));
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
 
-        vm.prank(Message.bytes32ToAddress(_sender));
         uint64 _nonceReserved = srcMessageTransmitter.sendMessageWithCaller(
             _destinationDomain,
             _recipient,
@@ -1165,10 +1168,9 @@ contract MessageTransmitterTest is Test, TestUtils {
         destMessageTransmitter.setSignatureThreshold(2);
     }
 
-    function _sign2OfNMultisigMessage(bytes memory _message)
-        internal
-        returns (bytes memory _signature)
-    {
+    function _sign2OfNMultisigMessage(
+        bytes memory _message
+    ) internal returns (bytes memory _signature) {
         uint256[] memory attesterPrivateKeys = new uint256[](2);
         // manually sort attesters in correct order
         attesterPrivateKeys[1] = attesterPK;
@@ -1206,9 +1208,9 @@ contract MessageTransmitterTest is Test, TestUtils {
         );
 
         // assert that a MessageSent event was logged with expected message bytes
+        vm.prank(Message.bytes32ToAddress(sender));
         vm.expectEmit(true, true, true, true);
         emit MessageSent(_expectedMessage);
-        vm.prank(Message.bytes32ToAddress(sender));
         srcMessageTransmitter.replaceMessage(
             _originalMessage,
             _signature,

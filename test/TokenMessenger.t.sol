@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 pragma solidity 0.7.6;
+pragma abicoder v2;
 
 import "../lib/forge-std/src/Test.sol";
 import "../src/TokenMessenger.sol";
@@ -247,9 +248,9 @@ contract TokenMessengerTest is Test, TestUtils {
         );
     }
 
-    function testDepositForBurn_revertsIfMintRecipientIsZero(uint256 _amount)
-        public
-    {
+    function testDepositForBurn_revertsIfMintRecipientIsZero(
+        uint256 _amount
+    ) public {
         vm.assume(_amount != 0);
 
         vm.expectRevert("Mint recipient must be nonzero");
@@ -332,9 +333,9 @@ contract TokenMessengerTest is Test, TestUtils {
         );
     }
 
-    function testDepositForBurn_revertsOnFailedTokenTransfer(uint256 _amount)
-        public
-    {
+    function testDepositForBurn_revertsOnFailedTokenTransfer(
+        uint256 _amount
+    ) public {
         vm.prank(owner);
         vm.mockCall(
             address(localToken),
@@ -776,14 +777,17 @@ contract TokenMessengerTest is Test, TestUtils {
         assertEq(destToken.balanceOf(_mintRecipientAddr), 0);
 
         // test event is emitted
+        vm.startPrank(address(remoteMessageTransmitter));
+        bytes32 _sender = Message.addressToBytes32(
+            address(localTokenMessenger)
+        );
         vm.expectEmit(true, true, true, true);
         emit MintAndWithdraw(_mintRecipientAddr, _amount, address(destToken));
 
-        vm.startPrank(address(remoteMessageTransmitter));
         assertTrue(
             destTokenMessenger.handleReceiveMessage(
                 localDomain,
-                Message.addressToBytes32(address(localTokenMessenger)),
+                _sender,
                 _messageBody
             )
         );
@@ -850,9 +854,9 @@ contract TokenMessengerTest is Test, TestUtils {
         vm.stopPrank();
     }
 
-    function testHandleReceiveMessage_revertsOnInvalidMessage(uint256 _amount)
-        public
-    {
+    function testHandleReceiveMessage_revertsOnInvalidMessage(
+        uint256 _amount
+    ) public {
         vm.assume(_amount > 0);
         bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
 
@@ -1013,9 +1017,9 @@ contract TokenMessengerTest is Test, TestUtils {
         localTokenMessenger.addLocalMinter(address(0));
     }
 
-    function testAddLocalMinter_revertsIfAlreadySet(address _localMinter)
-        public
-    {
+    function testAddLocalMinter_revertsIfAlreadySet(
+        address _localMinter
+    ) public {
         vm.assume(_localMinter != address(0));
         vm.expectRevert("Local minter is already set.");
         localTokenMessenger.addLocalMinter(_localMinter);
@@ -1057,13 +1061,15 @@ contract TokenMessengerTest is Test, TestUtils {
     function testRescuable(
         address _rescuer,
         address _rescueRecipient,
-        uint256 _amount
+        uint256 _amount,
+        address _nonRescuer
     ) public {
         assertContractIsRescuable(
             address(localTokenMessenger),
             _rescuer,
             _rescueRecipient,
-            _amount
+            _amount,
+            _nonRescuer
         );
     }
 
@@ -1185,10 +1191,10 @@ contract TokenMessengerTest is Test, TestUtils {
             _mintAmount,
             _allowedBurnAmount
         );
-
-        vm.expectEmit(true, true, true, true);
-        emit MessageSent(
-            Message._formatMessage(
+        vm.startPrank(owner);
+        {
+            // Scoped to prevent stack too deep
+            bytes memory _message = Message._formatMessage(
                 version,
                 localDomain,
                 remoteDomain,
@@ -1197,8 +1203,10 @@ contract TokenMessengerTest is Test, TestUtils {
                 remoteTokenMessenger,
                 _destinationCaller,
                 _messageBody
-            )
-        );
+            );
+            vm.expectEmit(true, true, true, true);
+            emit MessageSent(_message);
+        }
 
         vm.expectEmit(true, true, true, true);
         emit DepositForBurn(
@@ -1212,7 +1220,6 @@ contract TokenMessengerTest is Test, TestUtils {
             _destinationCaller
         );
 
-        vm.prank(owner);
         uint64 _nonceReserved = localTokenMessenger.depositForBurnWithCaller(
             _amount,
             remoteDomain,
@@ -1220,6 +1227,7 @@ contract TokenMessengerTest is Test, TestUtils {
             address(localToken),
             _destinationCaller
         );
+        vm.stopPrank();
 
         assertEq(uint256(_nonce), uint256(_nonceReserved));
 

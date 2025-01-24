@@ -24,6 +24,7 @@ import "./Ownable2Step.sol";
  * Modifications:
  * 1. Update Solidity version from 0.6.12 to 0.7.6 (8/23/2022)
  * 2. Change pauser visibility to private, declare external getter (11/19/22)
+ * 3. Add internal _updatePauser (10/8/2024)
  */
 contract Pausable is Ownable2Step {
     event Pause();
@@ -77,6 +78,13 @@ contract Pausable is Ownable2Step {
      * @dev update the pauser role
      */
     function updatePauser(address _newPauser) external onlyOwner {
+        _updatePauser(_newPauser);
+    }
+
+    /**
+     * @dev update the pauser role
+     */
+    function _updatePauser(address _newPauser) internal {
         require(
             _newPauser != address(0),
             "Pausable: new pauser is the zero address"

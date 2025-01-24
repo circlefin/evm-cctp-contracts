@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 pragma solidity 0.7.6;
+pragma abicoder v2;
 
 import "../src/messages/Message.sol";
 import "../src/TokenMinter.sol";
@@ -76,7 +77,7 @@ contract TokenMinterTest is Test, TestUtils {
     address pauser = vm.addr(1509);
 
     function setUp() public {
-        tokenMinter = new TokenMinter(tokenController);
+        tokenMinter = TokenMinter(createTokenMinter());
         localToken = new MockMintBurnToken();
         localTokenAddress = address(localToken);
         remoteToken = new MockMintBurnToken();
@@ -85,7 +86,11 @@ contract TokenMinterTest is Test, TestUtils {
         tokenMinter.updatePauser(pauser);
     }
 
-    function testMint_succeeds(uint256 _amount, address _localToken) public {
+    function createTokenMinter() internal virtual returns (address) {
+        return address(new TokenMinter(tokenController));
+    }
+
+    function testMint_succeeds(uint256 _amount) public {
         _mint(_amount);
     }
 
@@ -115,15 +120,14 @@ contract TokenMinterTest is Test, TestUtils {
     }
 
     function testMint_revertsWhenPaused(
-        address _mintToken,
         address _to,
         uint256 _amount,
-        bytes32 remoteToken
+        bytes32 _remoteToken
     ) public {
         vm.prank(pauser);
         tokenMinter.pause();
         vm.expectRevert("Pausable: paused");
-        tokenMinter.mint(sourceDomain, remoteToken, _to, _amount);
+        tokenMinter.mint(sourceDomain, _remoteToken, _to, _amount);
 
         // Mint works again after unpause
         vm.prank(pauser);
@@ -131,9 +135,10 @@ contract TokenMinterTest is Test, TestUtils {
         _mint(_amount);
     }
 
-    function testMint_revertsOnFailedTokenMint(address _to, uint256 _amount)
-        public
-    {
+    function testMint_revertsOnFailedTokenMint(
+        address _to,
+        uint256 _amount
+    ) public {
         _linkTokenPair(localTokenAddress);
         vm.mockCall(
             localTokenAddress,
@@ -148,7 +153,6 @@ contract TokenMinterTest is Test, TestUtils {
 
     function testBurn_succeeds(
         uint256 _amount,
-        address _localToken,
         uint256 _allowedBurnAmount
     ) public {
         vm.assume(_amount > 0);
@@ -160,7 +164,7 @@ contract TokenMinterTest is Test, TestUtils {
             _allowedBurnAmount
         );
 
-        _mintAndBurn(_amount, _localToken);
+        _mintAndBurn(_amount);
     }
 
     function testBurn_revertsOnUnsupportedBurnToken(uint256 _amount) public {
@@ -197,7 +201,7 @@ contract TokenMinterTest is Test, TestUtils {
         // Mint works again after unpause
         vm.prank(pauser);
         tokenMinter.unpause();
-        _mintAndBurn(_burnAmount, localTokenAddress);
+        _mintAndBurn(_burnAmount);
     }
 
     function testBurn_revertsWhenAmountExceedsNonZeroBurnLimit(
@@ -302,7 +306,7 @@ contract TokenMinterTest is Test, TestUtils {
         _linkTokenPair(localTokenAddress);
     }
 
-    function testGetLocalToken_findsNoLocalToken() public {
+    function testGetLocalToken_findsNoLocalToken() public view {
         address _result = tokenMinter.getLocalToken(
             remoteDomain,
             remoteTokenBytes32
@@ -336,9 +340,9 @@ contract TokenMinterTest is Test, TestUtils {
         );
     }
 
-    function testSetTokenController_succeeds(address newTokenController)
-        public
-    {
+    function testSetTokenController_succeeds(
+        address newTokenController
+    ) public {
         vm.assume(newTokenController != address(0));
         assertEq(tokenMinter.tokenController(), tokenController);
 
@@ -411,22 +415,25 @@ contract TokenMinterTest is Test, TestUtils {
     function testRescuable(
         address _rescuer,
         address _rescueRecipient,
-        uint256 _amount
+        uint256 _amount,
+        address _nonRescuer
     ) public {
         assertContractIsRescuable(
             address(tokenMinter),
             _rescuer,
             _rescueRecipient,
-            _amount
+            _amount,
+            _nonRescuer
         );
     }
 
-    function testPausable(address _newPauser) public {
+    function testPausable(address _newPauser, address _nonOwner) public {
         assertContractIsPausable(
             address(tokenMinter),
             pauser,
             _newPauser,
-            tokenMinter.owner()
+            tokenMinter.owner(),
+            _nonOwner
         );
     }
 
@@ -477,7 +484,7 @@ contract TokenMinterTest is Test, TestUtils {
         assertEq(localToken.totalSupply(), _amount);
     }
 
-    function _mintAndBurn(uint256 _amount, address _localToken) internal {
+    function _mintAndBurn(uint256 _amount) internal {
         _mint(_amount);
 
         address mockTokenMessenger = vm.addr(1507);

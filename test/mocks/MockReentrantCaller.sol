@@ -18,7 +18,6 @@ pragma solidity 0.7.6;
 import "../../src/interfaces/IMessageHandler.sol";
 import "../../src/interfaces/IReceiver.sol";
 import "../../src/messages/Message.sol";
-import "../../lib/forge-std/src/console.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 contract MockReentrantCaller is IMessageHandler {
@@ -31,7 +30,7 @@ contract MockReentrantCaller is IMessageHandler {
     function setMessageAndSignature(
         bytes memory _message,
         bytes memory _signature
-    ) external {
+    ) public {
         message = _message;
         signature = _signature;
     }
@@ -40,7 +39,7 @@ contract MockReentrantCaller is IMessageHandler {
         uint32 _sourceDomain,
         bytes32 _sender,
         bytes memory _messageBody
-    ) external override returns (bool) {
+    ) public override returns (bool) {
         // revert if _messageBody is 'revert', otherwise do nothing
         require(
             keccak256(_messageBody) != keccak256(bytes("revert")),
@@ -66,11 +65,9 @@ contract MockReentrantCaller is IMessageHandler {
     }
 
     // source: https://ethereum.stackexchange.com/a/83577
-    function _getRevertMsg(bytes memory _returnData)
-        internal
-        pure
-        returns (string memory)
-    {
+    function _getRevertMsg(
+        bytes memory _returnData
+    ) internal pure returns (string memory) {
         // If the _res length is less than 68, then the transaction failed silently (without a revert message)
         if (_returnData.length < 68) return "Transaction reverted silently";
 
@@ -81,11 +78,10 @@ contract MockReentrantCaller is IMessageHandler {
         return abi.decode(_returnData, (string)); // All that remains is the revert string
     }
 
-    function stringEquals(string memory a, string memory b)
-        internal
-        pure
-        returns (bool)
-    {
+    function stringEquals(
+        string memory a,
+        string memory b
+    ) internal pure returns (bool) {
         return (keccak256(abi.encodePacked((a))) ==
             keccak256(abi.encodePacked((b))));
     }

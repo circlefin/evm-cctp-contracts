@@ -12,6 +12,11 @@ jobs:
         with:
           submodules: 'true'
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
       - name: Install Node
         uses: actions/setup-node@v4
 
@@ -30,10 +35,56 @@ jobs:
       - name: Run Integration Tests
         run: make anvil-test
 
-      - name: Run Slither
-        uses: crytic/slither-action@v0.3.0
+      - name: Run v2 Integration Tests
+        run: make anvil-test-v2
+
+  analyze-message-transmitter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
         with:
-          fail-on: none
+          submodules: 'true'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Run Static Analysis on Message Transmitter
+        run: make analyze-message-transmitter
+
+  analyze-message-transmitter-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Run Static Analysis on Message Transmitter V2
+        run: make analyze-message-transmitter-v2
+
+  analyze-token-messenger-minter:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Run Static Analysis on Token Messenger Minter
+        run: make analyze-token-messenger-minter
 
   scan:
     needs: lint-and-test
