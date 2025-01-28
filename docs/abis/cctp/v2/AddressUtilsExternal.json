@@ -1,0 +1,40 @@
+[
+    {
+        "type": "function",
+        "name": "addressToBytes32",
+        "inputs": [
+            {
+                "name": "addr",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "stateMutability": "pure"
+    },
+    {
+        "type": "function",
+        "name": "bytes32ToAddress",
+        "inputs": [
+            {
+                "name": "_buf",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "stateMutability": "pure"
+    }
+]
