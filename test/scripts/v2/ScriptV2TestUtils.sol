@@ -75,7 +75,6 @@ contract ScriptV2TestUtils is TestUtils {
             "CREATE2_FACTORY_CONTRACT_ADDRESS",
             vm.toString(address(create2Factory))
         );
-        vm.setEnv("CREATE2_FACTORY_OWNER_KEY", vm.toString(deployerPK));
         vm.setEnv("TOKEN_MINTER_V2_OWNER_ADDRESS", vm.toString(deployer));
         vm.setEnv("TOKEN_MINTER_V2_OWNER_KEY", vm.toString(deployerPK));
         vm.setEnv("TOKEN_CONTROLLER_ADDRESS", vm.toString(deployer));
@@ -186,10 +185,6 @@ contract ScriptV2TestUtils is TestUtils {
         }
 
         vm.setEnv(
-            "MESSAGE_TRANSMITTER_V2_IMPLEMENTATION_ADDRESS",
-            vm.toString(address(messageTransmitterV2Impl))
-        );
-        vm.setEnv(
             "MESSAGE_TRANSMITTER_V2_OWNER_ADDRESS",
             vm.toString(deployer)
         );
@@ -214,18 +209,9 @@ contract ScriptV2TestUtils is TestUtils {
             "MESSAGE_TRANSMITTER_V2_PROXY_ADMIN_ADDRESS",
             vm.toString(messageTransmitterV2AdminAddress)
         );
-
-        vm.setEnv(
-            "TOKEN_MINTER_V2_CONTRACT_ADDRESS",
-            vm.toString(address(tokenMinterV2))
-        );
         vm.setEnv("TOKEN_MINTER_V2_PAUSER_ADDRESS", vm.toString(pauser));
         vm.setEnv("TOKEN_MINTER_V2_RESCUER_ADDRESS", vm.toString(rescuer));
 
-        vm.setEnv(
-            "TOKEN_MESSENGER_V2_IMPLEMENTATION_ADDRESS",
-            vm.toString(address(tokenMessengerV2Impl))
-        );
         vm.setEnv("TOKEN_MESSENGER_V2_OWNER_ADDRESS", vm.toString(deployer));
         vm.setEnv("TOKEN_MESSENGER_V2_RESCUER_ADDRESS", vm.toString(rescuer));
         vm.setEnv(
@@ -247,7 +233,7 @@ contract ScriptV2TestUtils is TestUtils {
             vm.toString(maxBurnAmountPerMessage)
         );
 
-        vm.setEnv("CREATE2_FACTORY_OWNER_KEY", vm.toString(deployerPK));
+        vm.setEnv("CREATE2_FACTORY_OWNER", vm.toString(deployer));
         vm.setEnv("TOKEN_MINTER_V2_OWNER_KEY", vm.toString(deployerPK));
         vm.setEnv("TOKEN_CONTROLLER_KEY", vm.toString(deployerPK));
 

@@ -24,19 +24,16 @@ import {SALT_ADDRESS_UTILS_EXTERNAL} from "./Salts.sol";
 
 contract DeployAddressUtilsExternalScript is Script {
     Create2Factory private create2Factory;
-    uint256 private create2FactoryOwnerKey;
 
     function deployAddressUtilsExternalScript()
         private
-        returns (AddressUtilsExternal _addressUtilsExternal)
+        returns (address _addressUtilsExternal)
     {
-        vm.startBroadcast(create2FactoryOwnerKey);
-        _addressUtilsExternal = AddressUtilsExternal(
-            create2Factory.deploy(
-                0,
-                SALT_ADDRESS_UTILS_EXTERNAL,
-                type(AddressUtilsExternal).creationCode
-            )
+        vm.startBroadcast(create2Factory.owner());
+        _addressUtilsExternal = create2Factory.deploy(
+            0,
+            SALT_ADDRESS_UTILS_EXTERNAL,
+            type(AddressUtilsExternal).creationCode
         );
         vm.stopBroadcast();
     }
@@ -45,7 +42,6 @@ contract DeployAddressUtilsExternalScript is Script {
         create2Factory = Create2Factory(
             vm.envAddress("CREATE2_FACTORY_CONTRACT_ADDRESS")
         );
-        create2FactoryOwnerKey = vm.envUint("CREATE2_FACTORY_OWNER_KEY");
     }
 
     function run() public {

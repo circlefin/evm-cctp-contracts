@@ -41,7 +41,6 @@ contract DeployImplementationsV2Script is Script {
     uint32 private messageBodyVersion;
     uint32 private version;
     uint32 private domain;
-    uint256 private create2FactoryOwnerPrivateKey;
 
     function deployImplementationsV2()
         private
@@ -62,7 +61,7 @@ contract DeployImplementationsV2Script is Script {
         Create2Factory factory = Create2Factory(factoryAddress);
 
         // Start recording transactions
-        vm.startBroadcast(create2FactoryOwnerPrivateKey);
+        vm.startBroadcast(factory.owner());
 
         // Deploy MessageTransmitterV2 implementation
         messageTransmitterV2 = MessageTransmitterV2(
@@ -136,7 +135,6 @@ contract DeployImplementationsV2Script is Script {
      */
     function setUp() public {
         factoryAddress = vm.envAddress("CREATE2_FACTORY_CONTRACT_ADDRESS");
-        create2FactoryOwnerPrivateKey = vm.envUint("CREATE2_FACTORY_OWNER_KEY");
         tokenMinterOwnerAddress = vm.envAddress(
             "TOKEN_MINTER_V2_OWNER_ADDRESS"
         );
