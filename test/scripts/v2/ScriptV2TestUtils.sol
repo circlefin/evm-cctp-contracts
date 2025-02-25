@@ -53,7 +53,6 @@ contract ScriptV2TestUtils is TestUtils {
     address[] remoteTokens;
     uint32[] remoteDomains;
     address[] remoteTokenMessengerV2s;
-    bool remoteTokenMessengerV2FromEnv = false;
     uint32 anotherRemoteDomain = 5;
     address anotherRemoteToken;
 
@@ -162,27 +161,24 @@ contract ScriptV2TestUtils is TestUtils {
                 )
             )
         );
-        if (remoteTokenMessengerV2FromEnv) {
-            // TODO: Figure out if there is a way to dynamically set this before setUp()
-            vm.setEnv(
-                "REMOTE_TOKEN_MESSENGER_V2_ADDRESSES",
-                string(
-                    abi.encodePacked(
-                        vm.toString(
-                            Message.addressToBytes32(remoteTokenMessengerV2s[0])
-                        ),
-                        ",",
-                        vm.toString(
-                            Message.addressToBytes32(remoteTokenMessengerV2s[1])
-                        ),
-                        ",",
-                        vm.toString(
-                            Message.addressToBytes32(remoteTokenMessengerV2s[2])
-                        )
+        vm.setEnv(
+            "REMOTE_TOKEN_MESSENGER_V2_ADDRESSES",
+            string(
+                abi.encodePacked(
+                    vm.toString(
+                        Message.addressToBytes32(remoteTokenMessengerV2s[0])
+                    ),
+                    ",",
+                    vm.toString(
+                        Message.addressToBytes32(remoteTokenMessengerV2s[1])
+                    ),
+                    ",",
+                    vm.toString(
+                        Message.addressToBytes32(remoteTokenMessengerV2s[2])
                     )
                 )
-            );
-        }
+            )
+        );
 
         vm.setEnv(
             "MESSAGE_TRANSMITTER_V2_OWNER_ADDRESS",

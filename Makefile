@@ -45,6 +45,12 @@ deploy-proxies-v2-unlocked:
 simulate-setup-remote-resources-v2:
 	forge script scripts/v2/SetupRemoteResourcesV2.s.sol:SetupRemoteResourcesV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
 
+simulate-configure-token-minter-v2:
+	forge script scripts/v2/DeployProxiesV2.s.sol:DeployProxiesV2Script --sig "configureTokenMinterV2()()"  --rpc-url ${RPC_URL} --sender ${SENDER}
+
+configure-token-minter-v2:
+	forge script scripts/v2/DeployProxiesV2.s.sol:DeployProxiesV2Script --sig "configureTokenMinterV2()()"  --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+
 setup-remote-resources-v2:
 	forge script scripts/v2/SetupRemoteResourcesV2.s.sol:SetupRemoteResourcesV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
