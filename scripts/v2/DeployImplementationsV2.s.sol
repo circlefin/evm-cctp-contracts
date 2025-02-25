@@ -135,10 +135,8 @@ contract DeployImplementationsV2Script is Script {
      */
     function setUp() public {
         factoryAddress = vm.envAddress("CREATE2_FACTORY_CONTRACT_ADDRESS");
-        tokenMinterOwnerAddress = vm.envAddress(
-            "TOKEN_MINTER_V2_OWNER_ADDRESS"
-        );
         tokenMinterOwnerKey = vm.envUint("TOKEN_MINTER_V2_OWNER_KEY");
+        tokenMinterOwnerAddress = vm.addr(tokenMinterOwnerKey);
         tokenControllerAddress = vm.envAddress("TOKEN_CONTROLLER_ADDRESS");
         domain = uint32(vm.envUint("DOMAIN"));
         messageBodyVersion = uint32(vm.envUint("MESSAGE_BODY_VERSION"));

@@ -23,8 +23,12 @@ import {DeployProxiesV2Script} from "../../../scripts/v2/DeployProxiesV2.s.sol";
 import {MessageTransmitterV2} from "../../../src/v2/MessageTransmitterV2.sol";
 import {TokenMessengerV2} from "../../../src/v2/TokenMessengerV2.sol";
 import {SALT_MESSAGE_TRANSMITTER, SALT_TOKEN_MESSENGER} from "../../../scripts/v2/Salts.sol";
+import {AddressUtils} from "../../../src/messages/v2/AddressUtils.sol";
 
 contract DeployProxiesV2Test is ScriptV2TestUtils {
+    using AddressUtils for address;
+    using AddressUtils for bytes32;
+
     DeployProxiesV2Script deployProxiesV2Script;
 
     function setUp() public {
@@ -106,17 +110,9 @@ contract DeployProxiesV2Test is ScriptV2TestUtils {
         // remote token messengers
         for (uint256 i = 0; i < remoteDomains.length; i++) {
             uint32 remoteDomain = remoteDomains[i];
-            bytes32 remoteTokenMessengerAddress = bytes32(
-                uint256(uint160(address(tokenMessengerV2)))
-            );
-            if (remoteTokenMessengerV2FromEnv) {
-                remoteTokenMessengerAddress = bytes32(
-                    uint256(uint160(address(remoteTokenMessengerV2s[i])))
-                );
-            }
             assertEq(
                 tokenMessengerV2.remoteTokenMessengers(remoteDomain),
-                remoteTokenMessengerAddress
+                remoteTokenMessengerV2s[i].toBytes32()
             );
         }
         // admin
@@ -127,6 +123,46 @@ contract DeployProxiesV2Test is ScriptV2TestUtils {
     }
 
     function testConfigureTokenMinterV2() public {
+        _validateExpectedTokenMinterV2State();
+    }
+
+    function testConfigureTokenMinterV2WhenCalledSeparately() public {
+        // configureTokenMinterV2() can be called through a standalone entrypoint in the deploy script
+        // To test, we'll first unset all the correspond values
+
+        address randomAddress = address(12345);
+
+        vm.startPrank(deployer);
+        // Unlink token pairs
+        for (uint256 i = 0; i < remoteDomains.length; i++) {
+            tokenMinterV2.unlinkTokenPair(
+                token,
+                remoteDomains[i],
+                remoteTokens[i].toBytes32()
+            );
+        }
+        // Remove TokenMessenger
+        tokenMinterV2.removeLocalTokenMessenger();
+
+        // Set roles to a random, different address
+        tokenMinterV2.updatePauser(randomAddress);
+        tokenMinterV2.updateRescuer(randomAddress);
+        // set the pendingOwner to deployer, since the script call acceptOwnership()
+        tokenMinterV2.transferOwnership(deployer);
+        // Modify maxBurnAmount
+        tokenMinterV2.setMaxBurnAmountPerMessage(token, 0);
+
+        vm.stopPrank();
+
+        // Now, call configureTokenMinterV2() separately
+        deployProxiesV2Script.setUp();
+        deployProxiesV2Script.configureTokenMinterV2();
+
+        // Validate the expected state
+        _validateExpectedTokenMinterV2State();
+    }
+
+    function _validateExpectedTokenMinterV2State() internal {
         // token controller
         assertEq(tokenMinterV2.tokenController(), deployer);
         // token messenger
@@ -147,10 +183,7 @@ contract DeployProxiesV2Test is ScriptV2TestUtils {
         for (uint256 i = 0; i < remoteDomains.length; i++) {
             address remoteToken = remoteTokens[i];
             bytes32 remoteKey = keccak256(
-                abi.encodePacked(
-                    remoteDomains[i],
-                    bytes32(uint256(uint160(remoteToken)))
-                )
+                abi.encodePacked(remoteDomains[i], remoteToken.toBytes32())
             );
             assertEq(tokenMinterV2.remoteTokensToLocalTokens(remoteKey), token);
         }

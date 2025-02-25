@@ -119,7 +119,6 @@ Deploy the implementation contracts.
 1. Add the following [env](.env) variables
 
     - `CREATE2_FACTORY_CONTRACT_ADDRESS`
-    - `TOKEN_MINTER_V2_OWNER_ADDRESS`
     - `TOKEN_MINTER_V2_OWNER_KEY`
     - `TOKEN_CONTROLLER_ADDRESS`
     - `DOMAIN`

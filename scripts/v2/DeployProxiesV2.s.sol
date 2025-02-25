@@ -211,7 +211,7 @@ contract DeployProxiesV2Script is Script {
         multiCallData[0] = upgradeAndInitializeData;
         multiCallData[1] = adminRotationData;
 
-        // Start recording transations
+        // Start recording transactions
         vm.startBroadcast(factoryOwner);
 
         // Deploy proxy
@@ -222,7 +222,7 @@ contract DeployProxiesV2Script is Script {
                 proxyCreateCode,
                 multiCallData
             );
-        // Stop recording transations
+        // Stop recording transactions
         vm.stopBroadcast();
 
         return TokenMessengerV2(tokenMessengerV2ProxyAddress);
@@ -233,17 +233,24 @@ contract DeployProxiesV2Script is Script {
         uint256 _tokenControllerPrivateKey,
         address tokenMessengerV2Address
     ) private {
-        // Start recording transations
+        // Start recording transactions
         vm.startBroadcast(tokenMinterV2OwnerPrivateKey);
+
+        if (
+            tokenMinterV2.pendingOwner() ==
+            vm.addr(tokenMinterV2OwnerPrivateKey)
+        ) {
+            tokenMinterV2.acceptOwnership();
+        }
 
         tokenMinterV2.addLocalTokenMessenger(tokenMessengerV2Address);
         tokenMinterV2.updatePauser(tokenMinterV2PauserAddress);
         tokenMinterV2.updateRescuer(tokenMinterV2RescuerAddress);
 
-        // Stop recording transations
+        // Stop recording transactions
         vm.stopBroadcast();
 
-        // Start recording transations
+        // Start recording transactions
         vm.startBroadcast(_tokenControllerPrivateKey);
 
         tokenMinterV2.setMaxBurnAmountPerMessage(
@@ -260,7 +267,7 @@ contract DeployProxiesV2Script is Script {
             );
         }
 
-        // Stop recording transations
+        // Stop recording transactions
         vm.stopBroadcast();
     }
 
@@ -382,6 +389,17 @@ contract DeployProxiesV2Script is Script {
             tokenMinterV2OwnerPrivateKey,
             tokenControllerPrivateKey,
             address(tokenMessengerV2)
+        );
+    }
+
+    /**
+     * @notice Alternate, standalone entrypoint to configure the TokenMinterV2
+     */
+    function configureTokenMinterV2() public {
+        addMessengerPauserRescuerToTokenMinterV2(
+            tokenMinterV2OwnerPrivateKey,
+            tokenControllerPrivateKey,
+            predictDeployments.tokenMessengerV2Proxy(create2Factory)
         );
     }
 }
