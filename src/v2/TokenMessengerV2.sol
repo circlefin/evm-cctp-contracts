@@ -16,7 +16,9 @@
  * limitations under the License.
  */
 pragma solidity 0.7.6;
+pragma abicoder v2;
 
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {BaseTokenMessenger} from "./BaseTokenMessenger.sol";
 import {ITokenMinterV2} from "../interfaces/v2/ITokenMinterV2.sol";
 import {AddressUtils} from "../messages/v2/AddressUtils.sol";
@@ -32,6 +34,16 @@ import {TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD} from "./FinalityThresholds.sol";
  * and to/from TokenMinters.
  */
 contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
+    // ============ Structs ============
+    struct TokenMessengerV2Roles {
+        address owner;
+        address rescuer;
+        address feeRecipient;
+        address denylister;
+        address tokenMinter;
+        address minFeeController;
+    }
+
     // ============ Events ============
     /**
      * @notice Emitted when a DepositForBurn message is sent
@@ -67,6 +79,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     using BurnMessageV2 for bytes29;
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
+    using SafeMath for uint256;
 
     // ============ Constructor ============
     /**
@@ -83,46 +96,40 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
     // ============ Initializers ============
     /**
      * @notice Initializes the contract
-     * @dev Reverts if `owner_` is the zero address
-     * @dev Reverts if `rescuer_` is the zero address
-     * @dev Reverts if `feeRecipient_` is the zero address
-     * @dev Reverts if `denylister_` is the zero address
-     * @dev Reverts if `tokenMinter_` is the zero address
+     * @dev Reverts if any of the roles are the zero address
      * @dev Reverts if `remoteDomains_` and `remoteTokenMessengers_` are unequal length
      * @dev Each remoteTokenMessenger address must correspond to the remote domain at the same
      * index in respective arrays.
      * @dev Reverts if any `remoteTokenMessengers_` entry equals bytes32(0)
-     * @param owner_ Owner address
-     * @param rescuer_ Rescuer address
-     * @param feeRecipient_ FeeRecipient address
-     * @param denylister_ Denylister address
-     * @param tokenMinter_ Local token minter address
+     * @param roles Roles configuration
+     * @param minFee_ Minimum fee
      * @param remoteDomains_ Array of remote domains to configure
      * @param remoteTokenMessengers_ Array of remote token messenger addresses
      */
     function initialize(
-        address owner_,
-        address rescuer_,
-        address feeRecipient_,
-        address denylister_,
-        address tokenMinter_,
+        TokenMessengerV2Roles calldata roles,
+        uint256 minFee_,
         uint32[] calldata remoteDomains_,
         bytes32[] calldata remoteTokenMessengers_
     ) external initializer {
-        require(owner_ != address(0), "Owner is the zero address");
+        require(roles.owner != address(0), "Owner is the zero address");
         require(
             remoteDomains_.length == remoteTokenMessengers_.length,
             "Invalid remote domain configuration"
         );
 
         // Roles
-        _transferOwnership(owner_);
-        _updateRescuer(rescuer_);
-        _updateDenylister(denylister_);
-        _setFeeRecipient(feeRecipient_);
+        _transferOwnership(roles.owner);
+        _updateRescuer(roles.rescuer);
+        _updateDenylister(roles.denylister);
+        _setFeeRecipient(roles.feeRecipient);
 
         // Local minter configuration
-        _setLocalMinter(tokenMinter_);
+        _setLocalMinter(roles.tokenMinter);
+
+        // Fee configuration
+        _setMinFeeController(roles.minFeeController);
+        _setMinFee(minFee_);
 
         // Remote token messenger configuration
         uint256 _remoteDomainsLength = remoteDomains_.length;
@@ -145,6 +152,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * to this contract is less than `amount`.
      * - burn() reverts. For example, if `amount` is 0.
      * - maxFee is greater than or equal to `amount`.
+     * - maxFee is less than `amount * minFee / MIN_FEE_MULTIPLIER`.
      * - MessageTransmitterV2#sendMessage reverts.
      * @param amount amount of tokens to burn
      * @param destinationDomain destination domain to receive message on
@@ -188,6 +196,7 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * to this contract is less than `amount`.
      * - burn() reverts. For example, if `amount` is 0.
      * - maxFee is greater than or equal to `amount`.
+     * - maxFee is less than `amount * minFee / MIN_FEE_MULTIPLIER`.
      * - MessageTransmitterV2#sendMessage reverts.
      * @param amount amount of tokens to burn
      * @param destinationDomain destination domain to receive message on
@@ -282,7 +291,33 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         return _handleReceiveMessage(messageBody.ref(0), remoteDomain);
     }
 
+    /**
+     * @notice Returns the minimum fee for a given amount
+     * @param amount The amount for which to calculate the minimum fee
+     * @return The minimum fee for the given amount
+     */
+    function getMinFeeAmount(uint256 amount) external view returns (uint256) {
+        if (minFee == 0) return 0;
+
+        require(amount > 1, "Amount too low");
+        return _calcMinFeeAmount(amount);
+    }
+
     // ============ Internal Utils ============
+    /**
+     * Calculates the minimum fee amount for a given amount.
+     * @dev Amount should be constrained to be greater than 1.
+     * @dev Assumes `minFee` is non-zero.
+     * @param _amount The amount for which to calculate the minimum fee.
+     * @return The minimum fee for the given amount.
+     */
+    function _calcMinFeeAmount(
+        uint256 _amount
+    ) internal view returns (uint256) {
+        uint256 _minFeeAmount = _amount.mul(minFee) / MIN_FEE_MULTIPLIER;
+        return _minFeeAmount == 0 ? 1 : _minFeeAmount;
+    }
+
     /**
      * @notice Deposits and burns tokens from sender to be minted on destination domain.
      * Emits a `DepositForBurn` event.
@@ -307,6 +342,16 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
         require(_amount > 0, "Amount must be nonzero");
         require(_mintRecipient != bytes32(0), "Mint recipient must be nonzero");
         require(_maxFee < _amount, "Max fee must be less than amount");
+
+        // Verify minimum fee
+        if (minFee > 0) {
+            // Implicitly constrains `_amount` to be greater than 1
+            // 0 < minFeeAmount <= maxFee < amount
+            require(
+                _maxFee >= _calcMinFeeAmount(_amount),
+                "Insufficient max fee"
+            );
+        }
 
         bytes32 _destinationTokenMessenger = _getRemoteTokenMessenger(
             _destinationDomain
