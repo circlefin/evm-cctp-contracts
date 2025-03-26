@@ -60,6 +60,8 @@ contract DeployProxiesV2Script is Script {
     address private tokenMessengerV2FeeRecipientAddress;
     address private tokenMessengerV2DenylisterAddress;
     address private tokenMessengerV2AdminAddress;
+    address private tokenMessengerV2MinFeeControllerAddress;
+    uint256 private tokenMessengerV2MinFee;
 
     uint32 private domain;
     uint32 private version;
@@ -185,11 +187,15 @@ contract DeployProxiesV2Script is Script {
         }
         bytes memory initializer = abi.encodeWithSelector(
             TokenMessengerV2.initialize.selector,
-            tokenMessengerV2OwnerAddress,
-            tokenMessengerV2RescuerAddress,
-            tokenMessengerV2FeeRecipientAddress,
-            tokenMessengerV2DenylisterAddress,
-            address(tokenMinterV2),
+            TokenMessengerV2.TokenMessengerV2Roles({
+                owner: tokenMessengerV2OwnerAddress,
+                rescuer: tokenMessengerV2RescuerAddress,
+                feeRecipient: tokenMessengerV2FeeRecipientAddress,
+                denylister: tokenMessengerV2DenylisterAddress,
+                tokenMinter: address(tokenMinterV2),
+                minFeeController: tokenMessengerV2MinFeeControllerAddress
+            }),
+            tokenMessengerV2MinFee,
             remoteDomains,
             remoteTokenMessengerAddresses
         );
@@ -333,6 +339,10 @@ contract DeployProxiesV2Script is Script {
         tokenMessengerV2AdminAddress = vm.envAddress(
             "TOKEN_MESSENGER_V2_PROXY_ADMIN_ADDRESS"
         );
+        tokenMessengerV2MinFeeControllerAddress = vm.envAddress(
+            "TOKEN_MESSENGER_V2_MIN_FEE_CONTROLLER_ADDRESS"
+        );
+        tokenMessengerV2MinFee = vm.envUint("TOKEN_MESSENGER_V2_MIN_FEE");
 
         domain = uint32(vm.envUint("DOMAIN"));
         version = uint32(vm.envUint("VERSION"));

@@ -107,6 +107,10 @@ contract DeployProxiesV2Test is ScriptV2TestUtils {
         assertEq(tokenMessengerV2.feeRecipient(), feeRecipient);
         // deny lister
         assertEq(tokenMessengerV2.denylister(), denyLister);
+        // min fee controller
+        assertEq(tokenMessengerV2.minFeeController(), minFeeController);
+        // min fee
+        assertEq(tokenMessengerV2.minFee(), minFee);
         // remote token messengers
         for (uint256 i = 0; i < remoteDomains.length; i++) {
             uint32 remoteDomain = remoteDomains[i];

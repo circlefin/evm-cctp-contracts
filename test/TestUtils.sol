@@ -83,6 +83,7 @@ contract TestUtils is Test {
     address newTokenController = vm.addr(1900);
     address owner = vm.addr(1902);
     address arbitraryAddress = vm.addr(1903);
+    uint256 internal constant MIN_FEE_MULTIPLIER = 10_000_000;
 
     // See: https://github.com/foundry-rs/foundry/blob/2cdbfaca634b284084d0f86357623aef7a0d2ce3/crates/evm/core/src/constants.rs#L9
     // This address may be passed into fuzz tests by Foundry. VM.mockCalls fail when
@@ -512,5 +513,52 @@ contract TestUtils is Test {
         }
 
         return _signaturesConcatenated;
+    }
+
+    /**
+     * Returns the minimum fee amount for a given amount and minimum fee.
+     * @param _amount The amount to calculate the minimum fee for
+     * @param _minFee The minimum fee
+     * @return minFeeAmount The minimum fee amount
+     */
+    function _getMinFeeAmount(
+        uint256 _amount,
+        uint256 _minFee
+    ) internal pure returns (uint256 minFeeAmount) {
+        if (_minFee == 0) return 0;
+        minFeeAmount = (_amount * _minFee) / MIN_FEE_MULTIPLIER;
+        minFeeAmount = minFeeAmount == 0 ? 1 : minFeeAmount;
+    }
+
+    /**
+     * Helper function to prevent overflow. Takes into account no minimum fee.
+     * @param _amount The amount to bound
+     * @param _minFee The minimum fee
+     * @return The bounded amount
+     */
+    function _boundAmountForMinFee(
+        uint256 _amount,
+        uint256 _minFee
+    ) internal pure returns (uint256) {
+        return
+            bound(
+                _amount,
+                _minFee == 0 ? 1 : 2,
+                _minFee == 0 ? type(uint256).max : type(uint256).max / _minFee
+            );
+    }
+
+    /**
+     * Helper function to cause overflow. Assumes non-zero minimum fee.
+     * @param _amount The amount to bound
+     * @param _minFee The minimum fee
+     * @return The bounded amount
+     */
+    function _boundOverflowAmountForMinFee(
+        uint256 _amount,
+        uint256 _minFee
+    ) internal pure returns (uint256) {
+        return
+            bound(_amount, type(uint256).max / _minFee + 1, type(uint256).max);
     }
 }

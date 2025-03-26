@@ -40,6 +40,8 @@ contract ScriptV2TestUtils is TestUtils {
     address rescuer;
     address feeRecipient;
     address denyLister;
+    address minFeeController;
+    uint256 minFee = 1;
 
     Create2Factory create2Factory;
     MessageTransmitterV2 messageTransmitterV2;
@@ -122,6 +124,9 @@ contract ScriptV2TestUtils is TestUtils {
             uint256(keccak256("DEPLOYTEST_FEE_RECIPIENT_PK"))
         );
         denyLister = vm.addr(uint256(keccak256("DEPLOYTEST_DENY_LISTER_PK")));
+        minFeeController = vm.addr(
+            uint256(keccak256("DEPLOYTEST_MIN_FEE_CONTROLLER_PK"))
+        );
 
         messageTransmitterV2AdminAddress = vm.addr(
             uint256(keccak256("MESSAGE_TRANSMITTER_V2_ADMIN"))
@@ -221,6 +226,14 @@ contract ScriptV2TestUtils is TestUtils {
         vm.setEnv(
             "TOKEN_MESSENGER_V2_PROXY_ADMIN_ADDRESS",
             vm.toString(tokenMessengerV2AdminAddress)
+        );
+        vm.setEnv(
+            "TOKEN_MESSENGER_V2_MIN_FEE_CONTROLLER_ADDRESS",
+            vm.toString(minFeeController)
+        );
+        vm.setEnv(
+            "TOKEN_MESSENGER_V2_MIN_FEE",
+            vm.toString(minFee)
         );
 
         vm.setEnv("DOMAIN", vm.toString(uint256(sourceDomain)));
