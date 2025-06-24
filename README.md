@@ -106,10 +106,10 @@ The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tuto
 
 Deploy Create2Factory first if not yet deployed.
 
-1. Add the environment variable `CREATE2_FACTORY_DEPLOYER_KEY` to your [env](.env) file.
-2. Run `make simulate-deploy-create2-factory RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.
+1. Add the environment variable `CREATE2_FACTORY_OWNER` (address) to your [env](.env) file.
+2. Run `make simulate-deploy-create2-factory RPC_URL=<RPC_URL> SENDER=<SENDER> CREATE2_FACTORY_OWNER_KEY=<PRIVATE_KEY>` to perform a dry run.
 3. Run
-    ```make deploy-create2-factory RPC_URL=<RPC_URL> SENDER=<SENDER>```
+    ```make deploy-create2-factory RPC_URL=<RPC_URL> SENDER=<SENDER> CREATE2_FACTORY_OWNER_KEY=<PRIVATE_KEY>```
   to deploy the Create2Factory.
 
 #### V2 Implementation Contracts
@@ -119,18 +119,16 @@ Deploy the implementation contracts.
 1. Add the following [env](.env) variables
 
     - `CREATE2_FACTORY_CONTRACT_ADDRESS`
-    - `CREATE2_FACTORY_OWNER_KEY`
-    - `TOKEN_MINTER_V2_OWNER_ADDRESS`
     - `TOKEN_MINTER_V2_OWNER_KEY`
     - `TOKEN_CONTROLLER_ADDRESS`
     - `DOMAIN`
     - `MESSAGE_BODY_VERSION`
     - `VERSION`
 
-2. Run `make simulate-deploy-implementations-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.
+2. Run `make simulate-deploy-implementations-v2 RPC_URL=<RPC_URL> SENDER=<SENDER> CREATE2_FACTORY_OWNER_KEY=<CREATE2_FACTORY_OWNER_KEY>` to perform a dry run.
 
 3. Run
-    ```make deploy-implementations-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>```
+    ```make deploy-implementations-v2 RPC_URL=<RPC_URL> SENDER=<SENDER> CREATE2_FACTORY_OWNER_KEY=<CREATE2_FACTORY_OWNER_KEY>```
   to deploy MessageTransmitterV2, TokenMinterV2, and TokenMessengerV2.
 
 #### V2 Proxies
@@ -148,7 +146,6 @@ The proxies are deployed via `CREATE2` through Create2Factory. The scripts assum
     - `REMOTE_TOKEN_MESSENGER_V2_ADDRESSES`
     - `CREATE2_FACTORY_CONTRACT_ADDRESS`
 
-    - `MESSAGE_TRANSMITTER_V2_IMPLEMENTATION_ADDRESS`
     - `MESSAGE_TRANSMITTER_V2_OWNER_ADDRESS`
     - `MESSAGE_TRANSMITTER_V2_PAUSER_ADDRESS`
     - `MESSAGE_TRANSMITTER_V2_RESCUER_ADDRESS`
@@ -157,27 +154,26 @@ The proxies are deployed via `CREATE2` through Create2Factory. The scripts assum
     - `MESSAGE_TRANSMITTER_V2_ATTESTER_2_ADDRESS`
     - `MESSAGE_TRANSMITTER_V2_PROXY_ADMIN_ADDRESS`
 
-    - `TOKEN_MINTER_V2_CONTRACT_ADDRESS`
     - `TOKEN_MINTER_V2_PAUSER_ADDRESS`
     - `TOKEN_MINTER_V2_RESCUER_ADDRESS`
 
-    - `TOKEN_MESSENGER_V2_IMPLEMENTATION_ADDRESS`
     - `TOKEN_MESSENGER_V2_OWNER_ADDRESS`
     - `TOKEN_MESSENGER_V2_RESCUER_ADDRESS`
     - `TOKEN_MESSENGER_V2_FEE_RECIPIENT_ADDRESS`
     - `TOKEN_MESSENGER_V2_DENYLISTER_ADDRESS`
     - `TOKEN_MESSENGER_V2_PROXY_ADMIN_ADDRESS`
+    - `TOKEN_MESSENGER_V2_MIN_FEE_CONTROLLER_ADDRESS`
+    - `TOKEN_MESSENGER_V2_MIN_FEE`
 
     - `DOMAIN`
     - `BURN_LIMIT_PER_MESSAGE`
 
-    - `CREATE2_FACTORY_OWNER_KEY`
     - `TOKEN_CONTROLLER_KEY`
     - `TOKEN_MINTER_V2_OWNER_KEY`
 
-2. Run `make simulate-deploy-proxies-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.
+2. Run `make simulate-deploy-proxies-v2 RPC_URL=<RPC_URL> SENDER=<SENDER> CREATE2_FACTORY_OWNER_KEY=<CREATE2_FACTORY_OWNER_KEY>` to perform a dry run.
 
-3. Run `make deploy-proxies-v2 RPC_URL=<RPC_URL> SENDER=<SENDER>` to deploy the contracts
+3. Run `make deploy-proxies-v2 RPC_URL=<RPC_URL> SENDER=<SENDER> CREATE2_FACTORY_OWNER_KEY=<CREATE2_FACTORY_OWNER_KEY>` to deploy the contracts
 
 4. ONLY perform steps 5-7 for additional remote resources NOT already configured above.
 
@@ -221,11 +217,26 @@ Use Create2Factory to deploy the helper library to a deterministic address for e
 1. Set the following [env](.env) variables:
 
     - `CREATE2_FACTORY_CONTRACT_ADDRESS`
-    - `CREATE2_FACTORY_OWNER_KEY`
 
-2. Run `make simulate-deploy-address-utils-external RPC_URL=<RPC_URL> SENDER=<SENDER>` to perform a dry run.
+2. Run `make simulate-deploy-address-utils-external RPC_URL=<RPC_URL> SENDER=<SENDER> CREATE2_FACTORY_OWNER_KEY=<CREATE2_FACTORY_OWNER_KEY>` to perform a dry run.
 
-3. Run `make deploy-address-utils-external RPC_URL=<RPC_URL> SENDER=<SENDER>` to deploy.
+3. Run `make deploy-address-utils-external RPC_URL=<RPC_URL> SENDER=<SENDER> CREATE2_FACTORY_OWNER_KEY=<CREATE2_FACTORY_OWNER_KEY>` to deploy.
+
+#### Predicting Create2 Deployment Addresses
+
+The `PredictCreate2Deployments.s.sol` script can help compute expected deployment addresses for various contracts. You can run it like so:
+
+- Predicting MessageTransmitterV2 Implementation: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "messageTransmitterV2Impl(address,uint32,uint32)" <create2FactoryAddress> <domain> <message version>`
+
+- Predicting TokenMessengerV2 Implementation: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "tokenMessengerV2Impl(address,uint32)" <create2FactoryAddress> <messageBodyVersion>`
+
+- Predicting MessageTransmitterV2 Proxy: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "messageTransmitterV2Proxy(address)" <create2FactoryAddress>`
+
+- Predicting TokenMessengerV2 Proxy: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "tokenMessengerV2Proxy(address)" <create2FactoryAddress>`
+
+- Predicting TokenMinter: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "tokenMinterV2(address)" <create2FactoryAddress>`
+
+- Predicting AddressUtilsExternal: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "addressUtilsExternal(address)`
 
 ## License
 

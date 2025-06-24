@@ -19,14 +19,14 @@ import "forge-std/Script.sol";
 import {Create2Factory} from "../src/v2/Create2Factory.sol";
 
 contract DeployCreate2FactoryScript is Script {
-    uint256 private create2FactoryDeployerKey;
+    address private create2FactoryOwner;
 
     Create2Factory private create2Factory;
 
     function deployCreate2Factory(
-        uint256 deployerKey
+        address _create2FactoryOwner
     ) internal returns (Create2Factory _create2Factory) {
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(_create2FactoryOwner);
 
         _create2Factory = new Create2Factory();
 
@@ -34,10 +34,10 @@ contract DeployCreate2FactoryScript is Script {
     }
 
     function setUp() public {
-        create2FactoryDeployerKey = vm.envUint("CREATE2_FACTORY_DEPLOYER_KEY");
+        create2FactoryOwner = vm.envAddress("CREATE2_FACTORY_OWNER");
     }
 
     function run() public {
-        create2Factory = deployCreate2Factory(create2FactoryDeployerKey);
+        create2Factory = deployCreate2Factory(create2FactoryOwner);
     }
 }

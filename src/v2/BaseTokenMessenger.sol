@@ -63,6 +63,18 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
     event FeeRecipientSet(address feeRecipient);
 
     /**
+     * @notice Emitted when the minimum fee controller is set
+     * @param minFeeController address of minimum fee controller
+     */
+    event MinFeeControllerSet(address minFeeController);
+
+    /**
+     * @notice Emitted when the minimum fee is set
+     * @param minFee minimum fee
+     */
+    event MinFeeSet(uint256 minFee);
+
+    /**
      * @notice Emitted when tokens are minted
      * @param mintRecipient recipient address of minted tokens
      * @param amount amount of minted tokens received by `mintRecipient`
@@ -92,6 +104,15 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
     // Address to receive collected fees
     address public feeRecipient;
 
+    // Minimum fee controller address
+    address public minFeeController;
+
+    // Minimum fee for all transfers in 1/1000 basis points
+    uint256 public minFee;
+
+    // Minimum fee multiplier to support 1/1000 basis point precision
+    uint256 public constant MIN_FEE_MULTIPLIER = 10_000_000;
+
     // ============ Modifiers ============
     /**
      * @notice Only accept messages from a registered TokenMessenger contract on given remote domain
@@ -112,6 +133,17 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
     modifier onlyLocalMessageTransmitter() {
         // Caller must be the registered message transmitter for this domain
         require(_isLocalMessageTransmitter(), "Invalid message transmitter");
+        _;
+    }
+
+    /**
+     * @notice Reverts if called by any account other than the min fee controller
+     */
+    modifier onlyMinFeeController() {
+        require(
+            msg.sender == minFeeController,
+            "Caller is not the min fee controller"
+        );
         _;
     }
 
@@ -189,6 +221,26 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
      */
     function setFeeRecipient(address _feeRecipient) external onlyOwner {
         _setFeeRecipient(_feeRecipient);
+    }
+
+    /**
+     * @notice Sets the minimum fee controller address
+     * @dev Reverts if not called by the owner
+     * @dev Reverts if `_minFeeController` is the zero address
+     * @param _minFeeController Address of minimum fee controller
+     */
+    function setMinFeeController(address _minFeeController) external onlyOwner {
+        _setMinFeeController(_minFeeController);
+    }
+
+    /**
+     * @notice Sets the minimum fee for all transfers in 1/1000 basis points
+     * @dev Reverts if not called by the min fee controller
+     * @dev Reverts if the minimum fee is equal to or greater than MIN_FEE_MULTIPLIER
+     * @param _minFee Minimum fee
+     */
+    function setMinFee(uint256 _minFee) external onlyMinFeeController {
+        _setMinFee(_minFee);
     }
 
     /**
@@ -333,6 +385,28 @@ abstract contract BaseTokenMessenger is Rescuable, Denylistable, Initializable {
         localMinter = ITokenMinterV2(_newLocalMinter);
 
         emit LocalMinterAdded(_newLocalMinter);
+    }
+
+    /**
+     * @notice Sets the minimum fee controller address
+     * @dev Reverts if `_minFeeController` is the zero address
+     * @param _minFeeController Address of minimum fee controller
+     */
+    function _setMinFeeController(address _minFeeController) internal {
+        require(_minFeeController != address(0), "Zero address not allowed");
+        minFeeController = _minFeeController;
+        emit MinFeeControllerSet(_minFeeController);
+    }
+
+    /**
+     * @notice Sets the minimum fee for all transfers
+     * @dev Reverts if the minimum fee is equal to or greater than MIN_FEE_MULTIPLIER
+     * @param _minFee Minimum fee
+     */
+    function _setMinFee(uint256 _minFee) internal {
+        require(_minFee < MIN_FEE_MULTIPLIER, "Min fee too high");
+        minFee = _minFee;
+        emit MinFeeSet(_minFee);
     }
 
     /**

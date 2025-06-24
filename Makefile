@@ -19,22 +19,37 @@ simulate-deploy-implementations-v2:
 	forge script scripts/v2/DeployImplementationsV2.s.sol:DeployImplementationsV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
 
 deploy-implementations-v2:
-	forge script scripts/v2/DeployImplementationsV2.s.sol:DeployImplementationsV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+	forge script scripts/v2/DeployImplementationsV2.s.sol:DeployImplementationsV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --private-key ${CREATE2_FACTORY_OWNER_KEY} --broadcast
+
+deploy-implementations-v2-unlocked:
+	forge script scripts/v2/DeployImplementationsV2.s.sol:DeployImplementationsV2Script --rpc-url ${RPC_URL} --sender 0x0000000000000000000000000000000000000000 --broadcast --unlocked
 
 simulate-deploy-create2-factory:
 	forge script scripts/DeployCreate2Factory.s.sol:DeployCreate2FactoryScript --rpc-url ${RPC_URL} --sender ${SENDER}
 
 deploy-create2-factory:
-	forge script scripts/DeployCreate2Factory.s.sol:DeployCreate2FactoryScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+	forge script scripts/DeployCreate2Factory.s.sol:DeployCreate2FactoryScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast --private-key ${CREATE2_FACTORY_OWNER_KEY}
+
+deploy-create2-factory-unlocked:
+	forge script scripts/DeployCreate2Factory.s.sol:DeployCreate2FactoryScript --rpc-url ${RPC_URL} --sender 0x0000000000000000000000000000000000000000 --broadcast --unlocked
 
 simulate-deploy-proxies-v2:
 	forge script scripts/v2/DeployProxiesV2.s.sol:DeployProxiesV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
 
 deploy-proxies-v2:
-	forge script scripts/v2/DeployProxiesV2.s.sol:DeployProxiesV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+	forge script scripts/v2/DeployProxiesV2.s.sol:DeployProxiesV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast --private-key ${CREATE2_FACTORY_OWNER_KEY}
+
+deploy-proxies-v2-unlocked:
+	forge script scripts/v2/DeployProxiesV2.s.sol:DeployProxiesV2Script --rpc-url ${RPC_URL} --sender 0x0000000000000000000000000000000000000000 --broadcast --unlocked
 
 simulate-setup-remote-resources-v2:
 	forge script scripts/v2/SetupRemoteResourcesV2.s.sol:SetupRemoteResourcesV2Script --rpc-url ${RPC_URL} --sender ${SENDER}
+
+simulate-configure-token-minter-v2:
+	forge script scripts/v2/DeployProxiesV2.s.sol:DeployProxiesV2Script --sig "configureTokenMinterV2()()"  --rpc-url ${RPC_URL} --sender ${SENDER}
+
+configure-token-minter-v2:
+	forge script scripts/v2/DeployProxiesV2.s.sol:DeployProxiesV2Script --sig "configureTokenMinterV2()()"  --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
 setup-remote-resources-v2:
 	forge script scripts/v2/SetupRemoteResourcesV2.s.sol:SetupRemoteResourcesV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
@@ -46,10 +61,13 @@ rotate-keys-v2:
 	forge script scripts/v2/RotateKeysV2.s.sol:RotateKeysV2Script --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
 
 simulate-deploy-address-utils-external:
-	forge script scripts/v2/DeployAddressUtilsExternal.s.sol:DeployAddressUtilsExternalScript --rpc-url ${RPC_URL} --sender ${SENDER}
+	forge script scripts/v2/DeployAddressUtilsExternal.s.sol:DeployAddressUtilsExternalScript --rpc-url ${RPC_URL} --sender ${SENDER} --private-keys ${CREATE2_FACTORY_OWNER_KEY}
 
 deploy-address-utils-external:
-	forge script scripts/v2/DeployAddressUtilsExternal.s.sol:DeployAddressUtilsExternalScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast
+	forge script scripts/v2/DeployAddressUtilsExternal.s.sol:DeployAddressUtilsExternalScript --rpc-url ${RPC_URL} --sender ${SENDER} --broadcast --private-keys ${CREATE2_FACTORY_OWNER_KEY}
+
+deploy-address-utils-external-unlocked:
+	forge script scripts/v2/DeployAddressUtilsExternal.s.sol:DeployAddressUtilsExternalScript --rpc-url ${RPC_URL}  --sender 0x0000000000000000000000000000000000000000 --broadcast --unlocked
 
 anvil:
 	docker rm -f anvil || true
@@ -62,6 +80,9 @@ anvil-test: anvil
 anvil-test-v2: anvil
 	pip3 install -r requirements.txt
 	python anvil/crosschainTransferITV2.py
+
+anvil-impersonate:
+	python ./scripts/impersonateAnvilAccounts.py $(ADDRESSES) --balance 10
 
 deploy-local:
 	@docker exec anvil forge script anvil/scripts/${contract}.s.sol:${contract}Script --rpc-url http://localhost:8545  --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --broadcast
