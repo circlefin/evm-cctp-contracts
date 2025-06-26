@@ -21,7 +21,7 @@ pragma abicoder v2;
 import {Script} from "forge-std/Script.sol";
 import {AdminUpgradableProxy} from "../../src/proxy/AdminUpgradableProxy.sol";
 import {TokenMessengerV2} from "../../src/v2/TokenMessengerV2.sol";
-import {TokenMinterV2} from "../../src/v2/TokenMinterV2.sol";
+import {TokenMinter, TokenMinterV2} from "../../src/v2/TokenMinterV2.sol";
 import {MessageTransmitterV2} from "../../src/v2/MessageTransmitterV2.sol";
 import {Create2Factory} from "../../src/v2/Create2Factory.sol";
 import {Ownable2Step} from "../../src/roles/Ownable2Step.sol";
@@ -41,7 +41,6 @@ contract DeployImplementationsV2Script is Script {
     uint32 private messageBodyVersion;
     uint32 private version;
     uint32 private domain;
-    uint256 private create2FactoryOwnerPrivateKey;
 
     function deployImplementationsV2()
         private
@@ -62,7 +61,7 @@ contract DeployImplementationsV2Script is Script {
         Create2Factory factory = Create2Factory(factoryAddress);
 
         // Start recording transactions
-        vm.startBroadcast(create2FactoryOwnerPrivateKey);
+        vm.startBroadcast(factory.owner());
 
         // Deploy MessageTransmitterV2 implementation
         messageTransmitterV2 = MessageTransmitterV2(
@@ -93,12 +92,19 @@ contract DeployImplementationsV2Script is Script {
 
         // Since the TokenMinter sets the msg.sender of the deployment to be
         // the Owner, we'll need to rotate it from the Create2Factory atomically.
+        // But first we rotate the tokenController, since only the Owner can do that
+        bytes memory tokenMinterTokenControllerRotation = abi
+            .encodeWithSelector(
+                TokenMinter.setTokenController.selector,
+                tokenControllerAddress
+            );
         bytes memory tokenMinterOwnershipRotation = abi.encodeWithSelector(
             Ownable2Step.transferOwnership.selector,
             tokenMinterOwnerAddress
         );
-        bytes[] memory tokenMinterMultiCallData = new bytes[](1);
-        tokenMinterMultiCallData[0] = tokenMinterOwnershipRotation;
+        bytes[] memory tokenMinterMultiCallData = new bytes[](2);
+        tokenMinterMultiCallData[0] = tokenMinterTokenControllerRotation;
+        tokenMinterMultiCallData[1] = tokenMinterOwnershipRotation;
 
         // Deploy TokenMinter
         tokenMinterV2 = TokenMinterV2(
@@ -107,7 +113,7 @@ contract DeployImplementationsV2Script is Script {
                 SALT_TOKEN_MINTER,
                 abi.encodePacked(
                     type(TokenMinterV2).creationCode,
-                    abi.encode(tokenControllerAddress)
+                    abi.encode(address(factory))
                 ),
                 tokenMinterMultiCallData
             )
@@ -129,11 +135,8 @@ contract DeployImplementationsV2Script is Script {
      */
     function setUp() public {
         factoryAddress = vm.envAddress("CREATE2_FACTORY_CONTRACT_ADDRESS");
-        create2FactoryOwnerPrivateKey = vm.envUint("CREATE2_FACTORY_OWNER_KEY");
-        tokenMinterOwnerAddress = vm.envAddress(
-            "TOKEN_MINTER_V2_OWNER_ADDRESS"
-        );
         tokenMinterOwnerKey = vm.envUint("TOKEN_MINTER_V2_OWNER_KEY");
+        tokenMinterOwnerAddress = vm.addr(tokenMinterOwnerKey);
         tokenControllerAddress = vm.envAddress("TOKEN_CONTROLLER_ADDRESS");
         domain = uint32(vm.envUint("DOMAIN"));
         messageBodyVersion = uint32(vm.envUint("MESSAGE_BODY_VERSION"));

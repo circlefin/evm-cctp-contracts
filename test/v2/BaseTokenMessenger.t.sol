@@ -30,11 +30,16 @@ abstract contract BaseTokenMessengerTest is Test, TestUtils {
     event LocalMinterAdded(address localMinter);
     event LocalMinterRemoved(address localMinter);
     event FeeRecipientSet(address feeRecipient);
+    event MinFeeControllerSet(address minFeeController);
+    event MinFeeSet(uint256 minFee);
 
     BaseTokenMessenger baseTokenMessenger;
 
+    address private constant minFeeController = address(90);
+
     function setUp() public virtual {
         baseTokenMessenger = BaseTokenMessenger(setUpBaseTokenMessenger());
+        baseTokenMessenger.setMinFeeController(minFeeController);
     }
 
     function setUpBaseTokenMessenger() internal virtual returns (address);
@@ -263,6 +268,57 @@ abstract contract BaseTokenMessengerTest is Test, TestUtils {
         vm.expectEmit(true, true, true, true);
         emit FeeRecipientSet(_feeRecipient);
         baseTokenMessenger.setFeeRecipient(_feeRecipient);
+    }
+
+    function testSetMinFeeController_revertsOnNonOwner(
+        address _notOwner,
+        address _minFeeController
+    ) public {
+        vm.assume(_notOwner != baseTokenMessenger.owner());
+        expectRevertWithWrongOwner(_notOwner);
+        baseTokenMessenger.setMinFeeController(_minFeeController);
+    }
+
+    function testSetMinFeeController_revertsIfZeroAddress() public {
+        vm.expectRevert("Zero address not allowed");
+        baseTokenMessenger.setMinFeeController(address(0));
+    }
+
+    function testSetMinFeeController_succeeds(
+        address _minFeeController
+    ) public {
+        vm.assume(_minFeeController != address(0));
+
+        vm.expectEmit(true, true, true, true);
+        emit MinFeeControllerSet(_minFeeController);
+        baseTokenMessenger.setMinFeeController(_minFeeController);
+        assertEq(baseTokenMessenger.minFeeController(), _minFeeController);
+    }
+
+    function testSetMinFee_succeeds(uint256 _minFee) public {
+        _minFee = bound(_minFee, 0, MIN_FEE_MULTIPLIER - 1);
+        vm.expectEmit(true, true, true, true);
+        emit MinFeeSet(_minFee);
+        vm.prank(minFeeController);
+        baseTokenMessenger.setMinFee(_minFee);
+        assertEq(baseTokenMessenger.minFee(), _minFee);
+    }
+
+    function testSetMinFee_revertsIfTooHigh(uint256 _minFee) public {
+        _minFee = bound(_minFee, MIN_FEE_MULTIPLIER, type(uint256).max);
+        vm.expectRevert("Min fee too high");
+        vm.prank(minFeeController);
+        baseTokenMessenger.setMinFee(_minFee);
+    }
+
+    function testSetMinFee_revertsIfNotController(uint256 _minFee) public {
+        _minFee = bound(_minFee, 0, MIN_FEE_MULTIPLIER - 1);
+        vm.expectRevert("Caller is not the min fee controller");
+        baseTokenMessenger.setMinFee(_minFee);
+    }
+
+    function testMIN_FEE_MULTIPLIER() public {
+        assertEq(baseTokenMessenger.MIN_FEE_MULTIPLIER(), MIN_FEE_MULTIPLIER);
     }
 
     // Ownable tests

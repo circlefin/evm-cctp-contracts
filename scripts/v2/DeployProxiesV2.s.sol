@@ -26,6 +26,7 @@ import {TokenMinterV2} from "../../src/v2/TokenMinterV2.sol";
 import {MessageTransmitterV2} from "../../src/v2/MessageTransmitterV2.sol";
 import {AddressUtils} from "../../src/messages/v2/AddressUtils.sol";
 import {SALT_TOKEN_MESSENGER, SALT_MESSAGE_TRANSMITTER} from "./Salts.sol";
+import {PredictCreate2Deployments} from "./PredictCreate2Deployments.s.sol";
 
 contract DeployProxiesV2Script is Script {
     // Expose for tests
@@ -59,14 +60,21 @@ contract DeployProxiesV2Script is Script {
     address private tokenMessengerV2FeeRecipientAddress;
     address private tokenMessengerV2DenylisterAddress;
     address private tokenMessengerV2AdminAddress;
+    address private tokenMessengerV2MinFeeControllerAddress;
+    uint256 private tokenMessengerV2MinFee;
 
     uint32 private domain;
+    uint32 private version;
+    uint32 private messageBodyVersion;
     uint32 private maxMessageBodySize = 8192;
     uint256 private burnLimitPerMessage;
 
-    uint256 private create2FactoryOwnerPrivateKey;
+    address private create2FactoryOwner;
     uint256 private tokenMinterV2OwnerPrivateKey;
     uint256 private tokenControllerPrivateKey;
+
+    PredictCreate2Deployments predictDeployments =
+        new PredictCreate2Deployments();
 
     function getProxyCreationCode(
         address _implementation,
@@ -82,7 +90,7 @@ contract DeployProxiesV2Script is Script {
 
     function deployMessageTransmitterV2(
         address factory,
-        uint256 privateKey
+        address factoryOwner
     ) private returns (MessageTransmitterV2) {
         // Get proxy creation code
         bytes memory proxyCreateCode = getProxyCreationCode(
@@ -124,7 +132,7 @@ contract DeployProxiesV2Script is Script {
         multiCallData[1] = adminRotationData;
 
         // Start recording transactions
-        vm.startBroadcast(privateKey);
+        vm.startBroadcast(factoryOwner);
 
         // Deploy and multicall proxy
         address messageTransmitterV2ProxyAddress = Create2Factory(factory)
@@ -142,8 +150,7 @@ contract DeployProxiesV2Script is Script {
 
     function deployTokenMessengerV2(
         address factory,
-        uint256 privateKey,
-        address tokenMinterV2Address
+        address factoryOwner
     ) private returns (TokenMessengerV2) {
         // Get proxy creation code
         bytes memory proxyCreateCode = getProxyCreationCode(
@@ -180,11 +187,15 @@ contract DeployProxiesV2Script is Script {
         }
         bytes memory initializer = abi.encodeWithSelector(
             TokenMessengerV2.initialize.selector,
-            tokenMessengerV2OwnerAddress,
-            tokenMessengerV2RescuerAddress,
-            tokenMessengerV2FeeRecipientAddress,
-            tokenMessengerV2DenylisterAddress,
-            tokenMinterV2Address,
+            TokenMessengerV2.TokenMessengerV2Roles({
+                owner: tokenMessengerV2OwnerAddress,
+                rescuer: tokenMessengerV2RescuerAddress,
+                feeRecipient: tokenMessengerV2FeeRecipientAddress,
+                denylister: tokenMessengerV2DenylisterAddress,
+                tokenMinter: address(tokenMinterV2),
+                minFeeController: tokenMessengerV2MinFeeControllerAddress
+            }),
+            tokenMessengerV2MinFee,
             remoteDomains,
             remoteTokenMessengerAddresses
         );
@@ -206,8 +217,8 @@ contract DeployProxiesV2Script is Script {
         multiCallData[0] = upgradeAndInitializeData;
         multiCallData[1] = adminRotationData;
 
-        // Start recording transations
-        vm.startBroadcast(privateKey);
+        // Start recording transactions
+        vm.startBroadcast(factoryOwner);
 
         // Deploy proxy
         address tokenMessengerV2ProxyAddress = Create2Factory(factory)
@@ -217,7 +228,7 @@ contract DeployProxiesV2Script is Script {
                 proxyCreateCode,
                 multiCallData
             );
-        // Stop recording transations
+        // Stop recording transactions
         vm.stopBroadcast();
 
         return TokenMessengerV2(tokenMessengerV2ProxyAddress);
@@ -226,37 +237,43 @@ contract DeployProxiesV2Script is Script {
     function addMessengerPauserRescuerToTokenMinterV2(
         uint256 tokenMinterV2OwnerPrivateKey,
         uint256 _tokenControllerPrivateKey,
-        TokenMinterV2 _tokenMinterV2,
         address tokenMessengerV2Address
     ) private {
-        // Start recording transations
+        // Start recording transactions
         vm.startBroadcast(tokenMinterV2OwnerPrivateKey);
 
-        _tokenMinterV2.addLocalTokenMessenger(tokenMessengerV2Address);
-        _tokenMinterV2.updatePauser(tokenMinterV2PauserAddress);
-        _tokenMinterV2.updateRescuer(tokenMinterV2RescuerAddress);
+        if (
+            tokenMinterV2.pendingOwner() ==
+            vm.addr(tokenMinterV2OwnerPrivateKey)
+        ) {
+            tokenMinterV2.acceptOwnership();
+        }
 
-        // Stop recording transations
+        tokenMinterV2.addLocalTokenMessenger(tokenMessengerV2Address);
+        tokenMinterV2.updatePauser(tokenMinterV2PauserAddress);
+        tokenMinterV2.updateRescuer(tokenMinterV2RescuerAddress);
+
+        // Stop recording transactions
         vm.stopBroadcast();
 
-        // Start recording transations
+        // Start recording transactions
         vm.startBroadcast(_tokenControllerPrivateKey);
 
-        _tokenMinterV2.setMaxBurnAmountPerMessage(
+        tokenMinterV2.setMaxBurnAmountPerMessage(
             usdcContractAddress,
             burnLimitPerMessage
         );
 
         uint256 remoteDomainsLength = remoteDomains.length;
         for (uint256 i = 0; i < remoteDomainsLength; ++i) {
-            _tokenMinterV2.linkTokenPair(
+            tokenMinterV2.linkTokenPair(
                 usdcContractAddress,
                 remoteDomains[i],
                 usdcRemoteContractAddresses[i]
             );
         }
 
-        // Stop recording transations
+        // Stop recording transactions
         vm.stopBroadcast();
     }
 
@@ -278,9 +295,6 @@ contract DeployProxiesV2Script is Script {
         }
         create2Factory = vm.envAddress("CREATE2_FACTORY_CONTRACT_ADDRESS");
 
-        messageTransmitterV2Implementation = vm.envAddress(
-            "MESSAGE_TRANSMITTER_V2_IMPLEMENTATION_ADDRESS"
-        );
         messageTransmitterV2OwnerAddress = vm.envAddress(
             "MESSAGE_TRANSMITTER_V2_OWNER_ADDRESS"
         );
@@ -303,9 +317,6 @@ contract DeployProxiesV2Script is Script {
             "MESSAGE_TRANSMITTER_V2_PROXY_ADMIN_ADDRESS"
         );
 
-        tokenMinterV2 = TokenMinterV2(
-            vm.envAddress("TOKEN_MINTER_V2_CONTRACT_ADDRESS")
-        );
         tokenMinterV2PauserAddress = vm.envAddress(
             "TOKEN_MINTER_V2_PAUSER_ADDRESS"
         );
@@ -313,9 +324,6 @@ contract DeployProxiesV2Script is Script {
             "TOKEN_MINTER_V2_RESCUER_ADDRESS"
         );
 
-        tokenMessengerV2Implementation = vm.envAddress(
-            "TOKEN_MESSENGER_V2_IMPLEMENTATION_ADDRESS"
-        );
         tokenMessengerV2OwnerAddress = vm.envAddress(
             "TOKEN_MESSENGER_V2_OWNER_ADDRESS"
         );
@@ -331,8 +339,14 @@ contract DeployProxiesV2Script is Script {
         tokenMessengerV2AdminAddress = vm.envAddress(
             "TOKEN_MESSENGER_V2_PROXY_ADMIN_ADDRESS"
         );
+        tokenMessengerV2MinFeeControllerAddress = vm.envAddress(
+            "TOKEN_MESSENGER_V2_MIN_FEE_CONTROLLER_ADDRESS"
+        );
+        tokenMessengerV2MinFee = vm.envUint("TOKEN_MESSENGER_V2_MIN_FEE");
 
         domain = uint32(vm.envUint("DOMAIN"));
+        version = uint32(vm.envUint("VERSION"));
+        messageBodyVersion = uint32(vm.envUint("MESSAGE_BODY_VERSION"));
 
         uint256[] memory remoteDomainsUint256 = vm.envUint(
             "REMOTE_DOMAINS",
@@ -344,7 +358,7 @@ contract DeployProxiesV2Script is Script {
         }
         burnLimitPerMessage = vm.envUint("BURN_LIMIT_PER_MESSAGE");
 
-        create2FactoryOwnerPrivateKey = vm.envUint("CREATE2_FACTORY_OWNER_KEY");
+        create2FactoryOwner = vm.envAddress("CREATE2_FACTORY_OWNER");
         tokenMinterV2OwnerPrivateKey = vm.envUint("TOKEN_MINTER_V2_OWNER_KEY");
         tokenControllerPrivateKey = vm.envUint("TOKEN_CONTROLLER_KEY");
 
@@ -356,6 +370,15 @@ contract DeployProxiesV2Script is Script {
             ",",
             emptyRemoteTokenMessengerV2Addresses
         );
+
+        // Predict other addresses needed
+        messageTransmitterV2Implementation = predictDeployments
+            .messageTransmitterV2Impl(create2Factory, domain, version);
+        tokenMinterV2 = TokenMinterV2(
+            predictDeployments.tokenMinterV2(create2Factory)
+        );
+        tokenMessengerV2Implementation = predictDeployments
+            .tokenMessengerV2Impl(create2Factory, messageBodyVersion);
     }
 
     /**
@@ -364,20 +387,29 @@ contract DeployProxiesV2Script is Script {
     function run() public {
         messageTransmitterV2 = deployMessageTransmitterV2(
             create2Factory,
-            create2FactoryOwnerPrivateKey
+            create2FactoryOwner
         );
 
         tokenMessengerV2 = deployTokenMessengerV2(
             create2Factory,
-            create2FactoryOwnerPrivateKey,
-            address(tokenMinterV2)
+            create2FactoryOwner
         );
 
         addMessengerPauserRescuerToTokenMinterV2(
             tokenMinterV2OwnerPrivateKey,
             tokenControllerPrivateKey,
-            tokenMinterV2,
             address(tokenMessengerV2)
+        );
+    }
+
+    /**
+     * @notice Alternate, standalone entrypoint to configure the TokenMinterV2
+     */
+    function configureTokenMinterV2() public {
+        addMessengerPauserRescuerToTokenMinterV2(
+            tokenMinterV2OwnerPrivateKey,
+            tokenControllerPrivateKey,
+            predictDeployments.tokenMessengerV2Proxy(create2Factory)
         );
     }
 }

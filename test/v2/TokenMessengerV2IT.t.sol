@@ -46,6 +46,7 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
     uint32 remoteDomain = 1;
     uint32 messageVersion = 1;
     uint32 messageBodyVersion = 1;
+    uint256 minFee = 1;
 
     MessageTransmitterV2 localMessageTransmitter;
     MessageTransmitterV2 remoteMessageTransmitter;
@@ -136,11 +137,15 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
             localDeployer,
             abi.encodeWithSelector(
                 TokenMessengerV2.initialize.selector,
-                localDeployer, // owner
-                localDeployer, // rescuer
-                localDeployer, // feeRecipient
-                localDeployer, // denylister
-                address(localTokenMinter),
+                TokenMessengerV2.TokenMessengerV2Roles({
+                    owner: localDeployer,
+                    rescuer: localDeployer,
+                    feeRecipient: localDeployer,
+                    denylister: localDeployer,
+                    tokenMinter: address(localTokenMinter),
+                    minFeeController: localDeployer
+                }),
+                minFee,
                 new uint32[](0),
                 new bytes32[](0)
             )
@@ -187,11 +192,15 @@ contract TokenMessengerV2IntegrationTest is TestUtils {
             remoteDeployer,
             abi.encodeWithSelector(
                 TokenMessengerV2.initialize.selector,
-                remoteDeployer, // owner
-                remoteDeployer, // rescuer
-                remoteDeployer, // feeRecipient
-                remoteDeployer, // denylister
-                address(remoteTokenMinter),
+                TokenMessengerV2.TokenMessengerV2Roles({
+                    owner: remoteDeployer,
+                    rescuer: remoteDeployer,
+                    feeRecipient: remoteDeployer,
+                    denylister: remoteDeployer,
+                    tokenMinter: address(remoteTokenMinter),
+                    minFeeController: remoteDeployer
+                }),
+                minFee,
                 _remoteDomains,
                 _remoteTokenMessengerAddresses
             )
