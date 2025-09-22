@@ -1,5 +1,6 @@
 from typing import List, Dict
 from web3 import Web3
+from eth_account import Account
 import solcx
 import unittest
 import time
@@ -174,8 +175,9 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
             fee_executed_index_start : fee_executed_index_start + fee_executed_length
         ] = fee_executed.to_bytes(32, "big")
         signable_bytes = bytes(mutable_message_bytes)
-        signed_bytes = self.w3.eth.account.signHash(
-            Web3.keccak(signable_bytes), keys["attester"]
+        attester_account = Account.from_key(keys["attester"])
+        signed_bytes = attester_account.signHash(
+            Web3.keccak(signable_bytes)
         ).signature
         return signable_bytes, signed_bytes
 
@@ -183,7 +185,7 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
         """
         Converts a hex address to its zero-padded 32-byte representation.
         """
-        return Web3.toHex(Web3.toBytes(hexstr=address).rjust(32, b"\0"))
+        return Web3.to_hex(Web3.to_bytes(hexstr=address).rjust(32, b"\0"))
 
     def confirm_transaction(self, tx_hash, timeout=30):
         """
@@ -206,7 +208,7 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
     def setUp(self):
         # Connect to node
         self.w3 = Web3(Web3.HTTPProvider("http://0.0.0.0:8545"))
-        assert self.w3.isConnected()
+        assert self.w3.is_connected()
 
         # Deploy and initialize USDC on ETH
         self.eth_usdc = self.deploy_contract_from_source(
@@ -232,7 +234,7 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
         )
         self.send_transaction(
             self.eth_usdc.functions.initializeV2_1(
-                Web3.toChecksumAddress("0xb794f5ea0ba39494ce839613fffba74279579268")
+                Web3.to_checksum_address("0xb794f5ea0ba39494ce839613fffba74279579268")
             ),
             "eth_usdc_master_minter",
         )
@@ -261,7 +263,7 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
         )
         self.send_transaction(
             self.avax_usdc.functions.initializeV2_1(
-                Web3.toChecksumAddress("0xb794f5ea0ba39494ce839613fffba74279579268")
+                Web3.to_checksum_address("0xb794f5ea0ba39494ce839613fffba74279579268")
             ),
             "avax_usdc_master_minter",
         )
@@ -554,7 +556,7 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
 
         # parse MessageSent event emitted by avax_message_transmitter
         avax_message_sent_filter = (
-            self.avax_message_transmitter.events.MessageSent.createFilter(
+            self.avax_message_transmitter.events.MessageSent.create_filter(
                 fromBlock="0x0"
             )
         )
@@ -600,7 +602,7 @@ class TestTokenMessengerWithUSDC(unittest.TestCase):
 
         # parse MessageSent event emitted by eth_message_transmitter
         eth_message_sent_filter = (
-            self.eth_message_transmitter.events.MessageSent.createFilter(
+            self.eth_message_transmitter.events.MessageSent.create_filter(
                 fromBlock="0x0"
             )
         )
