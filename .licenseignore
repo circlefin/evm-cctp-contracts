@@ -19,3 +19,4 @@ pkg:npm/web3-rpc-providers@1.0.0-rc.4
 pkg:npm/web3-types@1.10.0
 pkg:npm/web3-utils@4.3.3
 pkg:npm/web3-validator@2.0.6
+pkg:npm/web3-eth-accounts@4.3.1
