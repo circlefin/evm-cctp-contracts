@@ -1,5 +1,5 @@
 require("dotenv").config();
-const Web3 = require('web3')
+const { Web3 } = require('web3')
 
 const tokenMessengerAbi = require('./abis/cctp/TokenMessenger.json');
 const messageAbi = require('./abis/cctp/Message.json');

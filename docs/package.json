@@ -10,7 +10,7 @@
   "license": "Apache-2.0",
   "dependencies": {
     "ethers": "^5.7.2",
-    "web3": "^1.8.1"
+    "web3": "4.16.0"
   },
   "devDependencies": {
     "dotenv": "^16.0.3"
