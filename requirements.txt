@@ -35,7 +35,7 @@ rlp==4.1.0
 semantic-version==2.10.0
 six==1.16.0
 toolz==0.12.0
-urllib3==1.26.11
+urllib3==2.5.0
 varint==1.0.2
 web3==6.20.3
 websockets==15.0.1
