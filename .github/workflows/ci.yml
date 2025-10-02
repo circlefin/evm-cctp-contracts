@@ -39,7 +39,7 @@ jobs:
         run: make anvil-test-v2
 
   analyze-message-transmitter:
-    runs-on: ubuntu-latest
+    runs-on: 2xlarge-spot
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -55,7 +55,7 @@ jobs:
         run: make analyze-message-transmitter
 
   analyze-message-transmitter-v2:
-    runs-on: ubuntu-latest
+    runs-on: 2xlarge-spot
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
@@ -71,7 +71,7 @@ jobs:
         run: make analyze-message-transmitter-v2
 
   analyze-token-messenger-minter:
-    runs-on: ubuntu-latest
+    runs-on: 2xlarge-spot
     steps:
       - name: Check out repository code
         uses: actions/checkout@v4
