@@ -2891,6 +2891,86 @@ contract TokenMessengerV2Test is BaseTokenMessengerTest {
         localTokenMessenger.getMinFeeAmount(_amount);
     }
 
+    /**
+     * @notice Invariant: when a minimum fee is set, the enforced fee floor returned by
+     * getMinFeeAmount() is always >= 1 and strictly less than the burn amount (for amount > 1,
+     * which _boundAmountForMinFee guarantees). This means a valid maxFee in [floor, amount)
+     * always exists, so the minimum-fee floor can never make a deposit impossible to satisfy.
+     */
+    function testGetMinFeeAmount_isStrictlyLessThanAmount(
+        uint256 _amount,
+        uint256 _minFee
+    ) public {
+        _minFee = bound(_minFee, 1, MIN_FEE_MULTIPLIER - 1);
+        _amount = _boundAmountForMinFee(_amount, _minFee);
+        vm.prank(minFeeController);
+        localTokenMessenger.setMinFee(_minFee);
+
+        uint256 _floor = localTokenMessenger.getMinFeeAmount(_amount);
+        assertGe(_floor, 1);
+        assertLt(_floor, _amount);
+    }
+
+    /**
+     * @notice The public getMinFeeAmount() is the exact lower bound that depositForBurn enforces:
+     * a deposit with maxFee equal to the returned floor must be accepted end-to-end.
+     */
+    function testDepositForBurn_succeedsAtExactMinFeeFloor(
+        uint256 _amount,
+        uint256 _minFee,
+        bytes calldata _hookData
+    ) public {
+        _minFee = bound(_minFee, 1, MIN_FEE_MULTIPLIER - 1);
+        _amount = _boundAmountForMinFee(_amount, _minFee);
+        vm.prank(minFeeController);
+        localTokenMessenger.setMinFee(_minFee);
+
+        uint256 _maxFee = localTokenMessenger.getMinFeeAmount(_amount);
+
+        address _caller = address(0xBEEF);
+        _setupDepositForBurn(_caller, _amount, _amount);
+
+        // maxFee == the exact public floor must be accepted (mirrors enforcement in _depositForBurn).
+        _depositForBurn(
+            _caller,
+            bytes32(uint256(0xCAFE)),
+            bytes32(0),
+            _amount,
+            _maxFee,
+            1000,
+            _hookData
+        );
+    }
+
+    /**
+     * @notice The public getMinFeeAmount() is the exact lower bound that depositForBurn enforces:
+     * a deposit with maxFee one wei below the returned floor must revert. Since the floor is always
+     * >= 1 when minFee > 0, floor - 1 is the largest rejected maxFee.
+     */
+    function testDepositForBurn_revertsJustBelowMinFeeFloor(
+        uint256 _amount,
+        uint256 _minFee
+    ) public {
+        _minFee = bound(_minFee, 1, MIN_FEE_MULTIPLIER - 1);
+        _amount = _boundAmountForMinFee(_amount, _minFee);
+        vm.prank(minFeeController);
+        localTokenMessenger.setMinFee(_minFee);
+
+        uint256 _maxFee = localTokenMessenger.getMinFeeAmount(_amount) - 1;
+
+        // Reverts at the minimum-fee check before any token transfer or message send.
+        vm.expectRevert("Insufficient max fee");
+        localTokenMessenger.depositForBurn(
+            _amount,
+            remoteDomain,
+            bytes32(uint256(0xCAFE)),
+            address(localToken),
+            bytes32(0),
+            _maxFee,
+            1000
+        );
+    }
+
     // Test helpers
 
     function _defaultRemoteTokenMessengers()

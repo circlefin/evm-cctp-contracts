@@ -3,5 +3,10 @@ src = 'src'
 out = 'out'
 libs = ['lib']
 optimizer_runs = 100000
+# These message-format unit tests assert that `internal` library validators revert.
+# Modern Foundry requires `vm.expectRevert` to catch reverts in a deeper call frame by
+# default; this flag restores catching same-depth (internal) reverts so the tests pass
+# on current Foundry without contorting them through external wrappers.
+allow_internal_expect_revert = true
 [fuzz]
 runs = 10000
