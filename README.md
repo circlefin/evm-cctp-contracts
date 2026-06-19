@@ -225,7 +225,7 @@ Use Create2Factory to deploy the helper library to a deterministic address for e
 #### Predicting Create2 Deployment Addresses
 
 The `PredictCreate2Deployments.s.sol` script can help compute expected deployment addresses for various contracts. You can run it like so:
-
+__
 - Predicting MessageTransmitterV2 Implementation: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "messageTransmitterV2Impl(address,uint32,uint32)" <create2FactoryAddress> <domain> <message version>`
 
 - Predicting TokenMessengerV2 Implementation: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "tokenMessengerV2Impl(address,uint32)" <create2FactoryAddress> <messageBodyVersion>`
@@ -241,3 +241,21 @@ The `PredictCreate2Deployments.s.sol` script can help compute expected deploymen
 ## License
 
 For license information, see LICENSE and additional notices stored in NOTICES.
+
+### Example: Sending a CCTP Message
+
+```solidity
+import {CCTP} from "./CCTP.sol";
+
+contract Sender {
+    CCTP cctp;
+
+    constructor(address cctpAddress) {
+        cctp = CCTP(cctpAddress);
+    }
+
+    function send(bytes calldata payload, uint32 destinationChainId) external {
+        cctp.sendMessage(payload, destinationChainId);
+    }
+}
+
