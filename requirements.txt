@@ -4,7 +4,7 @@ async-timeout==4.0.2
 attrs==22.1.0
 base58==2.1.1
 bitarray==2.6.0
-certifi==2022.12.7
+certifi==2024.7.4
 charset-normalizer==2.1.0
 cytoolz==0.12.3
 eth-abi==5.2.0
