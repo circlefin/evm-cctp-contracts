@@ -70,7 +70,22 @@ Use Docker to run Foundry commands. Run `make build` to build Foundry docker ima
 - Some machines (including those with M1 chips) may be unable to build the docker image locally. This is a known issue.
 
 ## Deployment
+Create a `.env` file and configure the required variables:
 
+## Deploying to Testnets
+
+This section describes how to deploy the CCTP contracts to supported Ethereum test networks.
+
+### Prerequisites
+
+- Node.js (v18 or later)
+- npm or yarn
+- A funded testnet account
+- RPC endpoints for the target network
+
+### Environment setup
+
+Create a `.env` file and configure the required variables:
 ### V1
 
 The contracts are deployed using [Forge Scripts](https://book.getfoundry.sh/tutorials/solidity-scripting). The script is located in [scripts/v1/deploy.s.sol](/scripts/v1/deploy.s.sol). Follow the below steps to deploy the contracts:
