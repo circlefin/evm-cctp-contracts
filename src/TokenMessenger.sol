@@ -373,12 +373,12 @@ contract TokenMessenger is IMessageHandler, Rescuable {
      */
     function removeRemoteTokenMessenger(uint32 domain) external onlyOwner {
         // No TokenMessenger set for given remote domain.
+        bytes32 _removedTokenMessenger = remoteTokenMessengers[domain];
         require(
-            remoteTokenMessengers[domain] != bytes32(0),
+            _removedTokenMessenger != bytes32(0),
             "No TokenMessenger set"
         );
 
-        bytes32 _removedTokenMessenger = remoteTokenMessengers[domain];
         delete remoteTokenMessengers[domain];
         emit RemoteTokenMessengerRemoved(domain, _removedTokenMessenger);
     }
@@ -561,8 +561,9 @@ contract TokenMessenger is IMessageHandler, Rescuable {
      * @return local minter as ITokenMinter.
      */
     function _getLocalMinter() internal view returns (ITokenMinter) {
-        require(address(localMinter) != address(0), "Local minter is not set");
-        return localMinter;
+        ITokenMinter _minter = localMinter;
+        require(address(_minter) != address(0), "Local minter is not set");
+        return _minter;
     }
 
     /**
@@ -588,8 +589,6 @@ contract TokenMessenger is IMessageHandler, Rescuable {
      * @return true if message sender is the registered local message transmitter
      */
     function _isLocalMessageTransmitter() internal view returns (bool) {
-        return
-            address(localMessageTransmitter) != address(0) &&
-            msg.sender == address(localMessageTransmitter);
+        return msg.sender == address(localMessageTransmitter);
     }
 }
