@@ -162,6 +162,12 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * any address can broadcast the message.
      * @param maxFee maximum fee to pay on the destination domain, specified in units of burnToken
      * @param minFinalityThreshold the minimum finality at which a burn message will be attested to.
+     * Must be >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD (see FinalityThresholds.sol).
+     * Values below FINALITY_THRESHOLD_CONFIRMED (1000) make the message eligible for fast
+     * attestation at the confirmed level (fast transfer), which requires `maxFee` to cover the
+     * fast-transfer fee and is subject to a global fast-transfer allowance. Values >=
+     * FINALITY_THRESHOLD_FINALIZED (2000) are attested only at the finalized level (standard
+     * transfer; no fast-transfer fee). See the CCTP documentation for per-chain finality timing.
      */
     function depositForBurn(
         uint256 amount,
@@ -205,6 +211,13 @@ contract TokenMessengerV2 is IMessageHandlerV2, BaseTokenMessenger {
      * @param destinationCaller authorized caller on the destination domain, as bytes32. If equal to bytes32(0),
      * any address can broadcast the message.
      * @param maxFee maximum fee to pay on the destination domain, specified in units of burnToken
+     * @param minFinalityThreshold the minimum finality at which a burn message will be attested to.
+     * Must be >= TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD (see FinalityThresholds.sol).
+     * Values below FINALITY_THRESHOLD_CONFIRMED (1000) make the message eligible for fast
+     * attestation at the confirmed level (fast transfer), which requires `maxFee` to cover the
+     * fast-transfer fee and is subject to a global fast-transfer allowance. Values >=
+     * FINALITY_THRESHOLD_FINALIZED (2000) are attested only at the finalized level (standard
+     * transfer; no fast-transfer fee). See the CCTP documentation for per-chain finality timing.
      * @param hookData hook data to append to burn message for interpretation on destination domain
      */
     function depositForBurnWithHook(

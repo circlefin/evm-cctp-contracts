@@ -1,5 +1,32 @@
 # evm-cctp-contracts
 
+## Finality Thresholds (V2)
+
+CCTP V2 `depositForBurn` and `depositForBurnWithHook` take a `minFinalityThreshold` parameter that
+specifies the minimum confirmation level at which Circle's attestation service will attest to the
+burn message. The canonical constants live in
+[`src/v2/FinalityThresholds.sol`](./src/v2/FinalityThresholds.sol):
+
+| Constant | Value | Meaning |
+| --- | --- | --- |
+| `TOKEN_MESSENGER_MIN_FINALITY_THRESHOLD` | 500 | Minimum accepted threshold; lower values revert on receive |
+| `FINALITY_THRESHOLD_CONFIRMED` | 1000 | At or above: message may be attested at the confirmed level |
+| `FINALITY_THRESHOLD_FINALIZED` | 2000 | At or above: message is attested only at the finalized level |
+
+Recommended usage:
+
+- **Fast transfer** — pass a value < `FINALITY_THRESHOLD_CONFIRMED` (and >= 500). The message is
+  attested quickly at the confirmed level, requires `maxFee` to cover the fast-transfer fee, and is
+  subject to a global fast-transfer allowance.
+- **Standard transfer** — pass `FINALITY_THRESHOLD_FINALIZED` (2000). The message is attested only
+  after full finality on the source chain; no fast-transfer fee applies.
+
+Note that `minFinalityThreshold` only controls how quickly a message *may* be attested; the actual
+level at which it was attested is reported as `finalityThresholdExecuted` on the received message.
+Receiving contracts should branch on this value (see `IMessageHandlerV2#handleReceiveFinalizedMessage`
+vs `#handleReceiveUnfinalizedMessage`). For per-chain confirmation counts and expected attestation
+times, see the [CCTP documentation](https://developers.circle.com/cctp/concepts/finality-and-block-confirmations).
+
 ## Prerequisites
 
 ### Install dependencies
