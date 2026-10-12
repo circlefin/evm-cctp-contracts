@@ -145,6 +145,7 @@ The proxies are deployed via `CREATE2` through Create2Factory. The scripts assum
     - `REMOTE_USDC_CONTRACT_ADDRESSES`
     - `REMOTE_TOKEN_MESSENGER_V2_ADDRESSES`
     - `CREATE2_FACTORY_CONTRACT_ADDRESS`
+    - `CREATE2_FACTORY_OWNER`
 
     - `MESSAGE_TRANSMITTER_V2_OWNER_ADDRESS`
     - `MESSAGE_TRANSMITTER_V2_PAUSER_ADDRESS`
@@ -166,6 +167,8 @@ The proxies are deployed via `CREATE2` through Create2Factory. The scripts assum
     - `TOKEN_MESSENGER_V2_MIN_FEE`
 
     - `DOMAIN`
+    - `MESSAGE_BODY_VERSION`
+    - `VERSION`
     - `BURN_LIMIT_PER_MESSAGE`
 
     - `TOKEN_CONTROLLER_KEY`
@@ -236,7 +239,7 @@ The `PredictCreate2Deployments.s.sol` script can help compute expected deploymen
 
 - Predicting TokenMinter: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "tokenMinterV2(address)" <create2FactoryAddress>`
 
-- Predicting AddressUtilsExternal: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "addressUtilsExternal(address)`
+- Predicting AddressUtilsExternal: `forge script scripts/v2/PredictCreate2Deployments.s.sol --sig "addressUtilsExternal(address)" <create2FactoryAddress>`
 
 ## License
 
