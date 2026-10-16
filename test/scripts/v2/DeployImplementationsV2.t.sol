@@ -20,7 +20,7 @@ import {ScriptV2TestUtils} from "./ScriptV2TestUtils.sol";
 import {DeployImplementationsV2Script} from "../../../scripts/v2/DeployImplementationsV2.s.sol";
 import {MessageTransmitterV2} from "../../../src/v2/MessageTransmitterV2.sol";
 import {TokenMessengerV2} from "../../../src/v2/TokenMessengerV2.sol";
-import {SALT_TOKEN_MINTER} from "../../../scripts/v2/Salts.sol";
+import {SALT_MESSAGE_TRANSMITTER, SALT_TOKEN_MINTER} from "../../../scripts/v2/Salts.sol";
 import {TokenMinterV2} from "../../../src/v2/TokenMinterV2.sol";
 
 contract DeployImplementationsV2Test is ScriptV2TestUtils {
@@ -28,11 +28,12 @@ contract DeployImplementationsV2Test is ScriptV2TestUtils {
 
     function setUp() public {
         _deployCreate2Factory();
-        _deployImplementations();
         deployImplementationsV2Script = new DeployImplementationsV2Script();
     }
 
     function testDeployImplementationsV2() public {
+        _deployImplementations();
+
         // MessageTransmitterV2
         assertEq(messageTransmitterV2Impl.localDomain(), uint256(sourceDomain));
         assertEq(messageTransmitterV2Impl.version(), uint256(_version));
@@ -52,6 +53,70 @@ contract DeployImplementationsV2Test is ScriptV2TestUtils {
         assertEq(tokenMinterV2.owner(), deployer);
 
         // TokenMessengerV2
+        assertEq(
+            address(tokenMessengerV2Impl.localMessageTransmitter()),
+            address(expectedMessageTransmitterV2ProxyAddress)
+        );
+        assertEq(
+            tokenMessengerV2Impl.messageBodyVersion(),
+            uint256(_messageBodyVersion)
+        );
+    }
+
+    function testDeployImplementationsV2WhenAlreadyDeployed() public {
+        _deployImplementations();
+        address messageTransmitterV2Address = address(messageTransmitterV2Impl);
+        address tokenMessengerV2Address = address(tokenMessengerV2Impl);
+        address tokenMinterV2Address = address(tokenMinterV2);
+
+        // Running the script again reuses all three contracts.
+        _deployImplementations();
+
+        assertEq(
+            address(messageTransmitterV2Impl),
+            messageTransmitterV2Address
+        );
+        assertEq(address(tokenMessengerV2Impl), tokenMessengerV2Address);
+        assertEq(address(tokenMinterV2), tokenMinterV2Address);
+        assertEq(tokenMinterV2.owner(), deployer);
+    }
+
+    function testDeployImplementationsV2WhenOnlyTokenMessengerV2IsMissing()
+        public
+    {
+        // Deploy MessageTransmitterV2 and TokenMinterV2 at the addresses the
+        // script uses, as on a chain where only TokenMessengerV2 changed.
+        vm.startPrank(deployer);
+        address messageTransmitterV2Address = create2Factory.deploy(
+            0,
+            SALT_MESSAGE_TRANSMITTER,
+            abi.encodePacked(
+                type(MessageTransmitterV2).creationCode,
+                abi.encode(sourceDomain, _version)
+            )
+        );
+        address tokenMinterV2Address = create2Factory.deploy(
+            0,
+            SALT_TOKEN_MINTER,
+            abi.encodePacked(
+                type(TokenMinterV2).creationCode,
+                abi.encode(create2Factory)
+            )
+        );
+        vm.stopPrank();
+
+        _deployImplementations();
+
+        // The existing contracts are reused and TokenMinterV2 keeps its owner.
+        assertEq(
+            address(messageTransmitterV2Impl),
+            messageTransmitterV2Address
+        );
+        assertEq(address(tokenMinterV2), tokenMinterV2Address);
+        assertEq(tokenMinterV2.owner(), address(create2Factory));
+        assertEq(tokenMinterV2.pendingOwner(), address(0));
+
+        // TokenMessengerV2 is deployed.
         assertEq(
             address(tokenMessengerV2Impl.localMessageTransmitter()),
             address(expectedMessageTransmitterV2ProxyAddress)

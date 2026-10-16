@@ -19,6 +19,7 @@ pragma solidity 0.7.6;
 pragma abicoder v2;
 
 import {Script} from "forge-std/Script.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {AdminUpgradableProxy} from "../../src/proxy/AdminUpgradableProxy.sol";
 import {TokenMessengerV2} from "../../src/v2/TokenMessengerV2.sol";
 import {TokenMinter, TokenMinterV2} from "../../src/v2/TokenMinterV2.sol";
@@ -65,8 +66,8 @@ contract DeployImplementationsV2Script is Script {
 
         // Deploy MessageTransmitterV2 implementation
         messageTransmitterV2 = MessageTransmitterV2(
-            factory.deploy(
-                0,
+            deployIfMissing(
+                factory,
                 SALT_MESSAGE_TRANSMITTER,
                 abi.encodePacked(
                     type(MessageTransmitterV2).creationCode,
@@ -77,8 +78,8 @@ contract DeployImplementationsV2Script is Script {
 
         // Deploy TokenMessengerV2 implementation
         tokenMessengerV2 = TokenMessengerV2(
-            factory.deploy(
-                0,
+            deployIfMissing(
+                factory,
                 SALT_TOKEN_MESSENGER,
                 abi.encodePacked(
                     type(TokenMessengerV2).creationCode,
@@ -107,27 +108,53 @@ contract DeployImplementationsV2Script is Script {
         tokenMinterMultiCallData[1] = tokenMinterOwnershipRotation;
 
         // Deploy TokenMinter
+        bytes memory tokenMinterBytecode = abi.encodePacked(
+            type(TokenMinterV2).creationCode,
+            abi.encode(address(factory))
+        );
         tokenMinterV2 = TokenMinterV2(
+            vm.computeCreate2Address(
+                SALT_TOKEN_MINTER,
+                keccak256(tokenMinterBytecode),
+                address(factory)
+            )
+        );
+        bool deployTokenMinter = !Address.isContract(address(tokenMinterV2));
+        if (deployTokenMinter) {
             factory.deployAndMultiCall(
                 0,
                 SALT_TOKEN_MINTER,
-                abi.encodePacked(
-                    type(TokenMinterV2).creationCode,
-                    abi.encode(address(factory))
-                ),
+                tokenMinterBytecode,
                 tokenMinterMultiCallData
-            )
-        );
+            );
+        }
 
         // Stop recording transactions
         vm.stopBroadcast();
 
         // Accept the TokenMinter 2-step ownership
-        vm.startBroadcast(tokenMinterOwnerKey);
-        tokenMinterV2.acceptOwnership();
-        vm.stopBroadcast();
+        if (deployTokenMinter) {
+            vm.startBroadcast(tokenMinterOwnerKey);
+            tokenMinterV2.acceptOwnership();
+            vm.stopBroadcast();
+        }
 
         return (messageTransmitterV2, tokenMinterV2, tokenMessengerV2);
+    }
+
+    function deployIfMissing(
+        Create2Factory factory,
+        bytes32 salt,
+        bytes memory bytecode
+    ) private returns (address addr) {
+        addr = vm.computeCreate2Address(
+            salt,
+            keccak256(bytecode),
+            address(factory)
+        );
+        if (!Address.isContract(addr)) {
+            factory.deploy(0, salt, bytecode);
+        }
     }
 
     /**
