@@ -96,16 +96,17 @@ cast-send:
 clean:
 	@${FOUNDRY} "forge clean"
 
-analyze-message-transmitter:
+mythril:
 	pip3 install mythril==0.24.8
+	python3 -c "import solcx.install as s; s.BINARY_DOWNLOAD_BASE = 'https://binaries.soliditylang.org/{}-amd64/{}'; s.install_solc('0.7.6')"
+
+analyze-message-transmitter: mythril
 	myth -v4 analyze src/MessageTransmitter.sol --solc-json mythril.config.json --solv 0.7.6
 
-analyze-message-transmitter-v2:
-	pip3 install mythril==0.24.8
+analyze-message-transmitter-v2: mythril
 	myth -v4 analyze src/v2/MessageTransmitterV2.sol --solc-json mythril.config.json --solv 0.7.6
 
-analyze-token-messenger-minter:
-	pip3 install mythril==0.24.8
+analyze-token-messenger-minter: mythril
 	myth -v4 analyze src/TokenMessenger.sol --solc-json mythril.config.json --solv 0.7.6
 	myth -v4 analyze src/TokenMinter.sol --solc-json mythril.config.json --solv 0.7.6
 	myth -v4 analyze src/v2/TokenMessengerV2.sol --solc-json mythril.config.json --solv 0.7.6
