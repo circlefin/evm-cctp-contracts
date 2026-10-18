@@ -97,11 +97,20 @@ contract ScriptV2TestUtils is TestUtils {
             .expectedMessageTransmitterV2ProxyAddress();
     }
 
+    // CREATE2 keeps the token addresses the same in every suite, because
+    // vm.setEnv is shared by suites running in parallel
+    function _deployMockToken(
+        string memory _saltName
+    ) internal returns (address) {
+        return
+            address(new MockMintBurnToken{salt: keccak256(bytes(_saltName))}());
+    }
+
     function _deployProxies() internal {
-        token = address(new MockMintBurnToken());
-        remoteTokens.push(address(new MockMintBurnToken()));
-        remoteTokens.push(address(new MockMintBurnToken()));
-        remoteTokens.push(address(new MockMintBurnToken()));
+        token = _deployMockToken("DEPLOYTEST_TOKEN");
+        remoteTokens.push(_deployMockToken("DEPLOYTEST_REMOTE_TOKEN_1"));
+        remoteTokens.push(_deployMockToken("DEPLOYTEST_REMOTE_TOKEN_2"));
+        remoteTokens.push(_deployMockToken("DEPLOYTEST_REMOTE_TOKEN_3"));
         remoteDomains.push(1);
         remoteDomains.push(2);
         remoteDomains.push(3);
@@ -114,7 +123,9 @@ contract ScriptV2TestUtils is TestUtils {
         remoteTokenMessengerV2s.push(
             vm.addr(uint256(keccak256("REMOTE_TOKEN_MESSENGER_V2_ADDRESS_3")))
         );
-        anotherRemoteToken = address(new MockMintBurnToken());
+        anotherRemoteToken = _deployMockToken(
+            "DEPLOYTEST_ANOTHER_REMOTE_TOKEN"
+        );
 
         attester1 = vm.addr(uint256(keccak256("DEPLOYTEST_ATTESTER_1_PK")));
         attester2 = vm.addr(uint256(keccak256("DEPLOYTEST_ATTESTER_2_PK")));
